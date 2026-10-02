@@ -1,0 +1,46 @@
+{
+  "source_revision": "6b3d6ec98f5fdd84d640f39496256590b033d39f",
+  "captured_at": "2026-10-02",
+  "platform": "macOS arm64 native app",
+  "fixtures": "Synthetic Cedar, Lumen, Orbit conversations. Simulated summary; no provider requests or real messages.",
+  "screenshots": {
+    "ready.png": "Actual feature ready to summarize, exported from XCTest",
+    "summary.png": "Saved summary with 3 messages and 3 recipient reactions, exported from XCTest",
+    "stale.png": "Actual stale-summary warning after synthetic follow-up, captured through native UI"
+  },
+  "video": {
+    "file": "workflow.mp4",
+    "duration_seconds": 26,
+    "format": "H.264 MP4",
+    "capture": "Sequence of captured native UI states with held frames and edited pauses; not a continuous screen recording. No synthetic UI pixels. Summary, follow-up, stale warning, update to 12 responses (6 messages + 6 recipient reactions)."
+  },
+  "validation": {
+    "test_count": 61,
+    "passed": 61,
+    "failed": 0,
+    "skipped": 0,
+    "result_bundle": "Test-MsgBlast-2026.10.02_12-27-42--0700.xcresult",
+    "bundle_identifier": "com.msgblast.personal-agent-validation",
+    "live_provider_authentication_tested": false,
+    "installed_app_released": false
+  },
+  "review": {
+    "status": "complete",
+    "run_id": "20261002-120911-3fc64c09",
+    "applied_findings": [
+      1,
+      2
+    ],
+    "fixes": "Reaction context/counts/fingerprints and normal-quit cancellation/await. Process-group cleanup regression covers descendants ignoring SIGTERM and wrapper exit. Fixes applied after original review and verified in final suite."
+  },
+  "research": {
+    "repository": "https://github.com/get-bb/bb",
+    "revision": "c8b9459ba911a5666fda4ed63291aed68b6a64be"
+  },
+  "sha256": {
+    "ready.png": "042cc7a97ee36e3c8625412119acc9aeb32a48296a793546661dab611865bd7f",
+    "stale.png": "e960bb456a1e1970b43d1cbd2fd0512a005f7dd1bc441aa474eaa9f575934933",
+    "summary.png": "27bf3ed41b721f7161545570b6d2cac61bcc79efaa0e9d2fb9b042063cec684d",
+    "workflow.mp4": "3e51e988c5cd2d51031843b8c3db920a416ae473a6f9927dd9360d2a122cff0a"
+  }
+}
