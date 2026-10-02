@@ -58,7 +58,7 @@ The private repository is [mgalpert/msgblast](https://github.com/mgalpert/msgbla
 
 Configured app bundles use Sparkle’s native update dialog and release notes. Settings shows the version/build, automatic check and download preferences, and Check for Updates. Updates wait for active submissions and save drafts before quitting. Development builds without a feed/key explain that updates are unavailable; ordinary demos, previews, XCTest and unbundled runs never query production feeds.
 
-See [release preparation and hosting](docs/updates.md) for Developer ID signing, notarization, signed appcasts and explicit increasing build counters. The repository is private; a publicly downloadable HTTPS feed/archive host is still required. The running app must be replaced once with the first updater-enabled build before it can receive future updates.
+Push a `vVERSION` tag to run the [automated ad-hoc release pipeline](docs/automated-releases.md) after its one-time R2 hosting and Actions key setup. It tests, builds, signs and publishes without Apple Developer credentials; build counters are allocated automatically. The source repository remains private. [Developer ID signing and notarization](docs/updates.md) remain an optional distribution path. Install the first updater-enabled build manually before relying on future updates.
 
 After building in a separate derived-data directory, exercise real Sparkle with temporary signed localhost fixtures:
 

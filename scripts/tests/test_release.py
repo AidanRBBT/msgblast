@@ -42,6 +42,86 @@ class ReleaseTests(unittest.TestCase):
             args[args.index(flag) + 1] = value
         return release.parse_args(args)
 
+    def adhoc_args(self):
+        args = list(self.args)
+        for flag in ("--identity", "--team-id", "--notary-profile"):
+            index = args.index(flag)
+            del args[index:index + 2]
+        return args + ["--signing-mode", "ad-hoc"]
+
+    def test_adhoc_dry_run_needs_no_apple_credentials_or_key_file_access(self):
+        private = self.root / "not-provisioned-yet.key"
+        with patch.object(release, "run", side_effect=AssertionError("No commands")), contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(release.main(self.adhoc_args() + ["--ed-key-file", str(private), "--dry-run"]), 0)
+        self.assertFalse((self.root / "output").exists())
+        self.assertFalse(private.exists())
+
+    def test_adhoc_plan_builds_release_without_apple_signing(self):
+        options = release.parse_args(self.adhoc_args() + ["--ed-key-file", str(self.root / "ci.key")])
+        release.validate_options(options)
+        commands = release.command_plan(options)
+        archive = next(cmd for cmd in commands if "archive" in cmd)
+        self.assertIn("Release", archive)
+        self.assertIn("CODE_SIGNING_ALLOWED=NO", archive)
+        self.assertFalse(any(cmd[0] in ("security", "spctl") or "notarytool" in cmd or "stapler" in cmd for cmd in commands))
+        self.assertFalse(any("-exportArchive" in cmd for cmd in commands))
+        self.assertTrue(any(cmd[:4] == ["codesign", "--force", "--sign", "-"] for cmd in commands))
+        signing = [cmd for cmd in commands if Path(cmd[0]).name in ("sign_update", "generate_appcast")]
+        self.assertEqual(len(signing), 5)
+        for cmd in signing:
+            self.assertIn("--ed-key-file", cmd)
+            self.assertNotIn("--account", cmd)
+
+    def test_adhoc_prepare_retains_signature_trust_and_records_no_notarization(self):
+        private = self.root / "ci.key"
+        private.write_text(base64.b64encode(bytes(reversed(range(32)))).decode())
+        options = release.parse_args(self.adhoc_args() + ["--ed-key-file", str(private)])
+        runner, commands = self.fake_runner(options)
+        with patch.object(release, "run", side_effect=runner), patch.object(release, "check_tools"), contextlib.redirect_stdout(io.StringIO()):
+            release.prepare(options)
+        import json
+        manifest = json.loads((options.output / "publish/release.json").read_text())
+        self.assertEqual(manifest["signing_mode"], "ad-hoc")
+        self.assertIsNone(manifest["notarization"])
+        self.assertEqual(manifest["archive_signature"], self.signature)
+        self.assertEqual(manifest["public_key"], self.key)
+        self.assertIn("appcast.xml", manifest["sha256"])
+        self.assertFalse(any(cmd[0] in ("security", "spctl") or "notarytool" in cmd
+                             or Path(cmd[0]).name == "generate_keys" for cmd in commands))
+        self.assertNotIn(private.read_text(), repr(commands))
+        self.assertTrue(any(cmd[:4] == ["codesign", "--verify", "--deep", "--strict"] for cmd in commands))
+
+    def test_file_key_mismatch_and_invalid_seed_stop_before_build_without_leaking(self):
+        private = self.root / "ci.key"
+        private.write_text(base64.b64encode(bytes(reversed(range(32)))).decode())
+        options = release.parse_args(self.adhoc_args() + ["--ed-key-file", str(private)])
+        with patch.object(release, "run", return_value=base64.b64encode(bytes(32)).decode()) as run, patch.object(release, "check_tools"):
+            with self.assertRaisesRegex(release.ReleaseError, "public key"):
+                release.prepare(options)
+        self.assertFalse(any(call.args[0][0] == "xcodebuild" for call in run.call_args_list))
+        self.assertNotIn(private.read_text(), repr(run.call_args_list))
+        private.write_text(base64.b64encode(b"bad seed").decode())
+        with patch.object(release, "run", side_effect=AssertionError("No commands")), patch.object(release, "check_tools"):
+            with self.assertRaisesRegex(release.ReleaseError, "32-byte"):
+                release.prepare(options)
+        self.assertFalse(options.output.exists())
+
+    def test_adhoc_signs_nested_code_inside_out_preserving_helper_entitlements(self):
+        options = release.parse_args(self.adhoc_args())
+        app = options.output / "export/MsgBlast.app"
+        framework = app / "Contents/Frameworks/Sparkle.framework"
+        helper = framework / "Versions/B/XPCServices/Installer.xpc"
+        executable = helper / "Contents/MacOS/Installer"
+        executable.parent.mkdir(parents=True)
+        executable.write_bytes(bytes.fromhex("cffaedfe") + b"synthetic Mach-O")
+        with patch.object(release, "run", return_value="") as run:
+            release.sign_nested_code(options)
+        commands = [call.args[0] for call in run.call_args_list]
+        paths = [cmd[-1] for cmd in commands]
+        self.assertEqual(paths, [str(executable), str(helper), str(framework)])
+        for cmd in commands:
+            self.assertIn("--preserve-metadata=entitlements", cmd)
+
     def test_rejects_unsafe_or_missing_configuration(self):
         for change in [
             {"--identity": "-"}, {"--identity": "Apple Development: Example (ABCDEFGHIJ)"},
@@ -87,10 +167,13 @@ class ReleaseTests(unittest.TestCase):
             commands.append(cmd)
             if cmd[0] == "security":
                 return '1) ABCD "' + options.identity + '"\n'
+            if cmd[0] == "swift":
+                return self.key + "\n"
             if Path(cmd[0]).name == "generate_keys":
                 return (base64.b64encode(bytes(32)).decode() if mismatched_key else self.key) + "\n"
-            if "-exportArchive" in cmd:
-                app = options.output / "export/MsgBlast.app"
+            if "-exportArchive" in cmd or (cmd[0] == "xcodebuild" and "archive" in cmd and options.signing_mode == "ad-hoc"):
+                app = (options.output / "MsgBlast.xcarchive/Products/Applications/MsgBlast.app"
+                       if options.signing_mode == "ad-hoc" else options.output / "export/MsgBlast.app")
                 (app / "Contents/Frameworks/MsgBlastCore.framework").mkdir(parents=True)
                 (app / "Contents/Frameworks/Sparkle.framework").mkdir()
                 info = {"CFBundleIdentifier": "com.msgblast.mac", "CFBundleName": "MsgBlast",
@@ -99,12 +182,18 @@ class ReleaseTests(unittest.TestCase):
                         "SUVerifyUpdateBeforeExtraction": True, "SURequireSignedFeed": True}
                 with (app / "Contents/Info.plist").open("wb") as file:
                     plistlib.dump(info, file)
+            if cmd[:2] == ["codesign", "-dv"] and options.signing_mode == "ad-hoc":
+                return "Signature=adhoc\nflags=0x10002(adhoc,runtime)\n"
             if cmd[:2] == ["codesign", "-dv"]:
                 return "Authority=" + options.identity + "\nTeamIdentifier=" + options.team_id + "\nflags=0x10000(runtime)\n"
             if cmd[:3] == ["codesign", "-d", "--entitlements"]:
-                return plistlib.dumps({"com.apple.security.automation.apple-events": True}).decode()
+                return plistlib.dumps({"com.apple.security.automation.apple-events": True,
+                                       "com.apple.security.cs.disable-library-validation": options.signing_mode == "ad-hoc"}).decode()
             if cmd[0] == "ditto":
-                Path(cmd[-1]).write_bytes(b"synthetic archive")
+                if Path(cmd[1]).is_dir():
+                    shutil.copytree(cmd[1], cmd[-1])
+                else:
+                    Path(cmd[-1]).write_bytes(b"synthetic archive")
             if cmd[:3] == ["xcrun", "notarytool", "submit"]:
                 return '{"status":"' + notary_status + '","id":"synthetic-notarization"}'
             if Path(cmd[0]).name == "sign_update" and "-p" in cmd:
