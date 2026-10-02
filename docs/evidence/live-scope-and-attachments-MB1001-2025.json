@@ -1,0 +1,100 @@
+{
+  "comparisonID": "98C3A92C-28BF-44E2-A340-1EF2194CC54A",
+  "prompt": "MsgBlast test MB1001-1657: please reply ack. This is only a messaging test.",
+  "followUps": [
+    {
+      "text": "MsgBlast scope test MB1001-2010-private: only Michael should receive this message. Please reply ack; no research or actions requested.",
+      "recipients": [
+        "mgalpert@gmail.com"
+      ],
+      "states": {
+        "mgalpert@gmail.com": "submitted"
+      },
+      "parts": {}
+    },
+    {
+      "text": "MsgBlast scope test MB1001-2016-shared: Michael and Pal should each receive one copy. Please reply ack; no research or actions requested.",
+      "recipients": [
+        "mgalpert@gmail.com",
+        "palcowen@gmail.com"
+      ],
+      "states": {
+        "palcowen@gmail.com": "submitted",
+        "mgalpert@gmail.com": "submitted"
+      },
+      "parts": {}
+    },
+    {
+      "text": "",
+      "recipients": [
+        "mgalpert@gmail.com",
+        "palcowen@gmail.com"
+      ],
+      "states": {
+        "palcowen@gmail.com": "submitted",
+        "mgalpert@gmail.com": "submitted"
+      },
+      "parts": {
+        "palcowen@gmail.com": [
+          {
+            "state": "submitted",
+            "anchorPresent": true,
+            "filename": "MsgBlast-test-MB1001-2025.png"
+          }
+        ],
+        "mgalpert@gmail.com": [
+          {
+            "state": "submitted",
+            "anchorPresent": true,
+            "filename": "MsgBlast-test-MB1001-2025.png"
+          }
+        ]
+      }
+    },
+    {
+      "text": "",
+      "recipients": [
+        "mgalpert@gmail.com"
+      ],
+      "states": {
+        "mgalpert@gmail.com": "submitted"
+      },
+      "parts": {
+        "mgalpert@gmail.com": [
+          {
+            "state": "submitted",
+            "anchorPresent": true,
+            "filename": "MsgBlast-test-MB1001-2025.txt"
+          }
+        ]
+      }
+    }
+  ],
+  "pendingContact": {
+    "handle": "msgisaway@outlook.com",
+    "saved": true,
+    "realContactID": true,
+    "selected": false
+  },
+  "observations": [
+    "Live image cards appeared in both columns.",
+    "Live file card appeared only in Michael column.",
+    "Original Pal prompt displays a checkmark reaction.",
+    "Michael self-addressed text shows sent and received echoes; no external ack claimed.",
+    "Quick Look on the live image opened with No items selected; defect under investigation."
+  ],
+  "limitations": "App-owned submitted states and reconciled anchors prove submission/history reconciliation, not external delivery. Native Messages explicitly reports Not Delivered for Pal\u2019s synthetic PNG, despite the submitted receipt. Michael\u2019s attachment delivery is not independently verified. Synthetic attachments only. No send to unregistered Outlook address.",
+  "nativeMessagesChecks": [
+    {
+      "recipient": "palcowen@gmail.com",
+      "textMarker": "MB1001-2016-shared",
+      "status": "Delivered"
+    },
+    {
+      "recipient": "palcowen@gmail.com",
+      "filename": "MsgBlast-test-MB1001-2025.png",
+      "status": "Not Delivered",
+      "quickLook": "Image Preview names the selected synthetic PNG"
+    }
+  ]
+}

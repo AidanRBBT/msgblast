@@ -1,0 +1,32 @@
+{
+  "fill" : {
+    "automatic-gradient" : "display-p3:0.17449,0.09207,0.75729,1.00000"
+  },
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "glass" : false,
+          "image-name" : "thick-glass-stack.png",
+          "name" : "Polished 3D Glass - Clean Rims and Tails"
+        }
+      ],
+      "name" : "Original Glass Fade - White Tail Cut Faces",
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.15
+      },
+      "specular" : false,
+      "translucency" : {
+        "enabled" : false,
+        "value" : 0
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [
+      "watchOS"
+    ],
+    "squares" : "shared"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "comparisonID": "98C3A92C-28BF-44E2-A340-1EF2194CC54A",
+  "prompt": "MsgBlast test MB1001-1657: please reply ack. This is only a messaging test.",
+  "members": [
+    {
+      "handle": "mgalpert@gmail.com",
+      "submission": "submitted",
+      "anchorPresent": true
+    },
+    {
+      "handle": "palcowen@gmail.com",
+      "submission": "submitted",
+      "anchorPresent": true
+    }
+  ],
+  "manualContactIDPresent": true,
+  "limitation": "Live app-owned receipts. Submission and anchor do not prove external reply or delivery. Native Messages separately displayed Delivered for palcowen. Third address was not sent."
+}

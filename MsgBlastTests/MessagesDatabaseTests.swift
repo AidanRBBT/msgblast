@@ -1,0 +1,144 @@
+import XCTest
+import SQLite3
+@testable import MsgBlastCore
+final class MessagesDatabaseTests: XCTestCase {
+    func testDeliveryFailureIsReadFromHistoryWithoutAssumingSubmissionMeansDelivered() throws {
+        let url = try fixture(); defer { try? FileManager.default.removeItem(at: url) }
+        var writer: OpaquePointer?
+        XCTAssertEqual(sqlite3_open(url.path, &writer), SQLITE_OK)
+        let sql = """
+        ALTER TABLE message ADD COLUMN error INTEGER;
+        ALTER TABLE message ADD COLUMN is_delivered INTEGER;
+        UPDATE message SET error=4,is_delivered=1 WHERE guid='anchor';
+        UPDATE message SET error=0,is_delivered=1 WHERE guid='answer';
+        UPDATE message SET is_from_me=1,error=0,is_delivered=0 WHERE guid='reply';
+        """
+        XCTAssertEqual(sqlite3_exec(writer, sql, nil, nil, nil), SQLITE_OK)
+        sqlite3_close(writer)
+        let before = try Data(contentsOf: url)
+        let reader = try MessagesDatabase(path: url.path)
+        var messages = try reader.messages(chatID: "A")
+        XCTAssertEqual(messages[0].delivery, .failed, "A failure must take precedence over a stale delivered flag")
+        XCTAssertEqual(messages[1].delivery, .unknown, "Incoming messages do not have our send status")
+        XCTAssertEqual(messages[2].delivery, .unknown, "Accepted or pending is not delivered")
+        XCTAssertEqual(try Data(contentsOf: url), before)
+        XCTAssertEqual(sqlite3_open(url.path, &writer), SQLITE_OK)
+        XCTAssertEqual(sqlite3_exec(writer, "UPDATE message SET error=0,is_delivered=1 WHERE guid='anchor';", nil, nil, nil), SQLITE_OK)
+        sqlite3_close(writer)
+        messages = try reader.messages(chatID: "A")
+        XCTAssertEqual(messages[0].delivery, .delivered, "The same outgoing record can later report delivery")
+    }
+    func testAbsentDeliveryColumnsRemainUnknown() throws {
+        let url = try fixture(); defer { try? FileManager.default.removeItem(at: url) }
+        let messages = try MessagesDatabase(path: url.path).messages(chatID: "A")
+        XCTAssertTrue(messages.allSatisfy { $0.delivery == .unknown })
+    }
+    func testAttachmentsRemainAssociatedWithTheirMessageAndDatabaseIsReadOnly() throws {
+        let url = try fixture(); defer { try? FileManager.default.removeItem(at: url) }
+        var writer: OpaquePointer?
+        XCTAssertEqual(sqlite3_open(url.path, &writer), SQLITE_OK)
+        let sql = """
+        CREATE TABLE attachment(guid TEXT,filename TEXT,transfer_name TEXT,mime_type TEXT,total_bytes INTEGER);
+        CREATE TABLE message_attachment_join(message_id INTEGER,attachment_id INTEGER);
+        INSERT INTO attachment VALUES('photo','~/Library/Messages/Attachments/test/photo.png','photo.png','image/png',42),('file','/tmp/report.pdf','report.pdf','application/pdf',100);
+        INSERT INTO message_attachment_join VALUES(1,1),(2,2);
+        UPDATE message SET text=NULL WHERE guid='anchor';
+        """
+        XCTAssertEqual(sqlite3_exec(writer, sql, nil, nil, nil), SQLITE_OK)
+        sqlite3_close(writer)
+        let before = try Data(contentsOf: url)
+        let messages = try MessagesDatabase(path: url.path).messages(chatID: "A")
+        XCTAssertEqual(messages[0].attachments.map(\.filename), ["photo.png"])
+        XCTAssertEqual(messages[0].text, "")
+        XCTAssertTrue(messages[0].attachments[0].isImage)
+        XCTAssertEqual(messages[1].attachments.map(\.filename), ["report.pdf"])
+        XCTAssertTrue(messages[2].attachments.isEmpty)
+        XCTAssertEqual(try Data(contentsOf: url), before)
+    }
+    func fixture() throws -> URL {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("msgblast-\(UUID()).db")
+        var db: OpaquePointer?
+        XCTAssertEqual(sqlite3_open(url.path, &db), SQLITE_OK)
+        defer { sqlite3_close(db) }
+        let sql = """
+        CREATE TABLE chat(guid TEXT); CREATE TABLE handle(id TEXT,service TEXT);
+        CREATE TABLE chat_handle_join(chat_id INTEGER,handle_id INTEGER);
+        CREATE TABLE chat_message_join(chat_id INTEGER,message_id INTEGER);
+        CREATE TABLE message(guid TEXT,text TEXT,date INTEGER,is_from_me INTEGER,thread_originator_guid TEXT,associated_message_type INTEGER);
+        INSERT INTO chat VALUES('A'),('group'),('empty'),('sms');
+        INSERT INTO handle VALUES('palcowen@gmail.com','iMessage'),('mgalpert@gmail.com','iMessage'),('empty@example.com','iMessage'),('sms@example.com','SMS');
+        INSERT INTO chat_handle_join VALUES(1,1),(2,1),(2,2),(3,3),(4,4);
+        INSERT INTO message VALUES('anchor','shared',810000000000000000,1,NULL,0),('answer','first',810000001000000000,0,NULL,0),('reply','older reply',810000002000000000,0,'anchor',0),('reaction',NULL,810000003000000000,0,NULL,2000);
+        INSERT INTO chat_message_join VALUES(1,1),(1,2),(1,3),(1,4),(2,2),(4,2);
+        """
+        XCTAssertEqual(sqlite3_exec(db, sql, nil, nil, nil), SQLITE_OK)
+        return url
+    }
+    func testReadOnlyAdapterRoutesAndReadsWithoutMutatingDatabase() throws {
+        let url = try fixture(); defer { try? FileManager.default.removeItem(at: url) }
+        let before = try Data(contentsOf: url)
+        let store = try MessagesDatabase(path: url.path)
+        let chats = try store.chats()
+        XCTAssertEqual(chats.map(\.id), ["A"])
+        let messages = try store.messages(chatID: "A", after: 1)
+        XCTAssertEqual(messages.map(\.guid), ["anchor", "answer", "reply"])
+        XCTAssertEqual(messages.last?.replyTo, "anchor")
+        XCTAssertTrue(store.supportsReplyRelationships)
+        XCTAssertEqual(try Data(contentsOf: url), before)
+        XCTAssertTrue(try store.messages(chatID: "A' OR 1=1 --").isEmpty)
+    }
+    func testMissingDatabaseDoesNotCreateFile() {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("missing-\(UUID()).db")
+        XCTAssertThrowsError(try MessagesDatabase(path: url.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
+    }
+    func testReactionsAttachToTheirMessageAndRespectReplacementAndRemoval() throws {
+        let url = try fixture(); defer { try? FileManager.default.removeItem(at: url) }
+        var writer: OpaquePointer?
+        XCTAssertEqual(sqlite3_open(url.path, &writer), SQLITE_OK)
+        let sql = """
+        ALTER TABLE message ADD COLUMN associated_message_guid TEXT;
+        ALTER TABLE message ADD COLUMN associated_message_emoji TEXT;
+        ALTER TABLE message ADD COLUMN handle_id INTEGER;
+        INSERT INTO message(guid,text,date,is_from_me,associated_message_type,associated_message_guid,handle_id) VALUES
+        ('like',NULL,810000004000000000,0,2001,'p:0/anchor',1),
+        ('love',NULL,810000005000000000,0,2000,'p:0/anchor',1),
+        ('mine',NULL,810000006000000000,1,2003,'bp:anchor',0);
+        INSERT INTO message(guid,date,is_from_me,associated_message_type,associated_message_guid,associated_message_emoji,handle_id) VALUES
+        ('custom',810000007000000000,0,2006,'p:0/answer','✅',1),
+        ('remove-love',810000008000000000,0,3000,'p:0/anchor',NULL,1),
+        ('unrelated',810000009000000000,0,2006,'p:0/not-in-this-chat','🎉',1),
+        ('late-synced-like',810000004500000000,0,2001,'p:0/anchor',NULL,1),
+        ('late-synced-custom',810000006500000000,0,2006,'p:0/answer','🎉',1);
+        INSERT INTO chat_message_join VALUES(1,5),(1,6),(1,7),(1,8),(1,9),(1,10),(1,11),(1,12);
+        """
+        XCTAssertEqual(sqlite3_exec(writer, sql, nil, nil, nil), SQLITE_OK)
+        sqlite3_close(writer)
+        let before = try Data(contentsOf: url)
+        let reader = try MessagesDatabase(path: url.path)
+        let messages = try reader.messages(chatID: "A", after: 1)
+        XCTAssertEqual(messages.map(\.guid), ["anchor", "answer", "reply"])
+        XCTAssertEqual(messages[0].reactions.map(\.emoji), ["😂"])
+        XCTAssertEqual(messages[0].reactions.first?.outgoing, true)
+        XCTAssertEqual(messages[1].reactions.map(\.emoji), ["✅"])
+        XCTAssertEqual(try Data(contentsOf: url), before)
+    }
+    func testUnsupportedSchemaBlocksCleanly() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("unsupported-\(UUID()).db")
+        defer { try? FileManager.default.removeItem(at: url) }
+        var db: OpaquePointer?; sqlite3_open(url.path, &db); sqlite3_exec(db, "CREATE TABLE message(foo TEXT)", nil, nil, nil); sqlite3_close(db)
+        XCTAssertThrowsError(try MessagesDatabase(path: url.path))
+    }
+    func testChangeVersionDetectsOtherConnectionsCommits() throws {
+        let url = try fixture(); defer { try? FileManager.default.removeItem(at: url) }
+        let reader = try MessagesDatabase(path: url.path)
+        let before = try reader.changeVersion()
+        XCTAssertEqual(try reader.changeVersion(), before)
+        var writer: OpaquePointer?
+        XCTAssertEqual(sqlite3_open(url.path, &writer), SQLITE_OK)
+        defer { sqlite3_close(writer) }
+        XCTAssertEqual(sqlite3_exec(writer, "INSERT INTO message VALUES('later','new text',810000004000000000,0,NULL,0); INSERT INTO chat_message_join VALUES(1,last_insert_rowid());", nil, nil, nil), SQLITE_OK)
+        XCTAssertNotEqual(try reader.changeVersion(), before)
+        XCTAssertEqual(try reader.messages(chatID: "A").last?.guid, "later")
+    }
+}

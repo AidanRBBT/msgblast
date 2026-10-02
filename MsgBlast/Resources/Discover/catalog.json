@@ -1,0 +1,1501 @@
+{
+  "source": "https://www.imessage.store/api/app/catalog",
+  "importedOn": "2026-10-01",
+  "sourceAgentCount": 144,
+  "directListingCount": 96,
+  "unavailableIcons": [
+    "inyo",
+    "ori"
+  ],
+  "categoryOrder": [
+    "Productivity",
+    "Lifestyle",
+    "Business",
+    "Social",
+    "Shopping",
+    "Finance",
+    "Travel",
+    "Health & Fitness",
+    "Medical",
+    "Careers"
+  ],
+  "agents": [
+    {
+      "id": "orchid",
+      "name": "Orchid",
+      "tagline": "Runs your day",
+      "categories": [
+        "Productivity"
+      ],
+      "website": "https://orchid.ai",
+      "smsURL": "sms:+14152999916",
+      "number": "+14152999916",
+      "icon": "orchid.png",
+      "iconSource": "https://imessage.store/assets/logos/orchid.png",
+      "sourceListings": [
+        "https://www.imessage.store/agent/orchid"
+      ]
+    },
+    {
+      "id": "sidekicks",
+      "name": "Sidekicks",
+      "tagline": "Text an AI on any phone",
+      "categories": [
+        "Productivity"
+      ],
+      "website": "https://sidekicks.chat",
+      "smsURL": "sms:+16282134346",
+      "number": "+16282134346",
+      "icon": "sidekicks.png",
+      "iconSource": "https://imessage.store/assets/logos/sidekicks.png",
+      "sourceListings": [
+        "https://www.imessage.store/agent/sidekicks"
+      ]
+    },
+    {
+      "id": "allora",
+      "name": "Allora",
+      "tagline": "Reminders, by text",
+      "categories": [
+        "Productivity"
+      ],
+      "website": "https://textallora.com",
+      "smsURL": "sms:+18447344635",
+      "number": "+18447344635",
+      "icon": "allora.png",
+      "iconSource": "https://imessage.store/assets/logos/allora.png",
+      "sourceListings": [
+        "https://www.imessage.store/agent/allora"
+      ]
+    },
+    {
+      "id": "super",
+      "name": "Super",
+      "tagline": "Get things done by text",
+      "categories": [
+        "Productivity"
+      ],
+      "website": "https://getsupers.com",
+      "smsURL": "sms:+14243039212",
+      "number": "+14243039212",
+      "icon": "super.png",
+      "iconSource": "https://imessage.store/assets/logos/super.png",
+      "sourceListings": [
+        "https://www.imessage.store/agent/super"
+      ]
+    },
+    {
+      "id": "lucas",
+      "name": "Lucas",
+      "tagline": "Assistant that texts first",
+      "categories": [
+        "Productivity"
+      ],
+      "website": "https://meetlucas.ai",
+      "smsURL": "sms:+447496278788",
+      "number": "+447496278788",
+      "icon": "lucas.png",
+      "iconSource": "https://imessage.store/assets/logos/lucas.png",
+      "sourceListings": [
+        "https://www.imessage.store/agent/lucas"
+      ]
+    },
+    {
+      "id": "espa",
+      "name": "Espa",
+      "tagline": "Espa is your personal assistant",
+      "categories": [
+        "Productivity"
+      ],
+      "website": "https://espa.ai",
+      "smsURL": "sms:+12054909129",
+      "number": "+12054909129",
+      "icon": "espa.png",
+      "iconSource": "https://res.cloudinary.com/linq/image/upload/v1775241807/contact_card_image/Logo%20Final%20%282%29_cropped_1775241807225_xprn40.png",
+      "sourceListings": [
+        "https://www.imessage.store/agent/espa"
+      ]
+    },
+    {
+      "id": "folk",
+      "name": "folk",
+      "tagline": "folk is your personal AI assistant",
+      "categories": [
+        "Productivity"
+      ],
+      "website": "https://folk.com",
+      "smsURL": "sms:+12053561587",
+      "number": "+12053561587",
+      "icon": "folk.png",
+      "iconSource": "https://res.cloudinary.com/linq/image/upload/v1782773164/contact_card_image/folk-logo-final_cropped_1782773164622_829oej.png",
+      "sourceListings": [
+        "https://www.imessage.store/agent/folk"
+      ]
+    },
+    {
+      "id": "asmi",
+      "name": "Asmi",
+      "tagline": "Asmi is your personal assistant",
+      "categories": [
+        "Productivity"
+      ],
+      "website": "https://asmiai.com",
+      "smsURL": "sms:+14082303488",
+      "number": "+14082303488",
+      "icon": "asmi.png",
+      "iconSource": "https://res.cloudinary.com/linq/image/upload/w_1200/v1769537700/original_mkwx23d54ocxk6u.png.png",
+      "sourceListings": [
+        "https://www.imessage.store/agent/asmi",
+        "https://www.imessage.store/agent/asmi-ai"
+      ]
+    },
+    {
+      "id": "dunnit-ai",
+      "name": "Dunnit AI",
+      "tagline": "Dunnit is your personal assistant",
+      "categories": [
+        "Productivity"
+      ],
+      "website": "https://dunnit.ai",
+      "smsURL": "sms:+14155057140",
+      "number": "+14155057140",
+      "icon": "dunnit-ai.png",
+      "iconSource": "https://res.cloudinary.com/linq/image/upload/w_1200/v1771879058/contact_card_image/Group_cropped_1771879056145_1xkiyy.png",
+      "sourceListings": [
+        "https://www.imessage.store/agent/dunnit-ai"
+      ]
+    },
+    {
+      "id": "kicker",
+      "name": "Kicker 🟠",
+      "tagline": "Kicker is your proactive productivity assistant",
+      "categories": [
+        "Productivity"
+      ],
+      "website": "https://usekicker.com",
+      "smsURL": "sms:+12054016941",
+      "number": "+12054016941",
+      "icon": "kicker.png",
+      "iconSource": "https://res.cloudinary.com/linq/image/upload/v1773975788/contact_card_image/256x256%402x_cropped_1773975788522_6h8osk.png",
+      "sourceListings": [
+        "https://www.imessage.store/agent/kicker"
+      ]
+    },
+    {
+      "id": "ninjachat-ai",
+      "name": "Ninjachat AI",
+      "tagline": "Chat, image, and video generation with any model inside iMessage.",
+      "categories": [
+        "Productivity"
+      ],
+      "website": "https://ninjachat.ai/imessage",
+      "smsURL": "sms:+19178190275",
+      "number": "+19178190275",
+      "icon": "ninjachat-ai.png",
+      "iconSource": "https://www.imessage.store/api/logos/6ab67f41-eff5-495c-8e5a-8e214cb56b2f",
+      "sourceListings": [
+        "https://www.imessage.store/agent/ninjachat-ai"
+      ]
+    },
+    {
+      "id": "omg-dev",
+      "name": "omg.dev",
+      "tagline": "Claude and Codex in your imessage",
+      "categories": [
+        "Productivity"
+      ],
+      "website": "https://omg.dev",
+      "smsURL": "sms:+12692283731",
+      "number": "+12692283731",
+      "icon": "omg-dev.png",
+      "iconSource": "https://www.imessage.store/api/logos/148eedee-786a-4fa9-a9f0-9b339dc7692a",
+      "sourceListings": [
+        "https://www.imessage.store/agent/omg-dev"
+      ]
+    },
+    {
+      "id": "catch",
+      "name": "Catch",
+      "tagline": "The 24/7 AI executive assistant for busy professionals",
+      "categories": [
+        "Productivity"
+      ],
+      "website": "https://www.catchagent.ai",
+      "smsURL": "sms:+13124980805",
+      "number": "+13124980805",
+      "icon": "catch.png",
+      "iconSource": "https://www.imessage.store/api/logos/e76701f9-3313-4211-a2f6-e9657e1585d6",
+      "sourceListings": [
+        "https://www.imessage.store/agent/catch"
+      ]
+    },
+    {
+      "id": "https-chat-dev",
+      "name": "https://chat.dev/",
+      "tagline": "Use your claude/codex subscriptions to code from SMS/Voice without a computer.",
+      "categories": [
+        "Productivity"
+      ],
+      "website": "https://chat.dev/",
+      "smsURL": "sms:+12054909997",
+      "number": "+12054909997",
+      "icon": "https-chat-dev.png",
+      "iconSource": "https://www.imessage.store/api/logos/d14df44b-bf39-496c-a98e-2608c1387e0d",
+      "sourceListings": [
+        "https://www.imessage.store/agent/https-chat-dev"
+      ]
+    },
+    {
+      "id": "emailed-chat-2",
+      "name": "emailed.chat",
+      "tagline": "a new interface for email",
+      "categories": [
+        "Productivity"
+      ],
+      "website": "https://emailed.chat",
+      "smsURL": "sms:+16502816676",
+      "number": "+16502816676",
+      "icon": "emailed-chat-2.png",
+      "iconSource": "https://www.imessage.store/api/logos/fb64e46b-6d39-4234-99a2-1e6eec470f39",
+      "sourceListings": [
+        "https://www.imessage.store/agent/emailed-chat-2"
+      ]
+    },
+    {
+      "id": "agent-store",
+      "name": "agent store",
+      "tagline": "explore imessage agents",
+      "categories": [
+        "Productivity"
+      ],
+      "website": "https://www.imessage.store/",
+      "smsURL": "sms:+14242780248",
+      "number": "+14242780248",
+      "icon": "agent-store.png",
+      "iconSource": "https://www.imessage.store/api/logos/f664fbd7-5b87-485c-bb56-9b135e920fa7",
+      "sourceListings": [
+        "https://www.imessage.store/agent/agent-store"
+      ]
+    },
+    {
+      "id": "vantura",
+      "name": "Vantura",
+      "tagline": "Your intelligence officer",
+      "categories": [
+        "Productivity"
+      ],
+      "website": "https://vantura.ai/",
+      "smsURL": "sms:+14408692260",
+      "number": "+14408692260",
+      "icon": "vantura.png",
+      "iconSource": "https://www.imessage.store/api/logos/95410ce6-57ba-42b0-bfa6-c3327fec08fa",
+      "sourceListings": [
+        "https://www.imessage.store/agent/vantura"
+      ]
+    },
+    {
+      "id": "studyarena",
+      "name": "StudyArena",
+      "tagline": "Your study assistant, in your",
+      "categories": [
+        "Productivity"
+      ],
+      "website": "https://studyarena.com/imessage-study-agent",
+      "smsURL": "sms:+16462716086",
+      "number": "+16462716086",
+      "icon": "studyarena.png",
+      "iconSource": "https://www.imessage.store/api/logos/3799537d-9c7b-44e1-95c8-1f39c3605e9a",
+      "sourceListings": [
+        "https://www.imessage.store/agent/studyarena"
+      ]
+    },
+    {
+      "id": "pally",
+      "name": "Pally",
+      "tagline": "AI personal assistant you text",
+      "categories": [
+        "Productivity"
+      ],
+      "website": "https://pally.com/ai",
+      "smsURL": "sms:+16462324446",
+      "number": "+16462324446",
+      "icon": "pally.png",
+      "iconSource": "https://www.imessage.store/api/logos/97098b7a-11d2-4cf0-a23f-7962cd7bcb8c",
+      "sourceListings": [
+        "https://www.imessage.store/agent/pally"
+      ]
+    },
+    {
+      "id": "friday",
+      "name": "Friday",
+      "tagline": "Gets you to the outcome",
+      "categories": [
+        "Productivity"
+      ],
+      "website": "https://askfriday.io/",
+      "smsURL": "sms:+16284884084",
+      "number": "+16284884084",
+      "icon": "friday.png",
+      "iconSource": "https://www.imessage.store/api/logos/3539b04e-4531-41f9-9af0-743562956ca2",
+      "sourceListings": [
+        "https://www.imessage.store/agent/friday"
+      ]
+    },
+    {
+      "id": "tomo",
+      "name": "Tomo",
+      "tagline": "AI that lives in your texts",
+      "categories": [
+        "Lifestyle"
+      ],
+      "website": "https://www.tomo.ai",
+      "smsURL": "sms:+14157700508",
+      "number": "+14157700508",
+      "icon": "tomo.png",
+      "iconSource": "https://imessage.store/assets/logos/tomo.png",
+      "sourceListings": [
+        "https://www.imessage.store/agent/tomo"
+      ]
+    },
+    {
+      "id": "pickle",
+      "name": "Pickle",
+      "tagline": "Pickle is your AI video-call avatar",
+      "categories": [
+        "Lifestyle"
+      ],
+      "website": "https://pickle.com",
+      "smsURL": "sms:+16502005489",
+      "number": "+16502005489",
+      "icon": "pickle.png",
+      "iconSource": "https://cdn.linqapp.com/contact-card/858fbe5b-e929-5c64-83a7-5cf2845a54a7/16503841105/image-92beb1934b3186df",
+      "sourceListings": [
+        "https://www.imessage.store/agent/pickle"
+      ]
+    },
+    {
+      "id": "kindroid",
+      "name": "Kindroid",
+      "tagline": "Your AI companion",
+      "categories": [
+        "Lifestyle"
+      ],
+      "website": "https://kindroid.ai",
+      "smsURL": "sms:+12055213120",
+      "number": "+12055213120",
+      "icon": "kindroid.png",
+      "iconSource": "https://www.imessage.store/api/logos/de867e87-2276-482d-98f1-8013b53a19fb",
+      "sourceListings": [
+        "https://www.imessage.store/agent/kindroid"
+      ]
+    },
+    {
+      "id": "figment",
+      "name": "Figment",
+      "tagline": "Figment is your personal AI you can text",
+      "categories": [
+        "Lifestyle"
+      ],
+      "website": "https://figment.computer",
+      "smsURL": "sms:+14043905100",
+      "number": "+14043905100",
+      "icon": "figment.png",
+      "iconSource": "https://res.cloudinary.com/linq/image/upload/v1783457614/contact_card_image/Screenshot%202026-07-07%20at%201.51.15%E2%80%AFPM_cropped_1783457614131_z0nkoj.png",
+      "sourceListings": [
+        "https://www.imessage.store/agent/figment"
+      ]
+    },
+    {
+      "id": "noscroll",
+      "name": "noscroll",
+      "tagline": "noscroll is your anti-doomscrolling news agent",
+      "categories": [
+        "Lifestyle"
+      ],
+      "website": "https://noscroll.com",
+      "smsURL": "sms:+14155837721",
+      "number": "+14155837721",
+      "icon": "noscroll.png",
+      "iconSource": "https://res.cloudinary.com/linq/image/upload/v1780518129/contact_card_image/Noscroll%20Logo_cropped_1780518129266_3xgsmg.png",
+      "sourceListings": [
+        "https://www.imessage.store/agent/noscroll"
+      ]
+    },
+    {
+      "id": "turf",
+      "name": "Turf",
+      "tagline": "Coach is your sports assistant",
+      "categories": [
+        "Lifestyle"
+      ],
+      "website": "https://turfsports.com",
+      "smsURL": "sms:+14043247332",
+      "number": "+14043247332",
+      "icon": "turf.png",
+      "iconSource": "https://res.cloudinary.com/linq/image/upload/v1781105760/contact_card_image/coach-avi%20%281%29_cropped_1781105760210_s3s85k.png",
+      "sourceListings": [
+        "https://www.imessage.store/agent/turf"
+      ]
+    },
+    {
+      "id": "endearing",
+      "name": "Endearing",
+      "tagline": "Fae is your AI companion",
+      "categories": [
+        "Lifestyle"
+      ],
+      "website": "https://endearing.ai",
+      "smsURL": "sms:+12052394736",
+      "number": "+12052394736",
+      "icon": "endearing.png",
+      "iconSource": "https://res.cloudinary.com/linq/image/upload/v1781032592/contact_card_image/contact_card_1781032571000.png.png",
+      "sourceListings": [
+        "https://www.imessage.store/agent/endearing"
+      ]
+    },
+    {
+      "id": "hallie",
+      "name": "Hallie",
+      "tagline": "Hallie is your AI companion on FaceTime",
+      "categories": [
+        "Lifestyle"
+      ],
+      "website": "https://empathic.so",
+      "smsURL": "sms:+12062506538",
+      "number": "+12062506538",
+      "icon": "hallie.png",
+      "iconSource": "https://cdn.linqapp.com/contact-card/9716d5c5-51e1-5181-bebf-d32c69f2a04d/14045289420/image-cb696645434b529e.png",
+      "sourceListings": [
+        "https://www.imessage.store/agent/hallie"
+      ]
+    },
+    {
+      "id": "julie",
+      "name": "Julie",
+      "tagline": "Julie is your AI friend and companion",
+      "categories": [
+        "Lifestyle"
+      ],
+      "website": "https://soul.app",
+      "smsURL": "sms:+12055030327",
+      "number": "+12055030327",
+      "icon": "julie.png",
+      "iconSource": "https://res.cloudinary.com/linq/image/upload/v1776026513/contact_card_image/julie_cropped_1776026513163_k0eqho.png",
+      "sourceListings": [
+        "https://www.imessage.store/agent/julie"
+      ]
+    },
+    {
+      "id": "tinynature",
+      "name": "tinyNature",
+      "tagline": "tinyNature is your personal assistant",
+      "categories": [
+        "Lifestyle"
+      ],
+      "website": "https://lab.naturaumana.ai",
+      "smsURL": "sms:+14155837547",
+      "number": "+14155837547",
+      "icon": "tinynature.png",
+      "iconSource": "https://res.cloudinary.com/linq/image/upload/v1783526555/contact_card_image/tinyy_cropped_1777390179858_nbftj1_cropped_1783526554751_njekz0.png",
+      "sourceListings": [
+        "https://www.imessage.store/agent/tinynature"
+      ]
+    },
+    {
+      "id": "bo",
+      "name": "Bo",
+      "tagline": "Bo is your health and life coach",
+      "categories": [
+        "Health & Fitness",
+        "Lifestyle"
+      ],
+      "website": "https://getbo.com",
+      "smsURL": "sms:+12052532048",
+      "number": "+12052532048",
+      "icon": "bo.png",
+      "iconSource": "https://res.cloudinary.com/linq/image/upload/v1783530812/contact_card_image/base-icon%20%285%29_cropped_1783530811505_830l23.png",
+      "sourceListings": [
+        "https://www.imessage.store/agent/bo-ai",
+        "https://www.imessage.store/agent/bo"
+      ]
+    },
+    {
+      "id": "vent-now",
+      "name": "Vent Now",
+      "tagline": "Personal Companion",
+      "categories": [
+        "Lifestyle"
+      ],
+      "website": "https://www.ventnow.ai/",
+      "smsURL": "sms:+13105988746",
+      "number": "+13105988746",
+      "icon": "vent-now.png",
+      "iconSource": "https://www.imessage.store/api/logos/55c999aa-5123-4b28-a7b4-5a288c4e42b6",
+      "sourceListings": [
+        "https://www.imessage.store/agent/vent-now"
+      ]
+    },
+    {
+      "id": "lux",
+      "name": "Lux",
+      "tagline": "i think, therefore i can",
+      "categories": [
+        "Lifestyle"
+      ],
+      "website": "https://textlux.com",
+      "smsURL": "sms:+12053965429",
+      "number": "+12053965429",
+      "icon": "lux.png",
+      "iconSource": "https://imessage.store/assets/logos/lux.png",
+      "sourceListings": [
+        "https://www.imessage.store/agent/lux"
+      ]
+    },
+    {
+      "id": "informed-now",
+      "name": "informed.now",
+      "tagline": "Get factual news by text",
+      "categories": [
+        "Lifestyle"
+      ],
+      "website": "https://informed.now",
+      "smsURL": "sms:+18444064636",
+      "number": "+18444064636",
+      "icon": "informed-now.png",
+      "iconSource": "https://www.imessage.store/api/logos/8b74e987-7e3c-41d5-b3df-1ab3abee46de",
+      "sourceListings": [
+        "https://www.imessage.store/agent/informed-now"
+      ]
+    },
+    {
+      "id": "avenue",
+      "name": "Avenue",
+      "tagline": "Your NYC Apartment Hunter",
+      "categories": [
+        "Lifestyle"
+      ],
+      "website": "https://www.avenue.nyc",
+      "smsURL": "sms:+16504850684",
+      "number": "+16504850684",
+      "icon": "avenue.png",
+      "iconSource": "https://www.imessage.store/api/logos/2233d224-7fa9-43d4-a14c-05fc260c37c6",
+      "sourceListings": [
+        "https://www.imessage.store/agent/avenue"
+      ]
+    },
+    {
+      "id": "served",
+      "name": "Served",
+      "tagline": "Plan, shop, cook. All by text.",
+      "categories": [
+        "Lifestyle"
+      ],
+      "website": "https://getserved.ai",
+      "smsURL": "sms:+16283037286",
+      "number": "+16283037286",
+      "icon": "served.png",
+      "iconSource": "https://www.imessage.store/api/logos/ba64944c-c484-48dc-809a-3546252d28e8",
+      "sourceListings": [
+        "https://www.imessage.store/agent/served"
+      ]
+    },
+    {
+      "id": "geo",
+      "name": "GEO",
+      "tagline": "GEO - Your location agent",
+      "categories": [
+        "Lifestyle"
+      ],
+      "website": "https://getgeo.vercel.app/",
+      "smsURL": "sms:+14142754994",
+      "number": "+14142754994",
+      "icon": "geo.png",
+      "iconSource": "https://www.imessage.store/api/logos/ab0a839d-648d-4e31-a71d-7695d13187af",
+      "sourceListings": [
+        "https://www.imessage.store/agent/geo"
+      ]
+    },
+    {
+      "id": "just-read",
+      "name": "just read",
+      "tagline": "read books in imessage",
+      "categories": [
+        "Lifestyle"
+      ],
+      "website": "https://justread.ing",
+      "smsURL": "sms:+13212973411",
+      "number": "+13212973411",
+      "icon": "just-read.png",
+      "iconSource": "https://www.imessage.store/api/logos/399d8936-5aea-4204-8d7b-25718696d3e7",
+      "sourceListings": [
+        "https://www.imessage.store/agent/just-read"
+      ]
+    },
+    {
+      "id": "remi",
+      "name": "remi",
+      "tagline": "life glow up assistant",
+      "categories": [
+        "Lifestyle"
+      ],
+      "website": "https://callmeremi.com",
+      "smsURL": "sms:+12395308371",
+      "number": "+12395308371",
+      "icon": "remi.png",
+      "iconSource": "https://www.imessage.store/api/logos/3212a53e-8e67-442a-af2c-22d2f03d4067",
+      "sourceListings": [
+        "https://www.imessage.store/agent/remi"
+      ]
+    },
+    {
+      "id": "pray-up",
+      "name": "Pray Up",
+      "tagline": "Your prayer companion",
+      "categories": [
+        "Lifestyle"
+      ],
+      "website": "https://prayup.io/",
+      "smsURL": "sms:+12052830315",
+      "number": "+12052830315",
+      "icon": "pray-up.png",
+      "iconSource": "https://www.imessage.store/api/logos/0a544c23-616e-4284-8956-22eba595ccfe",
+      "sourceListings": [
+        "https://www.imessage.store/agent/pray-up"
+      ]
+    },
+    {
+      "id": "caddy",
+      "name": "Caddy",
+      "tagline": "Handles your work, by text",
+      "categories": [
+        "Business"
+      ],
+      "website": "https://caddy.app",
+      "smsURL": "sms:+12064039093",
+      "number": "+12064039093",
+      "icon": "caddy.png",
+      "iconSource": "https://imessage.store/assets/logos/caddy.png",
+      "sourceListings": [
+        "https://www.imessage.store/agent/caddy"
+      ]
+    },
+    {
+      "id": "zo",
+      "name": "Zo",
+      "tagline": "Zo is your personal cloud computer",
+      "categories": [
+        "Business"
+      ],
+      "website": "https://zo.computer",
+      "smsURL": "sms:+13057090113",
+      "number": "+13057090113",
+      "icon": "zo.png",
+      "iconSource": "https://res.cloudinary.com/linq/image/upload/w_1200/v1771527830/contact_card_image/original_mlttxhresd7h5ob.png.png",
+      "sourceListings": [
+        "https://www.imessage.store/agent/zo"
+      ]
+    },
+    {
+      "id": "alfred",
+      "name": "alfred",
+      "tagline": "Alfred is your executive assistant",
+      "categories": [
+        "Business"
+      ],
+      "website": "https://get-alfred.ai",
+      "smsURL": "sms:+12054225090",
+      "number": "+12054225090",
+      "icon": "alfred.png",
+      "iconSource": "https://res.cloudinary.com/linq/image/upload/v1777505798/contact_card_image/icon-512x512-maskable_cropped_1777505797754_szn9sq.png",
+      "sourceListings": [
+        "https://www.imessage.store/agent/alfred"
+      ]
+    },
+    {
+      "id": "toyo",
+      "name": "Toyo",
+      "tagline": "Toyo is your autonomous AI operator",
+      "categories": [
+        "Business"
+      ],
+      "website": "https://toyo.ai",
+      "smsURL": "sms:+12053821953",
+      "number": "+12053821953",
+      "icon": "toyo.png",
+      "iconSource": "https://cdn.linqapp.com/contact-card/135ed240-8e9b-5c2c-ac09-a9fe51f29161/12055668656/image-4ea7fd3ba7832164",
+      "sourceListings": [
+        "https://www.imessage.store/agent/toyo"
+      ]
+    },
+    {
+      "id": "huzi-ai",
+      "name": "Huzi.ai",
+      "tagline": "Huzi is your AI assistant for real estate agents",
+      "categories": [
+        "Business"
+      ],
+      "website": "https://huzi.ai",
+      "smsURL": "sms:+14157263224",
+      "number": "+14157263224",
+      "icon": "huzi-ai.png",
+      "iconSource": "https://res.cloudinary.com/linq/image/upload/v1778721141/contact_card_image/huziai_logo_cropped_1778721141807_fsjspv.png",
+      "sourceListings": [
+        "https://www.imessage.store/agent/huzi-ai"
+      ]
+    },
+    {
+      "id": "webair-ai",
+      "name": "Webair.ai",
+      "tagline": "Webair AI is your private business assistant",
+      "categories": [
+        "Business"
+      ],
+      "website": "https://webair.ai",
+      "smsURL": "sms:+15162341212",
+      "number": "+15162341212",
+      "icon": "webair-ai.png",
+      "iconSource": "https://res.cloudinary.com/linq/image/upload/v1780693271/contact_card_image/favicon_cropped_1780693271623_4w6t3e.png",
+      "sourceListings": [
+        "https://www.imessage.store/agent/webair-ai"
+      ]
+    },
+    {
+      "id": "bach-tran",
+      "name": "Orchids",
+      "tagline": "Orchids is your AI app builder",
+      "categories": [
+        "Business"
+      ],
+      "website": "https://orchids.app",
+      "smsURL": "sms:+16282872920",
+      "number": "+16282872920",
+      "icon": "bach-tran.png",
+      "iconSource": "https://slelguoygbfzlpylpxfs.supabase.co/storage/v1/object/public/bilal-assets/Mobile%20image.png",
+      "sourceListings": [
+        "https://www.imessage.store/agent/bach-tran"
+      ]
+    },
+    {
+      "id": "arlo",
+      "name": "Arlo",
+      "tagline": "Arlo is your AI colleague",
+      "categories": [
+        "Business"
+      ],
+      "website": "https://arlo.sh",
+      "smsURL": "sms:+14072341884",
+      "number": "+14072341884",
+      "icon": "arlo.png",
+      "iconSource": "https://cdn.linqapp.com/contact-card/acaa09ce-eae0-575e-97c8-9f8a50b16b33/14072341884/image-073b97c32eec96a3",
+      "sourceListings": [
+        "https://www.imessage.store/agent/arlo"
+      ]
+    },
+    {
+      "id": "pika",
+      "name": "Pika",
+      "tagline": "Pika can create AI videos, automate workflows, use agents and more",
+      "categories": [
+        "Business"
+      ],
+      "website": "https://pika.art",
+      "smsURL": "sms:+12182605500",
+      "number": "+12182605500",
+      "icon": "pika.png",
+      "iconSource": "https://res.cloudinary.com/linq/image/upload/w_1200/v1772071119/contact_card_image/CleanShot%202026-02-25%20at%2017.58.17%402x_cropped_1772071119163_k285ob.png",
+      "sourceListings": [
+        "https://www.imessage.store/agent/pika"
+      ]
+    },
+    {
+      "id": "alfred-2",
+      "name": "alfred_",
+      "tagline": "Built for people with 100+ emails a day",
+      "categories": [
+        "Business"
+      ],
+      "website": "https://get-alfred.ai",
+      "smsURL": "sms:+16462179611",
+      "number": "+16462179611",
+      "icon": "alfred-2.png",
+      "iconSource": "https://www.imessage.store/api/logos/75b4b838-b856-430a-8fea-392d6905db3e",
+      "sourceListings": [
+        "https://www.imessage.store/agent/alfred-2"
+      ]
+    },
+    {
+      "id": "textmyagent-app",
+      "name": "TextMyAgent.app",
+      "tagline": "\"Your boss just emailed you. Want me to reply?\"",
+      "categories": [
+        "Business"
+      ],
+      "website": "https://TextMyAgent.app",
+      "smsURL": "sms:+17372625381",
+      "number": "+17372625381",
+      "icon": "textmyagent-app.png",
+      "iconSource": "https://www.imessage.store/api/logos/24ec44bd-b174-409e-89fa-c35e7773c7a1",
+      "sourceListings": [
+        "https://www.imessage.store/agent/textmyagent-app"
+      ]
+    },
+    {
+      "id": "stanley",
+      "name": "Stanley",
+      "tagline": "Personal Head of Content | Grow Your Following",
+      "categories": [
+        "Business"
+      ],
+      "website": "https://www.getstanley.ai/ideate",
+      "smsURL": "sms:+16463824226",
+      "number": "+16463824226",
+      "icon": "stanley.png",
+      "iconSource": "https://www.imessage.store/api/logos/2dd0158b-b547-4633-b6df-4bbeaafbd94b",
+      "sourceListings": [
+        "https://www.imessage.store/agent/stanley"
+      ]
+    },
+    {
+      "id": "juke",
+      "name": "Juke",
+      "tagline": "The AI agent that runs your NIL",
+      "categories": [
+        "Business"
+      ],
+      "website": "https://textjuke.com",
+      "smsURL": "sms:+14809370002",
+      "number": "+14809370002",
+      "icon": "juke.png",
+      "iconSource": "https://www.imessage.store/api/logos/5a31e23b-a43c-4746-9423-16df30b3e0ee",
+      "sourceListings": [
+        "https://www.imessage.store/agent/juke"
+      ]
+    },
+    {
+      "id": "sumolevel-ai",
+      "name": "SumoLevel AI",
+      "tagline": "AI Partner for Non-Tech People",
+      "categories": [
+        "Business"
+      ],
+      "website": "https://sumolevel.com",
+      "smsURL": "sms:+18133311691",
+      "number": "+18133311691",
+      "icon": "sumolevel-ai.png",
+      "iconSource": "https://www.imessage.store/api/logos/78d495fe-b0d6-420b-a174-e784ef51592b",
+      "sourceListings": [
+        "https://www.imessage.store/agent/sumolevel-ai"
+      ]
+    },
+    {
+      "id": "222",
+      "name": "222",
+      "tagline": "IRL social facilitator",
+      "categories": [
+        "Social"
+      ],
+      "website": "https://222.place",
+      "smsURL": "sms:+12158331455",
+      "number": "+12158331455",
+      "icon": "222.png",
+      "iconSource": "https://imessage.store/assets/logos/222.png",
+      "sourceListings": [
+        "https://www.imessage.store/agent/222"
+      ]
+    },
+    {
+      "id": "series",
+      "name": "Series",
+      "tagline": "Warm intros, by text",
+      "categories": [
+        "Social"
+      ],
+      "website": "https://series.so",
+      "smsURL": "sms:+14155057855",
+      "number": "+14155057855",
+      "icon": "series.png",
+      "iconSource": "https://imessage.store/assets/logos/series.png",
+      "sourceListings": [
+        "https://www.imessage.store/agent/series"
+      ]
+    },
+    {
+      "id": "alfi",
+      "name": "Alfi",
+      "tagline": "AI for the group chat",
+      "categories": [
+        "Social"
+      ],
+      "website": "https://www.text.ai",
+      "smsURL": "sms:+13104609758",
+      "number": "+13104609758",
+      "icon": "alfi.png",
+      "iconSource": "https://imessage.store/assets/logos/alfi.png",
+      "sourceListings": [
+        "https://www.imessage.store/agent/alfi"
+      ]
+    },
+    {
+      "id": "jarvie",
+      "name": "Jarvie",
+      "tagline": "Jarvie is your group chat sidekick",
+      "categories": [
+        "Social"
+      ],
+      "website": "https://heyjarvie.com",
+      "smsURL": "sms:+13055131372",
+      "number": "+13055131372",
+      "icon": "jarvie.png",
+      "iconSource": "https://res.cloudinary.com/linq/image/upload/v1781734817/contact_card_image/jarvie_profile_cropped_1781734816947_d54mba.png",
+      "sourceListings": [
+        "https://www.imessage.store/agent/jarvie"
+      ]
+    },
+    {
+      "id": "inyo",
+      "name": "Inyo",
+      "tagline": "Inyo is your personal matchmaker",
+      "categories": [
+        "Social"
+      ],
+      "website": "https://joininyo.com",
+      "smsURL": "sms:+12053295062",
+      "number": "+12053295062",
+      "icon": null,
+      "iconSource": "https://imessage.store/assets/logos/inyo.png",
+      "sourceListings": [
+        "https://www.imessage.store/agent/inyo"
+      ]
+    },
+    {
+      "id": "ori",
+      "name": "Ori",
+      "tagline": "Ori is your hangout-planning assistant",
+      "categories": [
+        "Social"
+      ],
+      "website": "https://oriscen.com",
+      "smsURL": "sms:+14085494073",
+      "number": "+14085494073",
+      "icon": null,
+      "iconSource": "https://oriscen.com/ori-share-preview.jpg",
+      "sourceListings": [
+        "https://www.imessage.store/agent/ori"
+      ]
+    },
+    {
+      "id": "iru",
+      "name": "iru",
+      "tagline": "handpicked serendipity",
+      "categories": [
+        "Social"
+      ],
+      "website": "https://iru.social/",
+      "smsURL": "sms:+16502487632",
+      "number": "+16502487632",
+      "icon": "iru.png",
+      "iconSource": "https://www.imessage.store/api/logos/306fe00b-ecba-4652-ac98-4e7bd0aaf869",
+      "sourceListings": [
+        "https://www.imessage.store/agent/iru"
+      ]
+    },
+    {
+      "id": "ori-2",
+      "name": "Ori",
+      "tagline": "Ori is your personal shopper, he learns what you need and buys it for you.",
+      "categories": [
+        "Shopping"
+      ],
+      "website": "https://ori.bot",
+      "smsURL": "sms:+13102798512",
+      "number": "+13102798512",
+      "icon": "ori-2.png",
+      "iconSource": "https://www.imessage.store/api/logos/7addbe7a-c76a-4d7a-a52c-22c7adda1ef8",
+      "sourceListings": [
+        "https://www.imessage.store/agent/ori-2"
+      ]
+    },
+    {
+      "id": "asaply",
+      "name": "Asaply",
+      "tagline": "The checkout agent for coffee, food, tickets, and more.",
+      "categories": [
+        "Shopping"
+      ],
+      "website": "https://asaply.ai/",
+      "smsURL": "sms:+16282644787",
+      "number": "+16282644787",
+      "icon": "asaply.png",
+      "iconSource": "https://www.imessage.store/api/logos/9de92571-5b6d-405a-b338-6bcf7c557117",
+      "sourceListings": [
+        "https://www.imessage.store/agent/asaply"
+      ]
+    },
+    {
+      "id": "stiled",
+      "name": "Stiled",
+      "tagline": "Stop Guessing, Start Shopping",
+      "categories": [
+        "Shopping"
+      ],
+      "website": "https://www.stiled.app/",
+      "smsURL": "sms:+16282764070",
+      "number": "+16282764070",
+      "icon": "stiled.png",
+      "iconSource": "https://www.imessage.store/api/logos/ba268a3e-3f1f-4b04-b69d-658ee1e8981e",
+      "sourceListings": [
+        "https://www.imessage.store/agent/stiled"
+      ]
+    },
+    {
+      "id": "allowance",
+      "name": "Allowance",
+      "tagline": "Text Alfie to shop",
+      "categories": [
+        "Shopping"
+      ],
+      "website": "https://useallowance.com/",
+      "smsURL": "sms:+19173351303",
+      "number": "+19173351303",
+      "icon": "allowance.png",
+      "iconSource": "https://www.imessage.store/api/logos/e3c1e17f-72d1-468c-8b09-0c95628c8d80",
+      "sourceListings": [
+        "https://www.imessage.store/agent/allowance"
+      ]
+    },
+    {
+      "id": "gambly-bot",
+      "name": "Gambly Bot",
+      "tagline": "Gambly is your sports betting copilot",
+      "categories": [
+        "Finance"
+      ],
+      "website": "https://gambly.com",
+      "smsURL": "sms:+16462479193",
+      "number": "+16462479193",
+      "icon": "gambly-bot.png",
+      "iconSource": "https://res.cloudinary.com/linq/image/upload/w_1200/v1772123411/contact_card_image/apple-touch-icon_cropped_1772123411194_u0edvw.png",
+      "sourceListings": [
+        "https://www.imessage.store/agent/gambly-bot"
+      ]
+    },
+    {
+      "id": "cappy",
+      "name": "cappy",
+      "tagline": "Cappy is your startup fundraising coach",
+      "categories": [
+        "Finance"
+      ],
+      "website": "https://captions.ai/features/text-to-edit",
+      "smsURL": "sms:+16462992913",
+      "number": "+16462992913",
+      "icon": "cappy.png",
+      "iconSource": "https://cdn.linqapp.com/contact-card/2a85e134-e479-5fa8-a772-252c6277725e/16463217710/image-9f69298474f6225f",
+      "sourceListings": [
+        "https://www.imessage.store/agent/cappy"
+      ]
+    },
+    {
+      "id": "maxi",
+      "name": "Maxi",
+      "tagline": "AI Agent for Managing Your Personal Finances",
+      "categories": [
+        "Finance"
+      ],
+      "website": "https://usemaxi.app",
+      "smsURL": "sms:+16464106525",
+      "number": "+16464106525",
+      "icon": "maxi.png",
+      "iconSource": "https://www.imessage.store/api/logos/2d9115aa-712a-4e8a-b7e9-64f3017d6635",
+      "sourceListings": [
+        "https://www.imessage.store/agent/maxi"
+      ]
+    },
+    {
+      "id": "mage",
+      "name": "Mage",
+      "tagline": "Trade everything thorugh text.",
+      "categories": [
+        "Finance"
+      ],
+      "website": "https://ma.ge",
+      "smsURL": "sms:+16264265229",
+      "number": "+16264265229",
+      "icon": "mage.png",
+      "iconSource": "https://www.imessage.store/api/logos/6ebccd98-a390-479a-ad32-ac05e389b4fe",
+      "sourceListings": [
+        "https://www.imessage.store/agent/mage",
+        "https://www.imessage.store/agent/mage-2"
+      ]
+    },
+    {
+      "id": "hyperneobroker-com",
+      "name": "HYPERneobroker.com",
+      "tagline": "Your AI trading desk by text",
+      "categories": [
+        "Finance"
+      ],
+      "website": "https://hyperneobroker.com",
+      "smsURL": "sms:+13472760577",
+      "number": "+13472760577",
+      "icon": "hyperneobroker-com.png",
+      "iconSource": "https://www.imessage.store/api/logos/b1cc0675-18b8-43b6-9232-6d31fcf74839",
+      "sourceListings": [
+        "https://www.imessage.store/agent/hyperneobroker-com"
+      ]
+    },
+    {
+      "id": "bantr",
+      "name": "Bantr",
+      "tagline": "Get what you want",
+      "categories": [
+        "Finance"
+      ],
+      "website": "https://www.socialcompanyofus.com/",
+      "smsURL": "sms:+16464897157",
+      "number": "+16464897157",
+      "icon": "bantr.png",
+      "iconSource": "https://www.imessage.store/api/logos/18787567-670e-4b5f-ae01-498161256540",
+      "sourceListings": [
+        "https://www.imessage.store/agent/bantr"
+      ]
+    },
+    {
+      "id": "soar",
+      "name": "Soar",
+      "tagline": "Your AI travel companion",
+      "categories": [
+        "Travel"
+      ],
+      "website": "https://www.joinsoar.co",
+      "smsURL": "sms:+14243132730",
+      "number": "+14243132730",
+      "icon": "soar.png",
+      "iconSource": "https://imessage.store/assets/logos/soar.png",
+      "sourceListings": [
+        "https://www.imessage.store/agent/soar"
+      ]
+    },
+    {
+      "id": "karpo",
+      "name": "Karpo",
+      "tagline": "AI travel concierge by text",
+      "categories": [
+        "Travel"
+      ],
+      "website": "https://app.karpo.ai",
+      "smsURL": "sms:+16462380222",
+      "number": "+16462380222",
+      "icon": "karpo.png",
+      "iconSource": "https://imessage.store/assets/logos/karpo.png",
+      "sourceListings": [
+        "https://www.imessage.store/agent/karpo"
+      ]
+    },
+    {
+      "id": "outgoing",
+      "name": "Outgoing",
+      "tagline": "Outgoing is your events and activities concierge",
+      "categories": [
+        "Travel"
+      ],
+      "website": "https://outgoing.world",
+      "smsURL": "sms:+16462288630",
+      "number": "+16462288630",
+      "icon": "outgoing.png",
+      "iconSource": "https://res.cloudinary.com/linq/image/upload/v1779287758/contact_card_image/logo_imessage_cropped_1779287758041_15qk5h.png",
+      "sourceListings": [
+        "https://www.imessage.store/agent/outgoing"
+      ]
+    },
+    {
+      "id": "arden",
+      "name": "Arden",
+      "tagline": "Arden is your AI travel assistant",
+      "categories": [
+        "Travel"
+      ],
+      "website": "https://arden.co/",
+      "smsURL": "sms:+13213100340",
+      "number": "+13213100340",
+      "icon": "arden.png",
+      "iconSource": "https://res.cloudinary.com/linq/image/upload/v1783621104/contact_card_image/logo500%20%282%29_cropped_1783621104610_3oa423.png",
+      "sourceListings": [
+        "https://www.imessage.store/agent/arden"
+      ]
+    },
+    {
+      "id": "navi",
+      "name": "Navi",
+      "tagline": "Navi is your local navigation assistant",
+      "categories": [
+        "Travel"
+      ],
+      "website": "https://textnavi.com",
+      "smsURL": "sms:+16462035769",
+      "number": "+16462035769",
+      "icon": "navi.png",
+      "iconSource": "https://www.imessage.store/api/logos/d3ab762d-3d59-44e9-b29b-f6da353751be",
+      "sourceListings": [
+        "https://www.imessage.store/agent/navi"
+      ]
+    },
+    {
+      "id": "vic",
+      "name": "Vic",
+      "tagline": "Plan trips with your friends",
+      "categories": [
+        "Travel"
+      ],
+      "website": "http://tryvic.com",
+      "smsURL": "sms:+14158155588",
+      "number": "+14158155588",
+      "icon": "vic.png",
+      "iconSource": "https://www.imessage.store/api/logos/0cebdb38-3e06-403e-84bd-b88d2a511ece",
+      "sourceListings": [
+        "https://www.imessage.store/agent/vic",
+        "https://www.imessage.store/agent/vic-2"
+      ]
+    },
+    {
+      "id": "nudge",
+      "name": "Nudge",
+      "tagline": "Daily fitness coaching",
+      "categories": [
+        "Health & Fitness"
+      ],
+      "website": "https://www.nudge.gs",
+      "smsURL": "sms:+16452438876",
+      "number": "+16452438876",
+      "icon": "nudge.png",
+      "iconSource": "https://imessage.store/assets/logos/nudge.png",
+      "sourceListings": [
+        "https://www.imessage.store/agent/nudge"
+      ]
+    },
+    {
+      "id": "murph",
+      "name": "Murph",
+      "tagline": "Health, in the group chat",
+      "categories": [
+        "Health & Fitness"
+      ],
+      "website": "https://withmurph.ai",
+      "smsURL": "sms:+14044092523",
+      "number": "+14044092523",
+      "icon": "murph.png",
+      "iconSource": "https://imessage.store/assets/logos/murph.png",
+      "sourceListings": [
+        "https://www.imessage.store/agent/murph"
+      ]
+    },
+    {
+      "id": "iris",
+      "name": "Iris",
+      "tagline": "AI for your mind",
+      "categories": [
+        "Health & Fitness"
+      ],
+      "website": "https://irischat.ai",
+      "smsURL": "sms:+16462410636",
+      "number": "+16462410636",
+      "icon": "iris.png",
+      "iconSource": "https://imessage.store/assets/logos/iris.png",
+      "sourceListings": [
+        "https://www.imessage.store/agent/iris"
+      ]
+    },
+    {
+      "id": "sam",
+      "name": "Sam",
+      "tagline": "Sam is your sobriety coach",
+      "categories": [
+        "Health & Fitness"
+      ],
+      "website": "https://sunflowersober.com",
+      "smsURL": "sms:+16464531857",
+      "number": "+16464531857",
+      "icon": "sam.png",
+      "iconSource": "https://sunflowersober.com/apple-icon.png?5a2fd919728b4173",
+      "sourceListings": [
+        "https://www.imessage.store/agent/sam"
+      ]
+    },
+    {
+      "id": "capy",
+      "name": "Capy",
+      "tagline": "Capy is your GLP-1 companion",
+      "categories": [
+        "Health & Fitness"
+      ],
+      "website": "https://meagain.com",
+      "smsURL": "sms:+12056157663",
+      "number": "+12056157663",
+      "icon": "capy.png",
+      "iconSource": "https://res.cloudinary.com/linq/image/upload/v1779310575/contact_card_image/image%20%283%29_cropped_1779310574868_z2zot3.png",
+      "sourceListings": [
+        "https://www.imessage.store/agent/capy"
+      ]
+    },
+    {
+      "id": "tempo-ai-health-companion",
+      "name": "Tempo: AI Health Companion",
+      "tagline": "Achieve Your Health Goals",
+      "categories": [
+        "Health & Fitness"
+      ],
+      "website": "https://jointempo.app",
+      "smsURL": "sms:+16284687855",
+      "number": "+16284687855",
+      "icon": "tempo-ai-health-companion.png",
+      "iconSource": "https://www.imessage.store/api/logos/6e581cc4-ed00-4f72-8ab6-195f1f337530",
+      "sourceListings": [
+        "https://www.imessage.store/agent/tempo-ai-health-companion"
+      ]
+    },
+    {
+      "id": "caresupport",
+      "name": "CareSupport",
+      "tagline": "Care coordination by text",
+      "categories": [
+        "Medical"
+      ],
+      "website": "https://caresupport.com",
+      "smsURL": "sms:+16504415695",
+      "number": "+16504415695",
+      "icon": "caresupport.png",
+      "iconSource": "https://imessage.store/assets/logos/caresupport.png",
+      "sourceListings": [
+        "https://www.imessage.store/agent/caresupport"
+      ]
+    },
+    {
+      "id": "askpetal",
+      "name": "AskPetal 🌷",
+      "tagline": "AskPetal is your hormonal health advisor",
+      "categories": [
+        "Medical"
+      ],
+      "website": "https://askpetal.com",
+      "smsURL": "sms:+12124700693",
+      "number": "+12124700693",
+      "icon": "askpetal.png",
+      "iconSource": "https://res.cloudinary.com/linq/image/upload/v1775075211/contact_card_image/AskPetal%20%281%29_cropped_1775075211699_hdxmba.png",
+      "sourceListings": [
+        "https://www.imessage.store/agent/askpetal"
+      ]
+    },
+    {
+      "id": "miora",
+      "name": "miora",
+      "tagline": "Miora is your health concierge",
+      "categories": [
+        "Medical"
+      ],
+      "website": "https://getmiora.com",
+      "smsURL": "sms:+14153593168",
+      "number": "+14153593168",
+      "icon": "miora.png",
+      "iconSource": "https://res.cloudinary.com/linq/image/upload/v1774028581/contact_card_image/Frame%205034_cropped_1774028575483_axmapp.png",
+      "sourceListings": [
+        "https://www.imessage.store/agent/miora"
+      ]
+    },
+    {
+      "id": "doctours",
+      "name": "Doctours",
+      "tagline": "Medical tourism (doctouring) made easy",
+      "categories": [
+        "Medical"
+      ],
+      "website": "https://www.doctours.com",
+      "smsURL": "sms:+14154523590",
+      "number": "+14154523590",
+      "icon": "doctours.png",
+      "iconSource": "https://www.imessage.store/api/logos/f48ac253-d595-4fc2-a001-87171499e077",
+      "sourceListings": [
+        "https://www.imessage.store/agent/doctours"
+      ]
+    },
+    {
+      "id": "clera",
+      "name": "Clera",
+      "tagline": "Your AI talent agent",
+      "categories": [
+        "Careers"
+      ],
+      "website": "https://www.getclera.com",
+      "smsURL": "sms:+16505397073",
+      "number": "+16505397073",
+      "icon": "clera.png",
+      "iconSource": "https://imessage.store/assets/logos/clera.png",
+      "sourceListings": [
+        "https://www.imessage.store/agent/clera"
+      ]
+    },
+    {
+      "id": "tsenta",
+      "name": "Tsenta",
+      "tagline": "Tsenta is your job-application agent",
+      "categories": [
+        "Careers"
+      ],
+      "website": "https://tsenta.com",
+      "smsURL": "sms:+14158826508",
+      "number": "+14158826508",
+      "icon": "tsenta.png",
+      "iconSource": "https://res.cloudinary.com/linq/image/upload/v1775766906/contact_card_image/favicon%20%283%29_cropped_1775766906842_krw7hf.png",
+      "sourceListings": [
+        "https://www.imessage.store/agent/tsenta"
+      ]
+    },
+    {
+      "id": "fonzi",
+      "name": "Fonzi",
+      "tagline": "Fonzi is your tech recruiting matchmaker",
+      "categories": [
+        "Careers"
+      ],
+      "website": "https://fonzi.ai",
+      "smsURL": "sms:+16462363745",
+      "number": "+16462363745",
+      "icon": "fonzi.png",
+      "iconSource": "https://res.cloudinary.com/linq/image/upload/v1774476161/contact_card_image/fonzi-green-on-black_cropped_1774476161744_8m15j4.png",
+      "sourceListings": [
+        "https://www.imessage.store/agent/fonzi"
+      ]
+    },
+    {
+      "id": "viralt",
+      "name": "Viralt💫",
+      "tagline": "Viralt is your AI talent manager",
+      "categories": [
+        "Careers"
+      ],
+      "website": "https://viralt.ai",
+      "smsURL": "sms:+12132160786",
+      "number": "+12132160786",
+      "icon": "viralt.png",
+      "iconSource": "https://res.cloudinary.com/linq/image/upload/v1773990761/contact_card_image/cropped_mkmwxbv6dcwxpzb_cropped_1773990760906_nd995q.png",
+      "sourceListings": [
+        "https://www.imessage.store/agent/viralt"
+      ]
+    },
+    {
+      "id": "terac",
+      "name": "Terac",
+      "tagline": "Get paid for your expertise",
+      "categories": [
+        "Careers"
+      ],
+      "website": "https://terac.com",
+      "smsURL": "sms:+15154916280",
+      "number": "+15154916280",
+      "icon": "terac.png",
+      "iconSource": "https://www.imessage.store/api/logos/4bae2812-78d9-47f7-b76e-27be7fe9dbc7",
+      "sourceListings": [
+        "https://www.imessage.store/agent/terac"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+.build/
+build/
+.DS_Store
+*.xcuserstate
+xcuserdata/
+__pycache__/
+*.pyc
+tmp/
+.env
+.env.*
+!.env.example
+.local.env
+
+# Keep the selected icon artwork; leave generated explorations local.
+output/*
+!output/icon-gradients/
+output/icon-gradients/*
+!output/icon-gradients/32-WhiteToClearSoftFadeBlueGreen.icon/
+!output/icon-gradients/32-WhiteToClearSoftFadeBlue.icon/

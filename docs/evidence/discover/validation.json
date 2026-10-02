@@ -1,0 +1,65 @@
+{
+  "date": "2026-10-02",
+  "source": "https://www.imessage.store/api/app/catalog",
+  "source_agents": 144,
+  "direct_sms_listings": 96,
+  "unique_numbers": 92,
+  "excluded_website_only": 48,
+  "available_original_icons": 90,
+  "initials_for_broken_source_icons": [
+    "inyo",
+    "ori"
+  ],
+  "verification": {
+    "xcode_test_result": "Passed",
+    "passed": 39,
+    "failed": 0,
+    "derived_data": "build/discover-validation",
+    "manual_ui": [],
+    "sms_handoff": "Removed from Discover; numbers remain internal for adding the correct contact.",
+    "manual_ui_status": "Pending: Mac locked. Previous Text/copy workflow evidence is superseded.",
+    "swift_package_build": "Passed",
+    "xcode_build": "Passed"
+  },
+  "review": {
+    "scope": "Latest curated projection, hidden numbers, Add callback, deduplication, and saving icon into newly created contacts.",
+    "notes": "Read-only code checks; no new independent review for this revision."
+  },
+  "evidence": {
+    "screenshots": [],
+    "limitations": [
+      "Native macOS preview, not a mobile app.",
+      "Sidebar conversations use existing synthetic demo data.",
+      "Third-party messaging availability and signup behavior after texting were not live-tested.",
+      "Evidence remains local; no PR or repository remote exists.",
+      "Add preview uses the existing isolated permission-guide fixture: synthetic contacts, simulated history denial, no real Contacts writes or sends."
+    ],
+    "superseded_screenshots": [
+      "discover-desktop.png",
+      "discover-search.png",
+      "discover-copy.png",
+      "discover-signup-excluded.png",
+      "discover-travel.png"
+    ],
+    "preview_bundle": "build/discover-validation/Discover Add Preview.app"
+  },
+  "sha256": {
+    "MsgBlast/Core/DiscoverCatalog.swift": "b758c776b5910b37abbff2a38c111ae3cd457180b4c30574e36392e76ab5962b",
+    "MsgBlast/Windows/DiscoverView.swift": "61bd588eefd0231fc9671f8d296dd2e696a039a7783b2b71487780c09a978831",
+    "MsgBlast/Resources/Discover/catalog.json": "71bc7d4ee2867bc528a122781c4b26a03433649e2088ccc7ad6934954fec9681",
+    "MsgBlastTests/DiscoverTests.swift": "a5ceeaac88b3a465c6c35363effee5c1921906a5455b86e81e359a0fc8dc693d",
+    "scripts/import_discover.py": "f77d98a1a0aab7f68dfd68172a6b860b71e18fde7f8dde17106e9112dae27cfe",
+    "Package.swift": "0c22f89d395d49893b9c2de9a1ab686cecc06b50a1d16cdda9161d01b9c69831",
+    "scripts/generate_project.py": "e5bee429239021e8758c786657fcd3df608b9878c1a4d78c0576d9102ab1dd7e",
+    "MsgBlast/Contacts/ContactSearch.swift": "4772a289214984d51a7494886e925cec1f65ad161a0e452be03b040f2f471d27",
+    "MsgBlast/Windows/Views.swift": "2ba185d8e2f33d3ee99443b7c9bded1c517eba2129bfcc84e00e3436362726ba"
+  },
+  "visible_curated_agents": 27,
+  "visible_categories": [
+    "Personal agents",
+    "Research",
+    "Shopping"
+  ],
+  "cta": "Add -> Added; saves to My agents",
+  "phone_numbers_displayed": false
+}

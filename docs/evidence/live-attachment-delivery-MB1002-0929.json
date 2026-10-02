@@ -1,0 +1,30 @@
+{
+  "test": "MB1002-0929",
+  "revision": "Canonical Debug app built 2026-10-02 09:28:30 PDT; precedes subsequent photo aspect-ratio polish",
+  "executable_sha256": "270ee09f00999c1f6623bc1b68b3d48c6f5b3f5b23f3e0bd1ccceb037aa3aa4c",
+  "comparison": "98C3A92C-28BF-44E2-A340-1EF2194CC54A",
+  "recipient": "mgalpert@gmail.com",
+  "scope": "Michael only; Pal excluded",
+  "parts": [
+    {
+      "filename": "MsgBlast-test-MB1002-0929.png",
+      "state": "submitted",
+      "anchored": true
+    },
+    {
+      "filename": "MsgBlast-test-MB1002-0929.txt",
+      "state": "submitted",
+      "anchored": true
+    }
+  ],
+  "native_result": "Messages shows incoming self-copies of both files and Read 9:33 AM. Quick Look of the outgoing image renders the blue/green synthetic image; Quick Look of the received text file shows its exact synthetic body.",
+  "msgblast_result": "Live outgoing and incoming image/file cards, Delivered, empty universal draft; Pal has no MB1002-0929 card. Delivered is the database receipt; native UI additionally shows Read.",
+  "earlier_failures": "MB1001-2025 transfers remain Not Delivered and were not retried.",
+  "limitations": "Authorized self-address check only; no new multi-recipient attachment delivery proof. Synthetic files; no app-driven inline reply proof.",
+  "screenshots": [
+    "attachments/quick-look-live-MB1002-0929.png",
+    "attachments/messages-received-image-MB1002-0929.png",
+    "attachments/messages-delivery-MB1002-0929.png",
+    "attachments/msgblast-delivery-MB1002-0929.png"
+  ]
+}

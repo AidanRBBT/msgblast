@@ -1,0 +1,56 @@
+{
+  "fill" : {
+    "automatic-gradient" : "extended-srgb:0.08627,0.76863,0.20000,1.00000"
+  },
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "image-name" : "07-cream.svg",
+          "name" : "Messages Bubble 7 — Cream"
+        },
+        {
+          "image-name" : "06-orange.svg",
+          "name" : "Messages Bubble 6 — Orange"
+        },
+        {
+          "image-name" : "05-pink.svg",
+          "name" : "Messages Bubble 5 — Pink"
+        },
+        {
+          "image-name" : "04-purple.svg",
+          "name" : "Messages Bubble 4 — Purple"
+        },
+        {
+          "image-name" : "03-indigo.svg",
+          "name" : "Messages Bubble 3 — Indigo"
+        },
+        {
+          "image-name" : "02-blue.svg",
+          "name" : "Messages Bubble 2 — Blue"
+        },
+        {
+          "image-name" : "01-white.svg",
+          "name" : "Messages Bubble 1 — White"
+        }
+      ],
+      "lighting" : "combined",
+      "name" : "Nested Messages Bubbles",
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.1
+      },
+      "specular" : false,
+      "translucency" : {
+        "enabled" : false,
+        "value" : 0
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [
+      "watchOS"
+    ],
+    "squares" : "shared"
+  }
+}
