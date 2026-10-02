@@ -27,6 +27,7 @@ final class AppModel: ObservableObject {
     let linkPreviews = LinkPreviewStore()
     let accessGuide = MessagesAccessGuide(defaults: ProcessInfo.processInfo.arguments.contains("--demo") ? UserDefaults(suiteName: "com.msgblast.demo-permissions") ?? .standard : .standard)
     let local: LocalStore
+    lazy var webSession = MuseWebSession(storageURL: local.url.deletingLastPathComponent().appendingPathComponent("web-services.json"), fixture: demo && Bundle.main.object(forInfoDictionaryKey: "MsgBlastLiveWebPreview") as? Bool != true)
     var database: MessagesDatabase?
     var timer: Timer?
     var coordinator: WindowCoordinator?
@@ -35,7 +36,7 @@ final class AppModel: ObservableObject {
     private var lastDataVersion: Int64?
     init() {
         demo = ProcessInfo.processInfo.arguments.contains("--demo") || Bundle.main.object(forInfoDictionaryKey: "MsgBlastDemo") as? Bool == true
-        local = LocalStore(demo: demo, isolated: ProcessInfo.processInfo.arguments.contains("--isolated-demo") || Bundle.main.object(forInfoDictionaryKey: "MsgBlastPermissionGuidePreview") as? Bool == true)
+        local = LocalStore(demo: demo, isolated: ProcessInfo.processInfo.arguments.contains("--isolated-demo") || Bundle.main.object(forInfoDictionaryKey: "MsgBlastPermissionGuidePreview") as? Bool == true || Bundle.main.object(forInfoDictionaryKey: "MsgBlastIsolatedDemo") as? Bool == true, webPreview: Bundle.main.object(forInfoDictionaryKey: "MsgBlastLiveWebPreview") as? Bool == true)
         do { state = try local.load(); try local.save(state) } catch { storageLoadFailed = true; self.error = "Local state could not be loaded or saved: \(error.localizedDescription). Sending is unavailable until storage works." }
         if demo { setupDemo() }
         state.selection = Set(state.agents.map(\.id))
@@ -198,12 +199,12 @@ final class AppModel: ObservableObject {
     }
     func route(_ agent: Agent) -> Chat? { ChatResolver.resolve(handles: agent.handles, chats: chats) }
     func removeAgent(_ agent: Agent) { state.agents.removeAll { $0.id == agent.id }; state.selection.remove(agent.id); persist() }
-    func validateMembers(prompt: String) throws -> [Member] {
+    func validateMembers(prompt: String, selectedIDs: Set<UUID>? = nil) throws -> [Member] {
         guard databaseAvailable else { throw AppFailure.blocked(databaseStatus) }
         var result: [Member] = []
         let previewChats = chats
         if !demo { chats = try database!.chats() }
-        for agent in state.agents where state.selection.contains(agent.id) {
+        for agent in state.agents where (selectedIDs ?? state.selection).contains(agent.id) {
             let fresh = demo ? agent : try contacts.refreshed(agent)
             if fresh != agent, let saved = state.agents.firstIndex(where: { $0.id == agent.id }) {
                 state.agents[saved] = fresh
@@ -243,6 +244,23 @@ final class AppModel: ObservableObject {
             coordinator?.open(comparison.id)
             await submit(comparison.id, retry: false)
         } catch { self.error = error.localizedDescription }
+    }
+    // Capture recipients before the independent Muse and Messages submissions begin.
+    func startTextComparison(_ text: String, recipientIDs: Set<UUID>, onPrepared: @MainActor (UUID) -> Void) async -> UUID? {
+        guard !busy, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, !recipientIDs.isEmpty else { return nil }
+        do {
+            if !demo, contacts.status == .notDetermined {
+                busy = true
+                defer { busy = false }
+                try await contacts.request()
+            }
+            let comparison = Comparison(prompt: text, members: try validateMembers(prompt: text, selectedIDs: recipientIDs))
+            state.comparisons.insert(comparison, at: 0)
+            try save()
+            onPrepared(comparison.id)
+            await submit(comparison.id, retry: false)
+            return comparison.id
+        } catch { self.error = error.localizedDescription; return nil }
     }
     func comparison(_ id: UUID) -> Comparison? { state.comparisons.first { $0.id == id } }
     func index(_ id: UUID) -> Int? { state.comparisons.firstIndex { $0.id == id } }

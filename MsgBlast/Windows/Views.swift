@@ -94,6 +94,7 @@ struct MessageInput: View {
     let accessibilityName: String
     let sendLabel: String
     var disabled: Bool
+    var attachmentsEnabled = true
     var send: () -> Void
     @State private var dropTarget = false
     @State private var importing = false
@@ -104,9 +105,9 @@ struct MessageInput: View {
         VStack(spacing: 4) {
             if !attachments.isEmpty { AttachmentDraftStrip(attachments: attachments, disabled: unavailable, remove: removeAttachment) }
             HStack(alignment: .bottom, spacing: 9) {
-                AttachmentComposer(disabled: unavailable, add: addAttachments, importing: $importing)
+                if attachmentsEnabled { AttachmentComposer(disabled: unavailable, add: addAttachments, importing: $importing) }
                 HStack(alignment: .bottom, spacing: 8) {
-                    MessageEditor(text: $text, accessibilityName: accessibilityName, attachmentsEnabled: !unavailable, importAttachment: { selection in
+                    MessageEditor(text: $text, accessibilityName: accessibilityName, attachmentsEnabled: attachmentsEnabled && !unavailable, importAttachment: { selection in
                         importing = true
                         Task { await addAttachments(selection); importing = false }
                     }, send: { if !unavailable && hasContent { send() } })
@@ -126,7 +127,7 @@ struct MessageInput: View {
         }
         .overlay { if dropTarget { RoundedRectangle(cornerRadius: 18).stroke(.blue, lineWidth: 2) } }
         .onDrop(of: [.fileURL, .image], isTargeted: $dropTarget) { providers in
-            guard !unavailable else { return false }
+            guard attachmentsEnabled, !unavailable else { return false }
             importProviders(providers); return true
         }
         .alert("Attachment", isPresented: Binding(get: { attachmentError != nil }, set: { if !$0 { attachmentError = nil } })) { Button("OK") { attachmentError = nil } } message: { Text(attachmentError ?? "") }
@@ -191,19 +192,21 @@ struct PinnedAgentTile: View {
 struct MainView: View {
     @ObservedObject var model: AppModel
     @State private var setup = false
-    @State private var discovering = false
+    private enum DetailSelection { case agents, discover }
+    @State private var selection = DetailSelection.agents
+    @State private var showingComparison = false
     var body: some View {
         NavigationSplitView {
             List {
                 Section {
-                    Button { discovering = false } label: {
-                        Label("My agents", systemImage: "person.2.fill").foregroundStyle(discovering ? Color.primary : Color.accentColor)
+                    Button { selection = .agents; showingComparison = false } label: {
+                        Label("My agents", systemImage: "person.2.fill").foregroundStyle(selection == .agents ? Color.accentColor : Color.primary)
                     }.buttonStyle(.plain).accessibilityLabel("My agents")
-                        .accessibilityValue(discovering ? "Not selected" : "Selected")
-                    Button { discovering = true } label: {
-                        Label("Discover", systemImage: "safari").foregroundStyle(discovering ? Color.accentColor : Color.primary)
+                        .accessibilityValue(selection == .agents ? "Selected" : "Not selected")
+                    Button { selection = .discover } label: {
+                        Label("Discover", systemImage: "safari").foregroundStyle(selection == .discover ? Color.accentColor : Color.primary)
                     }.buttonStyle(.plain).accessibilityLabel("Discover")
-                        .accessibilityValue(discovering ? "Selected" : "Not selected")
+                        .accessibilityValue(selection == .discover ? "Selected" : "Not selected")
                 }
                 Section("Comparisons") {
                 ForEach(model.state.comparisons) { comparison in
@@ -222,29 +225,13 @@ struct MainView: View {
             }.listStyle(.sidebar).navigationTitle("MsgBlast")
                 .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 330)
         } detail: {
-            if discovering {
+            if selection == .discover {
                 DiscoverView(model: model).navigationTitle("Discover")
             } else {
             VStack(spacing: 0) {
                 if model.demo { demoControls }
                 MessagesAccessBanner(model: model)
-                GeometryReader { geometry in
-                    ScrollView {
-                        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 20), count: 3), spacing: 28) {
-                            ForEach(model.state.agents) { agent in
-                                PinnedAgentTile(agent: agent, selected: model.state.selection.contains(agent.id), size: min(100, max(48, (geometry.size.width - 80) / 3))) {
-                                    if model.state.selection.contains(agent.id) { model.state.selection.remove(agent.id) }
-                                    else { model.state.selection.insert(agent.id) }
-                                    model.persist()
-                                }.disabled(model.busy || model.route(agent) == nil)
-                                    .help(model.route(agent)?.handle ?? "No matching conversation")
-                            }
-                        }.padding(.horizontal, 20).padding(.top, 14).padding(.bottom, 20)
-                    }
-                }
-                MessageInput(text: Binding(get: { model.state.draft }, set: { model.state.draft = $0; model.persist() }), attachments: model.attachmentDraft(), addAttachments: { await model.addAttachments($0) }, removeAttachment: { id in model.setAttachmentDraft(model.attachmentDraft().filter { $0.id != id }) }, placeholder: "Message", accessibilityName: "Shared prompt", sendLabel: "Send & compare", disabled: model.busy || !model.databaseAvailable || model.state.selection.isEmpty) {
-                    Task { await model.start() }
-                }.padding(20)
+                AgentsWorkspaceView(model: model, session: model.webSession, showingComparison: $showingComparison)
             }.navigationTitle("")
             }
         }
