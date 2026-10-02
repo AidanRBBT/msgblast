@@ -93,7 +93,7 @@ public enum PersonalAgentError: LocalizedError {
         case .failed(let name, let code): "\(name) exited with status \(code). Open its CLI in Terminal to check sign-in, usage limits, and updates, then try again."
         case .timedOut: "The personal agent did not finish within three minutes. Try again when it is ready."
         case .tooLarge: "The comparison or agent output is too large to summarize in one request. No partial summary was saved."
-        case .invalidResponse(let name): "\(name) did not return a completed summary. Check its sign-in and CLI version in Terminal, then try again."
+        case .invalidResponse(let name): "\(name) did not return a completed comparison report. Check its sign-in and CLI version in Terminal, then try again."
         }
     }
 }

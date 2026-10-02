@@ -1,0 +1,21 @@
+#!/bin/bash
+# Compile the actual controller with controlled local substitutes; no UI or provider requests.
+set -euo pipefail
+report_root="$(cd -- "$(dirname -- "$0")/.." && pwd)"
+report_build="${1:-$report_root/build/personal-agent-validation}"
+report_frameworks="$report_build/Build/Products/Debug"
+if [[ ! -d "$report_frameworks/MsgBlastCore.framework" ]]; then
+    echo "Build MsgBlast in the selected derived-data directory before running this check." >&2
+    exit 1
+fi
+report_frameworks="$(cd -- "$report_frameworks" && pwd)"
+report_tmp="$(mktemp -d "${TMPDIR:-/tmp}/msgblast-shutdown.XXXXXX")"
+trap 'rm -rf "$report_tmp"' EXIT
+xcrun swiftc -swift-version 6 -parse-as-library \
+    -target "$(uname -m)-apple-macos26.0" \
+    -F "$report_frameworks" -framework MsgBlastCore \
+    -Xlinker -rpath -Xlinker "$report_frameworks" \
+    "$report_root/MsgBlast/App/PersonalAgentController.swift" \
+    "$report_root/scripts/fixtures/personal_agent_shutdown.swift" \
+    -o "$report_tmp/check"
+"$report_tmp/check"

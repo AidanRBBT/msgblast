@@ -8,20 +8,36 @@ final class PersonalAgentController: ObservableObject {
     @Published private(set) var discovering = false
     @Published private(set) var errors: [UUID: String] = [:]
     @Published private var tasks: [UUID: Task<Void, Never>] = [:]
+    private var discoveryTask: Task<[InstalledPersonalAgent], Never>?
+    private var shuttingDown = false
     var running: Set<UUID> { Set(tasks.keys) }
     let demo: Bool
 
     init(demo: Bool) { self.demo = demo }
 
     func discover() async {
-        guard !discovering else { return }
+        if let discoveryTask { installed = await discoveryTask.value; return }
         discovering = true
-        defer { discovering = false }
-        if demo {
-            installed = [InstalledPersonalAgent(provider: .codex, executableURL: URL(fileURLWithPath: "/dev/null"), path: "")]
-        } else {
-            installed = await LocalPersonalAgent.discover()
+        let task = Task { [demo] in
+            if demo {
+                return [InstalledPersonalAgent(provider: .codex, executableURL: URL(fileURLWithPath: "/dev/null"), path: "")]
+            }
+            return await LocalPersonalAgent.discover()
         }
+        discoveryTask = task
+        installed = await task.value
+        discoveryTask = nil; discovering = false
+    }
+
+    func selectedProvider(model: AppModel) -> PersonalAgentProvider? {
+        if let saved = model.state.personalAgentProvider { return PersonalAgentProvider(rawValue: saved) }
+        return installed.first?.provider
+    }
+
+    func requestReport(_ id: UUID, model: AppModel) async {
+        guard !shuttingDown, !running.contains(id) else { return }
+        await discover()
+        if let provider = selectedProvider(model: model) { summarize(id, provider: provider, model: model) }
     }
 
     func input(for id: UUID, model: AppModel) throws -> ComparisonSummaryInput {
@@ -30,7 +46,7 @@ final class PersonalAgentController: ObservableObject {
     }
 
     func summarize(_ id: UUID, provider: PersonalAgentProvider, model: AppModel) {
-        guard !running.contains(id) else { return }
+        guard !shuttingDown, !running.contains(id) else { return }
         errors[id] = nil
         do {
             guard model.databaseAvailable else { throw AppFailure.blocked("Refresh Messages history before summarizing this comparison.") }
@@ -43,37 +59,28 @@ final class PersonalAgentController: ObservableObject {
                 guard let self, let model else { return }
                 defer { self.tasks[id] = nil }
                 do {
-                    let text: String
+                    let report: ComparisonReport
                     if self.demo {
                         try await Task.sleep(for: .seconds(1))
                         let names = model.comparison(id)?.members.map(\.name).joined(separator: ", ") ?? "the participants"
-                        text = """
-                        Demo summary · simulated output
-
-                        Across \(names), the shared recommendation is to use one concrete question and evaluate each approach against the same goal.
-
-                        Agreement
-                        Make assumptions visible and test the options on a small example before committing.
-
-                        Differences
-                        Cedar emphasizes clarity, cost, and reversibility. Lumen emphasizes a small trial and explicit assumptions. Orbit starts with the desired outcome and follows up on unclear reasoning.
-
-                        Next step
-                        Choose a representative example, define the success criteria, and compare the results side by side.
-
-                        This fixture demonstrates the summary workflow. No installed agent was contacted.
-                        """
+                        report = ComparisonReport(
+                            bestNextAction: "Choose one representative example and test each approach against the same success criteria.",
+                            rationale: "A small trial turns the different recommendations into evidence you can compare before committing.",
+                            comparison: "Across \(names), the shared recommendation is to make assumptions visible and compare options against one concrete goal.\n\n**Agreement**\nStart small and evaluate each answer against consistent criteria.\n\n**Differences**\nCedar emphasizes clarity, cost, and reversibility. Lumen emphasizes a small trial and explicit assumptions. Orbit starts with the desired outcome and follows up on unclear reasoning.",
+                            uncertainties: ["Which outcome matters most to you: clarity, cost, or reversibility?", "Simulated demo report. No installed agent was contacted."])
                     } else {
-                        text = try await LocalPersonalAgent.summarize(snapshot, using: agent)
+                        let response = try await LocalPersonalAgent.summarize(snapshot, using: agent)
+                        guard let parsed = ComparisonReport(response: response) else { throw PersonalAgentError.invalidResponse(provider.name) }
+                        report = parsed
                     }
                     try Task.checkCancellation()
                     guard let index = model.index(id) else { return }
                     let previous = model.state.comparisons[index].summary
-                    model.state.comparisons[index].summary = ComparisonSummary(provider: self.demo ? "Demo analyst (simulated)" : provider.name, text: text, input: snapshot)
+                    model.state.comparisons[index].summary = ComparisonSummary(provider: self.demo ? "Demo analyst (simulated)" : provider.name, report: report, input: snapshot)
                     do { try model.save() }
                     catch { model.state.comparisons[index].summary = previous; throw error }
                 } catch is CancellationError {
-                    self.errors[id] = "Summary cancelled."
+                    self.errors[id] = "Report cancelled."
                 } catch {
                     self.errors[id] = error.localizedDescription
                 }
@@ -84,6 +91,7 @@ final class PersonalAgentController: ObservableObject {
     func cancel(_ id: UUID) { tasks[id]?.cancel() }
     func cancelAll() { for task in tasks.values { task.cancel() } }
     func cancelAndWait() async {
+        shuttingDown = true
         let pending = Array(tasks.values)
         for task in pending { task.cancel() }
         for task in pending { await task.value }

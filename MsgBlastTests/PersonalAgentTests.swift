@@ -2,6 +2,26 @@ import XCTest
 @testable import MsgBlastCore
 
 final class PersonalAgentTests: XCTestCase {
+    func testReportRequiresActionAndRationaleAndPreservesLegacySummary() throws {
+        let response = #"{"bestNextAction":"Run a small trial","rationale":"The replies disagree on cost","comparison":"Cedar favors clarity; Lumen favors a trial.","uncertainties":["Actual cost is unknown"]}"#
+        let report = try XCTUnwrap(ComparisonReport(response: response))
+        XCTAssertEqual(report.bestNextAction, "Run a small trial")
+        XCTAssertEqual(report.uncertainties, ["Actual cost is unknown"])
+        XCTAssertTrue(report.text.contains("## Best next action\nRun a small trial"))
+        XCTAssertEqual(ComparisonReport(response: "```json\n\(response)\n```"), report)
+        XCTAssertNil(ComparisonReport(response: response.replacingOccurrences(of: "Run a small trial", with: " ")))
+        XCTAssertNil(ComparisonReport(response: "A summary without a recommended action"))
+        let comparison = Comparison(prompt: "Choose an approach", members: [])
+        let input = try ComparisonSummaryInput(comparison: comparison, comparisons: [comparison], messages: [:])
+        XCTAssertTrue(input.prompt.contains("ONE best next action"))
+        let saved = ComparisonSummary(provider: "Fixture", report: report, input: input)
+        XCTAssertEqual(try JSONDecoder().decode(ComparisonSummary.self, from: JSONEncoder().encode(saved)), saved)
+        let legacy = ComparisonSummary(provider: "Fixture", text: "Previously saved summary", input: input)
+        let decoded = try JSONDecoder().decode(ComparisonSummary.self, from: JSONEncoder().encode(legacy))
+        XCTAssertNil(decoded.report)
+        XCTAssertEqual(decoded.text, "Previously saved summary")
+    }
+
     func testSnapshotIncludesEveryMemberAndBoundedRepliesButNoDraftsOrAddresses() throws {
         let chat = Chat(id: "chat", handle: "private@example.com", lastActivity: 0)
         var member = Member(agentID: UUID(), name: "Cedar", chat: chat)

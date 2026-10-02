@@ -25,9 +25,11 @@ A fixture app can be built with `scripts/build_demo.sh`. Open `build/Build/Produ
 
 Web links render as native image-backed cards with website titles and domains. Click a card to open its URL. Standard and custom emoji reactions attach to the original message, including replacement and removal events. Preview metadata is fetched from the linked website and cached in memory; a website that cannot provide metadata still has a usable native link card.
 
-### Personal agent summaries
+### Personal agent reports
 
-Open a comparison and click **Personal agent** above the shared message field (available in both window layouts). Choose an installed CLI, then **Summarize responses**. The summary combines every participant's available responses, agreements, differences, and suggested next steps, independent of the message-recipient selection. It includes reactions, confirmed follow-ups and explicit thread replies using the same boundaries as the conversation columns. A participant who has not replied is included as waiting; there must be at least one reply or recipient reaction to start. The response count includes both messages and recipient reactions. The summary is saved with the comparison, can be copied, and is marked out of date when the conversation changes. **Update summary** explicitly submits a new snapshot; new replies never trigger automatic provider requests.
+Click **Summarize** in the top-right toolbar of a comparison window, a separate conversation window, or the floating shared composer. A separate, resizable **Comparison report** window opens and starts the personal agent selected last time (or the first detected CLI on first use). The report leads with **Best next action** and its reasoning, then compares the responses and lists open questions. Select a different personal agent in the report window and click **Update report** to use it.
+
+The report includes every participant's available responses, reactions, confirmed follow-ups, and explicit thread replies within the same boundaries as the conversation columns. It is independent of the message-recipient selection. At least one reply or recipient reaction is required to generate a report; the response count includes both. The report is saved with the comparison, can be copied, and becomes visibly stale when the conversation changes. Clicking **Summarize** again focuses the existing report window and requests an update; clicking while a request is running only focuses the report. New replies never trigger automatic provider requests. Existing saved summaries remain readable until replaced by a report.
 
 Supported CLIs: **Codex, Claude Code, Cursor (`cursor-agent`), Gemini CLI, Pi, Grok, and Hermes**. Detection checks the login shell's PATH and common installation directories; it does not install agents or inspect credential files. Install and sign in through the provider's own CLI, then use **Refresh agents**. Finding an executable does not establish that it is signed in. A desktop app alone may not include its CLI. CLI updates can change supported flags; launch, authentication, and output errors leave the previous summary intact.
 
@@ -35,7 +37,7 @@ This follows [bb's local CLI integration approach](https://github.com/get-bb/bb/
 
 The chosen CLI uses its existing account and provider billing/usage limits; MsgBlast does not add an API-key form or promise that every CLI configuration bills a subscription. The comparison text is sent to the selected provider only when you request a summary. Unsent drafts, contact addresses, unrelated conversations, and attachment contents/paths are excluded (attachment filenames remain as context). Codex and Hermes use their isolated configuration modes while retaining CLI-owned authentication; other adapters disable tools or request the CLI's read-only mode. These are provider controls, not an OS-level isolation guarantee for third-party executables. Each run uses a private temporary working directory, direct arguments and stdin, a three-minute timeout, cancellation, and bounded output. Cancellation, timeout, and normal app quit stop the request process group before removing temporary request/output files; force quitting or a system crash cannot run that cleanup. After a completed run those files are removed; the provider may maintain its own history under its own policy.
 
-The demo always uses a clearly labeled simulated summary and never invokes an installed agent. Adapter tests use local executable fixtures, so they prove transport/parsing and failure behavior, not live provider authentication or billing. Validate without replacing the live app with:
+The demo always uses a clearly labeled simulated report and never invokes an installed agent. Adapter tests use local executable fixtures, so they prove transport/parsing and failure behavior, not live provider authentication or billing. Validate without replacing the live app with:
 
 ```sh
 xcodebuild -project MsgBlast.xcodeproj -scheme MsgBlast \
@@ -44,8 +46,11 @@ xcodebuild -project MsgBlast.xcodeproj -scheme MsgBlast \
   MSGBLAST_APP_BUNDLE_IDENTIFIER=com.msgblast.personal-agent-validation \
   ASSETCATALOG_COMPILER_APPICON_NAME=AppIconDemo \
   -only-testing:MsgBlastTests \
-  -only-testing:MsgBlastUITests/WorkflowTests/testPersonalAgentSummarizesAllResponsesAndKeepsSavedSummary test
+  -only-testing:MsgBlastUITests/WorkflowTests/testSeparateConversationWindowsShareOneComparisonReport \
+  -only-testing:MsgBlastUITests/WorkflowTests/testPersonalAgentOpensComparisonReportWithBestNextAction test
 ```
+
+After the isolated build, run `scripts/test_personal_agent_shutdown.sh build/personal-agent-validation` to verify that delayed discovery cannot start a report during shutdown. It compiles the actual controller with controlled in-memory model and provider substitutes; no UI, Messages access, or provider request is involved.
 
 The circular **+** beside each message field opens Photos or the native file picker. Attach multiple photos/files, paste images or copied Finder files, or drop them into the composer. Previews can be removed before sending and opened in native Quick Look. A message can contain attachments without a caption. Drafts retain staged files across relaunch; each caption/file has its own saved submission receipt, so partial retries skip accepted parts. Conversation history displays photo previews and file cards.
 
