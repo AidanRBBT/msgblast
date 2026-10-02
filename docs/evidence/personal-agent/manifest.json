@@ -1,46 +1,89 @@
 {
-  "source_revision": "6b3d6ec98f5fdd84d640f39496256590b033d39f",
+  "source_revision": "95952da7783e83dbe0c19745ae3c3cf29a81ac04",
   "captured_at": "2026-10-02",
   "platform": "macOS arm64 native app",
-  "fixtures": "Synthetic Cedar, Lumen, Orbit conversations. Simulated summary; no provider requests or real messages.",
+  "fixture_app": {
+    "bundle_identifier": "com.msgblast.report-verified",
+    "icon": "AppIconDemo"
+  },
+  "fixtures": "Synthetic Cedar, Lumen, Orbit conversations and simulated report output. No provider requests or real messages. Screenshots captured through native UI from the final source build.",
   "screenshots": {
-    "ready.png": "Actual feature ready to summarize, exported from XCTest",
-    "summary.png": "Saved summary with 3 messages and 3 recipient reactions, exported from XCTest",
-    "stale.png": "Actual stale-summary warning after synthetic follow-up, captured through native UI"
+    "ready.png": "Connected comparison with top-right Summarize and synthetic replies",
+    "summary.png": "Independent comparison report with best next action and rationale; 6 responses",
+    "details.png": "Report comparison details and open questions",
+    "followup.png": "Synthetic follow-up entered in the connected comparison",
+    "stale.png": "Saved report marked stale after additional synthetic replies and reactions",
+    "separate.png": "Separate conversation windows retain the report and expose Summarize",
+    "updated.png": "Updated report includes 12 responses and clears the stale notice",
+    "composer.png": "Shared floating composer exposes Summarize for the same comparison"
   },
   "video": {
     "file": "workflow.mp4",
-    "duration_seconds": 26,
-    "format": "H.264 MP4",
-    "capture": "Sequence of captured native UI states with held frames and edited pauses; not a continuous screen recording. No synthetic UI pixels. Summary, follow-up, stale warning, update to 12 responses (6 messages + 6 recipient reactions)."
+    "duration_seconds": 28,
+    "format": "H.264 MP4, 1280x900",
+    "capture": "Sequence of actual captured native UI states with held frames and edited pauses; not a continuous screen recording. No synthetic UI pixels. Shows Summarize, report/action, comparison details, follow-up, stale notice, separate windows, update to 12 responses, and shared composer."
   },
   "validation": {
-    "test_count": 61,
-    "passed": 61,
-    "failed": 0,
-    "skipped": 0,
-    "result_bundle": "Test-MsgBlast-2026.10.02_12-27-42--0700.xcresult",
+    "core_tests": {
+      "passed": 52,
+      "failed": 0,
+      "skipped": 0,
+      "result_bundle": "Test-MsgBlast-2026.10.02_13-34-18--0700.xcresult"
+    },
+    "ui_tests": {
+      "status": "not_executed",
+      "reason": "macOS authentication canceled before the UI test runner initialized. Updated tests compile; selectors checked against the observed accessibility tree.",
+      "attempt_result_bundle": "Test-MsgBlast-2026.10.02_12-54-10--0700.xcresult"
+    },
+    "manual_native_checks": [
+      "Top-right Summarize in connected and separate windows and floating composer",
+      "One-click generation opens independent report with action/rationale/comparison/open questions",
+      "New replies mark report stale; explicit update advances 6 to 12 responses and clears stale notice",
+      "One report reused across conversation windows and composer",
+      "Report retained across layout switch",
+      "Report close/reopen retains saved result"
+    ],
+    "shutdown_regression": {
+      "driver": "scripts/test_personal_agent_shutdown.sh",
+      "fixture": "Real controller with controlled in-memory model/provider substitutes; no provider process or network",
+      "before_fix": {
+        "provider_starts": 2,
+        "active_reports_after_shutdown": 1,
+        "result": "failed"
+      },
+      "after_fix": {
+        "provider_starts": 1,
+        "active_reports_after_shutdown": 0,
+        "result": "passed"
+      }
+    },
     "bundle_identifier": "com.msgblast.personal-agent-validation",
     "live_provider_authentication_tested": false,
     "installed_app_released": false
   },
   "review": {
     "status": "complete",
-    "run_id": "20261002-120911-3fc64c09",
+    "run_id": "20261002-130547-7fa131a3",
     "applied_findings": [
       1,
-      2
+      3,
+      4
     ],
-    "fixes": "Reaction context/counts/fingerprints and normal-quit cancellation/await. Process-group cleanup regression covers descendants ignoring SIGTERM and wrapper exit. Fixes applied after original review and verified in final suite."
+    "fixes": "Close report admission before shutdown; use observed coalesced accessibility text in UI selectors; require refresh metadata to advance and stale notice to clear. Fixes applied after the frozen-diff review and verified by final core tests, deterministic shutdown fixture, and manual native checks. Automated UI execution remains blocked as stated above."
   },
   "research": {
     "repository": "https://github.com/get-bb/bb",
     "revision": "c8b9459ba911a5666fda4ed63291aed68b6a64be"
   },
   "sha256": {
-    "ready.png": "042cc7a97ee36e3c8625412119acc9aeb32a48296a793546661dab611865bd7f",
-    "stale.png": "e960bb456a1e1970b43d1cbd2fd0512a005f7dd1bc441aa474eaa9f575934933",
-    "summary.png": "27bf3ed41b721f7161545570b6d2cac61bcc79efaa0e9d2fb9b042063cec684d",
-    "workflow.mp4": "3e51e988c5cd2d51031843b8c3db920a416ae473a6f9927dd9360d2a122cff0a"
+    "ready.png": "0c4d602c196fbc19a6ced07b29811d6e917d868a1f06b4a72e65c51f94ca2423",
+    "summary.png": "90df5c73c40196c221048582cf29327522a8cede8fd4a6d21a16417080d3b199",
+    "details.png": "be78d939aa6c33a41f4a869a1a6da634816682f8ba661919e01fe1f73e307497",
+    "followup.png": "5ea7150b5c4ece8aba7593b597b9f8f44c955765793aca0bde03799f9a5a12f9",
+    "stale.png": "441d17d946e4e37e2354a4844c96bbb334edadf6da340ef6af24e3e53e5508f0",
+    "separate.png": "bb97289032eb01b64715bf6aefd2cfe36ed2a70ac8cf780919df86117b2b1bc4",
+    "updated.png": "2a220c03eef82d26109d482d32807bede5102151480d5106d80b5bd9005ee58c",
+    "composer.png": "a30acbe909f1ffee660aebdadc2bf689a865e2d94bc782f5faa32eec8b41958a",
+    "workflow.mp4": "01a308a567a5dcc447b6736c735f484829067d427e832e24ec114c22d765856d"
   }
 }
