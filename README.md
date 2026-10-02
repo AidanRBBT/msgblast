@@ -11,7 +11,7 @@ xcodebuild -project MsgBlast.xcodeproj -scheme MsgBlast -derivedDataPath build -
 open build/Build/Products/Debug/MsgBlast.app
 ```
 
-Open `MsgBlast.xcodeproj` in Xcode to run, debug, and test. The project has a shared `MsgBlast` scheme, core unit tests, and a native UI test target. `python3 scripts/generate_project.py` regenerates the project after adding Swift files. No external dependencies are required.
+Open `MsgBlast.xcodeproj` in Xcode to run, debug, and test. The project has a shared `MsgBlast` scheme, core unit tests, and a native UI test target. `python3 scripts/generate_project.py` regenerates the project after adding Swift files. Xcode resolves the pinned Sparkle 2.10.0 package for native updates.
 
 A fixture app can be built with `scripts/build_demo.sh`. Open `build/Build/Products/Debug/MsgBlast Demo.app`. Standard development builds use the blue-green icon; the demo uses the blue icon and compiles in `build/icon-demo` before copying to its usual app path. This has synthetic contacts and delayed synthetic replies; it cannot submit real messages. “Simulate one failure” exercises a known failure before submission. “Reset sample data” clears only the demo's app-owned state. Demo and live state are stored in separate directories.
 
@@ -53,3 +53,18 @@ Remove `-only-testing:MsgBlastTests` to include UI tests after authorizing their
 The isolated run at October 2, 09:15:53 passed 41 core/controller tests and nine native workflows, with zero failures/skips. A targeted extension also passed same-image close/reopen. Core regressions cover optional delivery columns, read-only history, recipient scopes and private transport copies, including rejected symlinks. Native workflows cover onboarding return, pending-contact eligibility, joined selection, partial retries, rendered previews and repeated private sends. The later photo-layout/Contacts-consent revision passed 41 core checks; its UI run was stopped after two activation failures with the screen locked. AppIntents metadata, synthetic file-URL sandbox and internal XCTest QoS warnings remain. See the current [completion audit](docs/completion-audit.md) for precise results and remaining live gates. Keep validation builds separate from the live app bundle to avoid replacing its executable/signature during permission checks.
 
 The private repository is [mgalpert/msgblast](https://github.com/mgalpert/msgblast). Any future PR must include actual-feature **Screenshots** and **Video** sections, with repository-accessible evidence from the reviewed build; local screenshots alone do not satisfy that requirement.
+
+## Updates
+
+Configured app bundles use Sparkle’s native update dialog and release notes. Settings shows the version/build, automatic check and download preferences, and Check for Updates. Updates wait for active submissions and save drafts before quitting. Development builds without a feed/key explain that updates are unavailable; ordinary demos, previews, XCTest and unbundled runs never query production feeds.
+
+See [release preparation and hosting](docs/updates.md) for Developer ID signing, notarization, signed appcasts and explicit increasing build counters. The repository is private; a publicly downloadable HTTPS feed/archive host is still required. The running app must be replaced once with the first updater-enabled build before it can receive future updates.
+
+After building in a separate derived-data directory, exercise real Sparkle with temporary signed localhost fixtures:
+
+```sh
+python3 scripts/test_updates.py --derived-data build/updater-validation --keep
+python3 scripts/test_updates.py --derived-data build/updater-validation --ui --keep
+```
+
+The UI mode serves a synthetic app until interrupted. Neither mode sends real messages or writes Contacts. Fixture bundles are ad-hoc Debug builds, so these checks do not establish production notarization or Gatekeeper acceptance.

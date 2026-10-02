@@ -29,3 +29,11 @@ Policy tests reject ordinary previews/demo/invalid or absent production configur
 
 ## Definition of Done
 U1/U2/U3 work complete and local checks/evidence recorded; simplify and independent code review applied; changes committed on codex/sparkle-updates and delivered via a private GitHub PR with Screenshots and Video sections. Production deployment is not authorized until signing credentials and distribution host are provided; clearly document that prerequisite rather than pretending a live update service exists.
+
+## Execution evidence
+- U1 and U2 implemented; Sparkle 2.10.0 resolves through Xcode and SwiftPM. Full Xcode suite passes 55 checks (46 core/controller and nine native workflows), zero failures/skips; 11 mocked release tests pass.
+- Real signed localhost fixtures pass installation/relaunch to build 2, deterministic busy postponement, no-update, invalid archive signature and HTTP download failure. Draft and staged attachment references/content survive.
+- Actual native Settings and standard Sparkle download/install/relaunch were captured under docs/evidence/updates. Version changes from 0.1.1 (1) to 0.1.2 (2); toggled update preferences, draft and attachment persist. Screenshot video uses condensed pauses and synthetic fixture data, labeled in evidence README.
+- Simplification removed duplicate release validation, streamed release ZIP hashing and bounded discarded Xcode build output; updater reads Sparkle’s current availability directly.
+- Production Developer ID credentials, notarization profile, long-lived Sparkle key and HTTPS distribution host remain operator prerequisites. No production upload, application replacement, real message send or Contacts write occurred.
+- SwiftPM full tests encounter the pre-existing Xcode-only PermissionGuideLifecycleTests referencing MessagesAccessGuide outside the core target. Xcode is the authoritative full test runner; no test was disabled to hide this limitation.

@@ -633,12 +633,24 @@ struct RecipientPills: View {
 
 struct AppSettingsView: View {
     @ObservedObject var model: AppModel
+    @ObservedObject var updater: AppUpdater
     var body: some View {
         Form {
             Picker("Conversations", selection: Binding(get: { model.state.effectiveWindowStyle }, set: { model.setWindowStyle($0) })) {
                 Text("One window").tag(ComparisonWindowStyle.connected)
                 Text("Separate windows").tag(ComparisonWindowStyle.separate)
             }.pickerStyle(.radioGroup)
-        }.formStyle(.grouped).padding(20).frame(width: 400, height: 200)
+            Section("Updates") {
+                Text(updater.version).foregroundStyle(.secondary)
+                if updater.configuration.isEnabled {
+                    Toggle("Automatically check for updates", isOn: Binding(get: { updater.automaticallyChecks }, set: { updater.automaticallyChecks = $0 }))
+                    Toggle("Automatically download and install on quit", isOn: Binding(get: { updater.automaticallyInstalls }, set: { updater.automaticallyInstalls = $0 }))
+                        .disabled(!updater.automaticallyChecks)
+                    Button("Check for Updates…") { updater.checkForUpdates() }.disabled(!updater.canCheckForUpdates)
+                } else {
+                    Text(updater.configuration.unavailableReason).foregroundStyle(.secondary)
+                }
+            }
+        }.formStyle(.grouped).padding(20).frame(width: 480, height: 360)
     }
 }
