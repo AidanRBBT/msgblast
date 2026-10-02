@@ -25,6 +25,28 @@ A fixture app can be built with `scripts/build_demo.sh`. Open `build/Build/Produ
 
 Web links render as native image-backed cards with website titles and domains. Click a card to open its URL. Standard and custom emoji reactions attach to the original message, including replacement and removal events. Preview metadata is fetched from the linked website and cached in memory; a website that cannot provide metadata still has a usable native link card.
 
+### Personal agent summaries
+
+Open a comparison and click **Personal agent** above the shared message field (available in both window layouts). Choose an installed CLI, then **Summarize responses**. The summary combines every participant's available responses, agreements, differences, and suggested next steps, independent of the message-recipient selection. It includes reactions, confirmed follow-ups and explicit thread replies using the same boundaries as the conversation columns. A participant who has not replied is included as waiting; there must be at least one reply or recipient reaction to start. The response count includes both messages and recipient reactions. The summary is saved with the comparison, can be copied, and is marked out of date when the conversation changes. **Update summary** explicitly submits a new snapshot; new replies never trigger automatic provider requests.
+
+Supported CLIs: **Codex, Claude Code, Cursor (`cursor-agent`), Gemini CLI, Pi, Grok, and Hermes**. Detection checks the login shell's PATH and common installation directories; it does not install agents or inspect credential files. Install and sign in through the provider's own CLI, then use **Refresh agents**. Finding an executable does not establish that it is signed in. A desktop app alone may not include its CLI. CLI updates can change supported flags; launch, authentication, and output errors leave the previous summary intact.
+
+This follows [bb's local CLI integration approach](https://github.com/get-bb/bb/tree/c8b9459ba911a5666fda4ed63291aed68b6a64be/plugins): its Claude adapter resolves the local executable for the Agent SDK, Codex uses a local app-server child, and Cursor/OpenCode/omp/Grok/Hermes use ACP bridges. MsgBlast uses one-shot CLI adapters for its single-summary workflow rather than embedding bb's TypeScript server or long-lived session protocol. OpenCode and omp are not included in this initial adapter set. No bb source code is copied.
+
+The chosen CLI uses its existing account and provider billing/usage limits; MsgBlast does not add an API-key form or promise that every CLI configuration bills a subscription. The comparison text is sent to the selected provider only when you request a summary. Unsent drafts, contact addresses, unrelated conversations, and attachment contents/paths are excluded (attachment filenames remain as context). Codex and Hermes use their isolated configuration modes while retaining CLI-owned authentication; other adapters disable tools or request the CLI's read-only mode. These are provider controls, not an OS-level isolation guarantee for third-party executables. Each run uses a private temporary working directory, direct arguments and stdin, a three-minute timeout, cancellation, and bounded output. Cancellation, timeout, and normal app quit stop the request process group before removing temporary request/output files; force quitting or a system crash cannot run that cleanup. After a completed run those files are removed; the provider may maintain its own history under its own policy.
+
+The demo always uses a clearly labeled simulated summary and never invokes an installed agent. Adapter tests use local executable fixtures, so they prove transport/parsing and failure behavior, not live provider authentication or billing. Validate without replacing the live app with:
+
+```sh
+xcodebuild -project MsgBlast.xcodeproj -scheme MsgBlast \
+  -derivedDataPath build/personal-agent-validation \
+  -destination 'platform=macOS,arch=arm64' \
+  MSGBLAST_APP_BUNDLE_IDENTIFIER=com.msgblast.personal-agent-validation \
+  ASSETCATALOG_COMPILER_APPICON_NAME=AppIconDemo \
+  -only-testing:MsgBlastTests \
+  -only-testing:MsgBlastUITests/WorkflowTests/testPersonalAgentSummarizesAllResponsesAndKeepsSavedSummary test
+```
+
 The circular **+** beside each message field opens Photos or the native file picker. Attach multiple photos/files, paste images or copied Finder files, or drop them into the composer. Previews can be removed before sending and opened in native Quick Look. A message can contain attachments without a caption. Drafts retain staged files across relaunch; each caption/file has its own saved submission receipt, so partial retries skip accepted parts. Conversation history displays photo previews and file cards.
 
 The first ordinary send asks macOS to allow Automation of Messages. A successful Apple Event means **submitted to Messages**, not delivered. Sends run in an isolated child process with a timeout so they do not block the app's main thread. Known Automation denial can be retried; an ambiguous send is quarantined instead of automatically resending. Refresh reconciles a unique outgoing record when available. Interrupted follow-ups expose separate actions for failed and never-attempted recipients.

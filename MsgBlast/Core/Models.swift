@@ -159,6 +159,7 @@ public struct Comparison: Codable, Identifiable, Sendable {
     public var allAttachmentsDraft: [MessageAttachment]?
     public var privateAttachmentDrafts: [String: [MessageAttachment]]?
     public var recipientSelection: ConversationRecipients?
+    public var summary: ComparisonSummary?
     public init(prompt: String, members: [Member]) { self.prompt = prompt; self.members = members }
     public var title: String { String((prompt.isEmpty ? attachments?.map(\.filename).joined(separator: ", ") ?? "Attachment" : prompt).prefix(65)) }
 }
@@ -177,6 +178,7 @@ public struct AppState: Codable, Sendable {
     public var selection: Set<UUID> = []
     public var frames: [String: SavedFrame] = [:]
     public var windowStyle: ComparisonWindowStyle?
+    public var personalAgentProvider: String?
     public var effectiveWindowStyle: ComparisonWindowStyle { windowStyle ?? .connected }
     public init() {}
     @discardableResult

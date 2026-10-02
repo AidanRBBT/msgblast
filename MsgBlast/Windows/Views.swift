@@ -536,6 +536,10 @@ struct SharedComposer: View {
             let targets = comparison.members.filter { recipientSet?.contains($0.id) ?? true }
             let scope = targets.isEmpty ? "No recipients" : targets.map(\.name).joined(separator: ", ")
             VStack(spacing: 8) {
+                HStack {
+                    PersonalAgentButton(model: model, agent: model.personalAgent, comparisonID: comparisonID)
+                    Spacer()
+                }
                 MessageInput(text: Binding(get: { model.comparison(comparisonID)?.allDraft ?? "" }, set: { value in
                     if let i = model.index(comparisonID) { model.state.comparisons[i].allDraft = value; model.persist() }
                 }), attachments: model.attachmentDraft(comparisonID: comparisonID), addAttachments: { await model.addAttachments($0, comparisonID: comparisonID) }, removeAttachment: { id in model.setAttachmentDraft(model.attachmentDraft(comparisonID: comparisonID).filter { $0.id != id }, comparisonID: comparisonID) }, placeholder: recipientIDs == nil ? "Message all \(targets.count) agents" : targets.isEmpty ? "Message" : "Message \(scope)", accessibilityName: recipientIDs == nil ? "Follow-up to all agents" : "Universal message", sendLabel: recipientIDs == nil ? "Send to all" : "Send to \(scope)", disabled: model.busy || targets.isEmpty || targets.contains { $0.anchor == nil }) {

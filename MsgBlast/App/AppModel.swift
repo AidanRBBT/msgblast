@@ -16,6 +16,7 @@ final class AppModel: ObservableObject {
     @Published var demoFailureOnce = false
     @Published var contactStatus = ""
     let demo: Bool
+    let personalAgent: PersonalAgentController
     var permissionGuidePreview: Bool {
         #if DEBUG
         demo && (ProcessInfo.processInfo.arguments.contains("--permission-guide-preview") || Bundle.main.object(forInfoDictionaryKey: "MsgBlastPermissionGuidePreview") as? Bool == true)
@@ -35,6 +36,7 @@ final class AppModel: ObservableObject {
     private var lastDataVersion: Int64?
     init() {
         demo = ProcessInfo.processInfo.arguments.contains("--demo") || Bundle.main.object(forInfoDictionaryKey: "MsgBlastDemo") as? Bool == true
+        personalAgent = PersonalAgentController(demo: demo)
         local = LocalStore(demo: demo, isolated: ProcessInfo.processInfo.arguments.contains("--isolated-demo") || Bundle.main.object(forInfoDictionaryKey: "MsgBlastPermissionGuidePreview") as? Bool == true)
         do { state = try local.load(); try local.save(state) } catch { storageLoadFailed = true; self.error = "Local state could not be loaded or saved: \(error.localizedDescription). Sending is unavailable until storage works." }
         if demo { setupDemo() }
@@ -73,6 +75,7 @@ final class AppModel: ObservableObject {
     }
     func resetDemo() {
         guard demo, !busy else { return }
+        personalAgent.cancelAll()
         coordinator?.closeAll()
         let windowStyle = state.windowStyle
         state = AppState(); state.windowStyle = windowStyle

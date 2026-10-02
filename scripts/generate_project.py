@@ -47,7 +47,7 @@ for name in products:
     if name == 'MsgBlastCore':
         settings.update({'DEFINES_MODULE':'YES', 'DYLIB_INSTALL_NAME_BASE':'"@rpath"', 'SKIP_INSTALL':'YES', 'OTHER_LDFLAGS':'"$(inherited) -lsqlite3"'})
     if name == 'MsgBlast':
-        settings.update({'GENERATE_INFOPLIST_FILE':'NO', 'INFOPLIST_FILE':'MsgBlast/Info.plist', 'CODE_SIGN_ENTITLEMENTS':'MsgBlast/MsgBlast.entitlements', 'PRODUCT_BUNDLE_IDENTIFIER':'com.msgblast.mac', 'ASSETCATALOG_COMPILER_APPICON_NAME':'AppIcon'})
+        settings.update({'GENERATE_INFOPLIST_FILE':'NO', 'INFOPLIST_FILE':'MsgBlast/Info.plist', 'CODE_SIGN_ENTITLEMENTS':'MsgBlast/MsgBlast.entitlements', 'MSGBLAST_APP_BUNDLE_IDENTIFIER':'com.msgblast.mac', 'PRODUCT_BUNDLE_IDENTIFIER':'"$(MSGBLAST_APP_BUNDLE_IDENTIFIER)"', 'ASSETCATALOG_COMPILER_APPICON_NAME':'AppIcon'})
         icon_build = obj('appIconBuild', '{isa = PBXBuildFile; fileRef = '+icon+';}')
         demo_icon_build = obj('demoAppIconBuild', '{isa = PBXBuildFile; fileRef = '+demo_icon+';}')
         notice_build = obj('thirdPartyNoticeBuild', '{isa = PBXBuildFile; fileRef = '+notice+';}')

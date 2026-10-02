@@ -2,6 +2,47 @@ import XCTest
 import AppKit
 final class WorkflowTests: XCTestCase {
     @MainActor
+    func testPersonalAgentSummarizesAllResponsesAndKeepsSavedSummary() {
+        let app = launchFixture(separateWindows: false)
+        defer { app.terminate() }
+        let prompt = "Personal agent comparison fixture"
+        let editor = app.textViews["Shared prompt"]
+        editor.click(); editor.typeKey("a", modifierFlags: .command); editor.typeText(prompt)
+        app.buttons["Send & compare"].click()
+        let workspace = app.windows["All 3 · \(prompt) [Demo]"]
+        XCTAssertTrue(workspace.waitForExistence(timeout: 10))
+        workspace.buttons["Personal agent"].click()
+        let generate = app.buttons["Summarize responses"]
+        XCTAssertTrue(generate.waitForExistence(timeout: 5))
+        let ready = NSPredicate(format: "enabled == true")
+        expectation(for: ready, evaluatedWith: generate)
+        waitForExpectations(timeout: 10)
+        let before = XCTAttachment(screenshot: workspace.screenshot())
+        before.name = "Personal agent — ready — synthetic comparison"
+        before.lifetime = .keepAlways; add(before)
+        generate.click()
+        let summary = app.staticTexts["Comparison summary text"]
+        XCTAssertTrue(summary.waitForExistence(timeout: 5))
+        XCTAssertTrue((summary.label + (summary.value as? String ?? "")).contains("simulated"))
+        XCTAssertTrue(app.staticTexts["Demo analyst (simulated) · 3 of 3 participants · 6 responses"].exists)
+        let after = XCTAttachment(screenshot: workspace.screenshot())
+        after.name = "Personal agent — saved summary — simulated output"
+        after.lifetime = .keepAlways; add(after)
+        app.buttons["Done"].click()
+        let input = workspace.textViews["Universal message"]
+        input.click(); input.typeText("Compare the tradeoffs too")
+        workspace.buttons["Send to Cedar, Lumen, Orbit"].click()
+        workspace.buttons["Personal agent"].click()
+        XCTAssertTrue(app.staticTexts["Conversation changed · update the summary to include the latest replies."].waitForExistence(timeout: 5))
+        app.buttons["Done"].click()
+        workspace.buttons[XCUIIdentifierCloseWindow].click()
+        app.menuBars.menuBarItems["Comparisons"].click()
+        app.menuItems[prompt].click()
+        workspace.buttons["Personal agent"].click()
+        XCTAssertTrue(app.staticTexts["Comparison summary text"].waitForExistence(timeout: 5))
+    }
+
+    @MainActor
     func testApplicationMenuProvidesStandardActions() {
         let app = XCUIApplication()
         app.launchArguments = ["--demo", "--isolated-demo"]
