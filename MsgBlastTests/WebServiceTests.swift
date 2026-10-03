@@ -144,6 +144,51 @@ final class WebServiceTests: XCTestCase {
         XCTAssertEqual(draft.text, "My next message")
     }
 
+    func testPersonalAvatarFollowsTheMainChatMediaAndChanges() async throws {
+        let session = try makeSession()
+        session.connect()
+        try await waitFor { session.snapshot.ready }
+        XCTAssertNil(session.avatar)
+        _ = try await session.webView.callAsyncJavaScript("changeFixtureAvatar()", arguments: [:], in: nil, contentWorld: .page)
+        try await waitFor { session.avatar != nil }
+        let first = try XCTUnwrap(session.avatar)
+        await session.refresh()
+        XCTAssertEqual(session.avatar, first, "Unchanged media should retain its cached still")
+        _ = try await session.webView.callAsyncJavaScript("changeFixtureAvatar()", arguments: [:], in: nil, contentWorld: .page)
+        try await waitFor { session.avatar != nil && session.avatar != first }
+        XCTAssertTrue(session.state.attempts.isEmpty, "Reading an avatar must never submit a message")
+    }
+
+    func testAvatarClearsOnSignOutAndIsNotPersistedForAnotherAccount() async throws {
+        let session = try makeSession()
+        session.connect()
+        try await waitFor { session.snapshot.ready }
+        _ = try await session.webView.callAsyncJavaScript("changeFixtureAvatar()", arguments: [:], in: nil, contentWorld: .page)
+        try await waitFor { session.avatar != nil }
+        let first = session.avatar
+        _ = try await session.webView.callAsyncJavaScript("chat.hidden=true;login.hidden=false", arguments: [:], in: nil, contentWorld: .page)
+        try await waitFor { !session.snapshot.ready && session.avatar == nil }
+        _ = try await session.webView.callAsyncJavaScript("changeFixtureAvatar();chat.hidden=false;login.hidden=true", arguments: [:], in: nil, contentWorld: .page)
+        try await waitFor { session.avatar != nil && session.avatar != first }
+        session.reload()
+        try await waitFor { session.snapshot.ready && session.avatar == nil }
+    }
+
+    func testAvatarIgnoresChatImagesAndAmbiguousOrHiddenHosts() async throws {
+        let session = try makeSession()
+        session.connect()
+        try await waitFor { session.snapshot.ready }
+        _ = try await session.webView.callAsyncJavaScript("changeFixtureAvatar();const host=document.querySelector('[data-hatch-avatar-host]');host.removeAttribute('data-hatch-avatar-host')", arguments: [:], in: nil, contentWorld: .page)
+        await session.refresh()
+        XCTAssertNil(session.avatar, "Ordinary images are not a personal Muse avatar")
+        _ = try await session.webView.callAsyncJavaScript("const host=document.querySelector('[data-hatch-avatar-display-stage]');host.setAttribute('data-hatch-avatar-host','true');host.setAttribute('data-hatch-avatar-host-hidden','true')", arguments: [:], in: nil, contentWorld: .page)
+        await session.refresh()
+        XCTAssertNil(session.avatar)
+        _ = try await session.webView.callAsyncJavaScript("const host=document.querySelector('[data-hatch-avatar-host]');host.removeAttribute('data-hatch-avatar-host-hidden');host.after(host.cloneNode(true))", arguments: [:], in: nil, contentWorld: .page)
+        await session.refresh()
+        XCTAssertNil(session.avatar, "Multiple candidate hosts must not guess which avatar belongs to this account")
+    }
+
     private func makeSession() throws -> MuseWebSession {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("MsgBlast-WebTests-\(UUID())")
         return MuseWebSession(storageURL: directory.appendingPathComponent("web.json"), fixture: true)

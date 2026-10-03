@@ -1,6 +1,6 @@
 # Muse as a selected agent — October 2, 2026
 
-The subsequent [default-avatar update](../muse-avatar/validation.md) has refreshed screenshots and video. Captures below document the original integration revision before that visual change; its core-test and retry results remain historical evidence.
+The subsequent [personalized-avatar update](../muse-personal-avatar/validation.md) has the latest screenshots, video, and 55-test result. The [default-avatar update](../muse-avatar/validation.md) documents the preceding visual change. Captures below document the original integration revision; its core-test and retry results remain historical evidence.
 
 Muse appears in **My agents** alongside Messages contacts, uses the same selection control and shared composer, and opens its conversation beside native Messages replies. There is no Grok entry or separate web-app category. Muse starts unselected. Existing Messages selections are preserved.
 

@@ -12,6 +12,7 @@ public final class MuseWebSession: NSObject, ObservableObject, WKNavigationDeleg
     @Published public private(set) var error: String?
     @Published public private(set) var popup: WKWebView?
     @Published public private(set) var popupURL = ""
+    @Published public private(set) var avatar: Data?
     public let webView: WKWebView
     public let fixture: Bool
     private let storageURL: URL
@@ -19,6 +20,7 @@ public final class MuseWebSession: NSObject, ObservableObject, WKNavigationDeleg
     private var poll: Task<Void, Never>?
     private var refreshing = false
     private var navigationGeneration = 0
+    private var avatarKey: String?
     private static let mainChatURL = URL(string: "https://muse.ai/")!
 
     public init(storageURL: URL, fixture: Bool) {
@@ -94,6 +96,7 @@ public final class MuseWebSession: NSObject, ObservableObject, WKNavigationDeleg
             current.url = webView.url?.absoluteString ?? ""
             current.reason = "Sign in to Muse and open your main chat."
             snapshot = current
+            clearAvatar()
             return
         }
         refreshing = true
@@ -104,11 +107,32 @@ public final class MuseWebSession: NSObject, ObservableObject, WKNavigationDeleg
             guard generation == navigationGeneration, let result else { return }
             let fresh = try JSONDecoder().decode(MusePageSnapshot.self, from: JSONSerialization.data(withJSONObject: result))
             if snapshot != fresh { snapshot = fresh }
+            await refreshAvatar(generation: generation)
         } catch {
             guard generation == navigationGeneration else { return }
             var current = MusePageSnapshot()
             current.reason = "Muse’s page is not ready. Reload or use the page directly."
             snapshot = current
+            clearAvatar()
+        }
+    }
+
+    private func clearAvatar() { avatarKey = nil; avatar = nil }
+
+    private func refreshAvatar(generation: Int) async {
+        guard snapshot.ready else { clearAvatar(); return }
+        do {
+            let result = try await webView.callAsyncJavaScript(MusePageScript.avatar, arguments: ["previousKey": avatarKey ?? ""], in: nil, contentWorld: .defaultClient) as? [String: Any]
+            guard generation == navigationGeneration else { return }
+            guard let key = result?["key"] as? String else { clearAvatar(); return }
+            if key == avatarKey { return }
+            guard let png = result?["png"] as? String, png.hasPrefix("data:image/png;base64,"), png.count < 400_000,
+                  let data = Data(base64Encoded: String(png.dropFirst(22))),
+                  let image = NSBitmapImageRep(data: data), image.pixelsWide == 256, image.pixelsHigh == 256 else { clearAvatar(); return }
+            avatarKey = key
+            avatar = data
+        } catch {
+            if generation == navigationGeneration { clearAvatar() }
         }
     }
 
@@ -198,7 +222,7 @@ public final class MuseWebSession: NSObject, ObservableObject, WKNavigationDeleg
 
     public func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
         if webView === self.webView {
-            navigationGeneration += 1; loading = true; snapshot = MusePageSnapshot()
+            navigationGeneration += 1; loading = true; snapshot = MusePageSnapshot(); clearAvatar()
         }
     }
     public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
@@ -214,7 +238,7 @@ public final class MuseWebSession: NSObject, ObservableObject, WKNavigationDeleg
     }
     public func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
         if webView === self.webView {
-            navigationGeneration += 1; loading = false; snapshot = MusePageSnapshot()
+            navigationGeneration += 1; loading = false; snapshot = MusePageSnapshot(); clearAvatar()
             error = "Muse’s web process stopped. Reload its page. Pending submissions will not be resent."
         }
     }

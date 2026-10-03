@@ -13,7 +13,8 @@ struct AgentsWorkspaceView: View {
     @ObservedObject var session: MuseWebSession
     @Binding var showingComparison: Bool
     @State private var sending = false
-    private static let muse = Agent(name: "Muse", handles: [], avatar: Bundle.main.url(forResource: "MuseAvatar", withExtension: "jpg").flatMap { try? Data(contentsOf: $0) }, colorIndex: 4)
+    private static let defaultAvatar = Bundle.main.url(forResource: "MuseAvatar", withExtension: "jpg").flatMap { try? Data(contentsOf: $0) }
+    private var muse: Agent { Agent(name: "Muse", handles: [], avatar: session.avatar ?? Self.defaultAvatar, colorIndex: 4) }
     private var busy: Bool { sending || model.busy || session.isSending }
     private var nativeRecipients: [Agent] { model.state.agents.filter { model.state.selection.contains($0.id) } }
     private var canSend: Bool {
@@ -42,6 +43,7 @@ struct AgentsWorkspaceView: View {
             composer
         }
         .background(Color(nsColor: .textBackgroundColor))
+        .task { if session.state.includeMuse { session.connect() } }
         .sheet(isPresented: Binding(get: { session.popup != nil }, set: { if !$0 { session.closePopup() } })) {
             VStack(spacing: 0) {
                 HStack {
@@ -61,7 +63,7 @@ struct AgentsWorkspaceView: View {
         GeometryReader { geometry in
             ScrollView {
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 20), count: 3), spacing: 28) {
-                    PinnedAgentTile(agent: Self.muse, selected: session.state.includeMuse, size: tileSize(geometry)) {
+                    PinnedAgentTile(agent: muse, selected: session.state.includeMuse, size: tileSize(geometry)) {
                         session.updateState { $0.includeMuse.toggle() }
                         if session.state.includeMuse { session.connect() }
                     }.disabled(busy).help("Muse · muse.ai")
@@ -100,7 +102,7 @@ struct AgentsWorkspaceView: View {
     private var musePane: some View {
         VStack(spacing: 0) {
             HStack(spacing: 10) {
-                AgentAvatar(agent: Self.muse, name: "Muse", size: 38)
+                AgentAvatar(agent: muse, name: "Muse", size: 38)
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Muse").font(.headline)
                     Text(session.webView.url?.host ?? "muse.ai").font(.caption).foregroundStyle(.secondary)
@@ -124,7 +126,7 @@ struct AgentsWorkspaceView: View {
                 EmbeddedServicePage(webView: session.webView)
             } else {
                 VStack(spacing: 18) {
-                    AgentAvatar(agent: Self.muse, name: "Muse", size: 80)
+                    AgentAvatar(agent: muse, name: "Muse", size: 80)
                     Text("Muse, inside MsgBlast").font(.title2.weight(.semibold))
                     Text("Sign in here once, then send from the shared composer. Your Muse conversation and replies stay in this window.")
                         .foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 380)

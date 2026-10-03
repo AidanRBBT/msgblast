@@ -28,6 +28,32 @@ enum MusePageScript {
     """#
 
     static let inspect = helpers + "\nreturn inspect();"
+    // Read only the displayed main-chat avatar, including a still of animated media.
+    // Drawing already-loaded media avoids extracting cookies, tokens, or private API state.
+    static let avatar = helpers + #"""
+    if (!status().ready) return {};
+    const host = unique('[data-hatch-avatar-host][data-hatch-avatar-display-stage="chat-nav"]');
+    if (!host || host.getAttribute('data-hatch-avatar-host-hidden') === 'true' || getComputedStyle(host).opacity === '0') return {};
+    const candidates = [...host.querySelectorAll('img[data-hatch-avatar-layer="ready"][data-hatch-avatar-slot="current"],video[data-hatch-avatar-layer="ready"][data-hatch-avatar-slot="current"]')]
+      .filter(e => visible(e) && Number(getComputedStyle(e).opacity) >= 0.95);
+    if (candidates.length !== 1) return {};
+    const media = candidates[0], video = media instanceof HTMLVideoElement;
+    const width = video ? media.videoWidth : media.naturalWidth, height = video ? media.videoHeight : media.naturalHeight;
+    if (!width || !height || (video && media.readyState < 2)) return {};
+    const src = media.currentSrc || media.src;
+    let cached = globalThis.__msgblastAvatarSource;
+    if (!cached || cached.node !== media || cached.src !== src) {
+      cached = {node:media,src,key:crypto.randomUUID()};
+      globalThis.__msgblastAvatarSource = cached;
+    }
+    if (cached.key === previousKey) return {key:cached.key};
+    try {
+      const canvas = document.createElement('canvas'); canvas.width = canvas.height = 256;
+      const side = Math.min(width, height);
+      canvas.getContext('2d').drawImage(media, (width-side)/2, (height-side)/2, side, side, 0, 0, 256, 256);
+      return {key:cached.key,png:canvas.toDataURL('image/png')};
+    } catch { return {}; }
+    """#
     static let prepare = helpers + #"""
     const before = status();
     if (!before.ready) return {ok:false,reason:before.reason};
@@ -58,12 +84,15 @@ enum MusePageScript {
     small{color:#888} #hatch-chat-scroll{min-height:180px;padding:24px 0} article{padding:14px 16px;margin:12px 0;background:#8882;border-radius:16px}
     [data-message-role=user]{background:#1684ff;color:white;margin-left:45px} textarea{box-sizing:border-box;width:100%;min-height:65px;font:inherit;padding:12px;border:1px solid #8885;border-radius:14px}
     button{font:inherit;padding:8px 14px;margin:8px 0;border-radius:10px;border:1px solid #8885;cursor:pointer} [hidden]{display:none!important}
-    </style></head><body><header><strong>Muse</strong><small>Local fixture · no real sends</small></header>
+    </style></head><body><header><div data-hatch-avatar-host data-hatch-avatar-display-stage="chat-nav"><img hidden data-hatch-avatar-layer="ready" data-hatch-avatar-slot="current" alt="Synthetic personalized avatar" style="width:48px;height:48px;border-radius:50%"></div><strong>Muse</strong><small>Local fixture · no real sends</small></header>
     <div id="login" hidden><p>Sign in to continue.</p><button onclick="login.hidden=true;chat.hidden=false">Sign in to fixture</button></div>
     <div id="chat"><div id="hatch-chat-scroll" aria-label="Chat messages"><article data-message-item data-message-id="welcome" data-message-role="assistant">Ready to compare an idea? Send a message from MsgBlast’s shared composer.</article></div>
     <textarea aria-label="Message" placeholder="Message"></textarea><button aria-label="Send" disabled>Send</button>
-    <button onclick="chat.hidden=true;login.hidden=false">Sign out of fixture</button></div>
+    <button onclick="chat.hidden=true;login.hidden=false">Sign out of fixture</button>
+    <button onclick="changeFixtureAvatar()">Change fixture avatar</button></div>
     <script>
+    let avatarVersion=0;
+    function changeFixtureAvatar(){const c=document.createElement('canvas');c.width=c.height=256;const ctx=c.getContext('2d');ctx.fillStyle=++avatarVersion%2?'#5865d8':'#138c78';ctx.fillRect(0,0,256,256);ctx.fillStyle='white';ctx.font='bold 140px sans-serif';ctx.textAlign='center';ctx.fillText(avatarVersion%2?'A':'B',128,180);const image=document.querySelector('[data-hatch-avatar-layer]');image.src=c.toDataURL();image.hidden=false;}
     const input=document.querySelector('textarea'),send=document.querySelector('[aria-label=Send]');
     input.addEventListener('input',()=>{send.disabled=!input.value.trim()});
     send.addEventListener('click',()=>{
