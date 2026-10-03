@@ -18,8 +18,8 @@ final class WorkflowTests: XCTestCase {
         add(menu)
         guard app.menuItems["Check for Updates…"].exists else { return }
         app.menuItems["Check for Updates…"].click()
-        XCTAssertTrue(app.dialogs.staticTexts["Updates aren’t configured"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.dialogs.staticTexts.containing(NSPredicate(format: "value CONTAINS %@", "Current version:")).firstMatch.exists)
+        XCTAssertTrue(app.dialogs.staticTexts["Updates unavailable"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.dialogs.staticTexts.containing(NSPredicate(format: "value CONTAINS %@", "Version ")).firstMatch.exists)
     }
     @MainActor
     func testSentAttachmentQuickLookKeepsItsSelectedFileInJoinedColumns() throws {

@@ -1,0 +1,43 @@
+{
+  "fixture_root": "/var/folders/y4/26hmq9ds25q21k_7rnkp4fgw0000gn/T/msgblast-update-fixture-ow4dnln5",
+  "limitations": "Local signed, ad-hoc Debug fixtures; no production notarization, real sends or Contacts writes.",
+  "cases": [
+    {
+      "name": "install-and-preserve",
+      "passed": true,
+      "exit_code": 0,
+      "build": "2",
+      "draft_and_attachment_preserved": true,
+      "stdout": "update-probe: starting\nupdate-probe: app initialized\nupdate-probe: model initialized\nupdate-probe: checking\nupdate-probe: found build 2\nupdate-probe: downloading\nupdate-probe: extracting update\nupdate-probe: ready; install and quit\nupdate-probe: postponed for submission\nupdate-probe: submission finished\nupdate-probe: installing; terminated: false\nupdate-probe: safe quit requested",
+      "stderr": "sandbox_extension_issue_file_to_process failed for /var/folders/y4/26hmq9ds25q21k_7rnkp4fgw0000gn/T/msgblast-update-fixture-ow4dnln5/install-and-preserve/MsgBlast.app: 1 (Operation not permitted)"
+    },
+    {
+      "name": "no-update",
+      "passed": true,
+      "exit_code": 3,
+      "build": "2",
+      "draft_and_attachment_preserved": true,
+      "stdout": "update-probe: starting\nupdate-probe: app initialized\nupdate-probe: model initialized\nupdate-probe: checking\nupdate-probe: no update",
+      "stderr": "sandbox_extension_issue_file_to_process failed for /var/folders/y4/26hmq9ds25q21k_7rnkp4fgw0000gn/T/msgblast-update-fixture-ow4dnln5/no-update/MsgBlast.app: 1 (Operation not permitted)"
+    },
+    {
+      "name": "invalid-signature",
+      "passed": true,
+      "exit_code": 1,
+      "build": "1",
+      "draft_and_attachment_preserved": true,
+      "stdout": "update-probe: starting\nupdate-probe: app initialized\nupdate-probe: model initialized\nupdate-probe: checking\nupdate-probe: found build 2\nupdate-probe: downloading\nupdate-probe: extracting update\nupdate-probe: failed: The update is improperly signed and could not be validated. Please try again later or contact the app developer.",
+      "stderr": "sandbox_extension_issue_file_to_process failed for /var/folders/y4/26hmq9ds25q21k_7rnkp4fgw0000gn/T/msgblast-update-fixture-ow4dnln5/invalid-signature/MsgBlast.app: 1 (Operation not permitted)"
+    },
+    {
+      "name": "failed-download",
+      "passed": true,
+      "exit_code": 1,
+      "build": "1",
+      "draft_and_attachment_preserved": true,
+      "stdout": "update-probe: starting\nupdate-probe: app initialized\nupdate-probe: model initialized\nupdate-probe: checking\nupdate-probe: found build 2\nupdate-probe: downloading\nupdate-probe: failed: An error occurred while downloading the update. Please try again later.",
+      "stderr": "sandbox_extension_issue_file_to_process failed for /var/folders/y4/26hmq9ds25q21k_7rnkp4fgw0000gn/T/msgblast-update-fixture-ow4dnln5/failed-download/MsgBlast.app: 1 (Operation not permitted)"
+    }
+  ],
+  "result": "Passed"
+}

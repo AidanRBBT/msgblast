@@ -1,0 +1,97 @@
+{
+  "source_base": "f694b3e4d228d52d2e71db16f4cf175fea52acbc",
+  "source_sha256": {
+    "scripts/release.py": "dc7d9fd558477c280f833d31bcf7f590f72920e83e786c047477d3be067952a7",
+    "scripts/automate_release.py": "9d762b8f0edd2ee5da00f93b49bab720cb630a62c912f595b6ded39f651ad62d",
+    "scripts/tests/test_release.py": "1482f186c3bafe827e200c0866582537d5e3b3a6da3fda8060cbf5d33ccec239",
+    "scripts/tests/test_automate_release.py": "ea831f3e25fc84f939f4e8dce2aac60ba274bdca2d812bfe5faa64be9f4bce9d",
+    ".github/workflows/release-adhoc.yml": "4eb92626cda025c9cfb62cb5c09ddaf9d83a1e7280e008cf1371b5d4e3e93e89",
+    "MsgBlast/MsgBlastAdHoc.entitlements": "05379dc5469ceb33a3d95adea23e6611169e467b172f30f6d5fe180947c50008"
+  },
+  "commands": [
+    {
+      "command": [
+        "python3",
+        "-B",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "scripts/tests",
+        "-p",
+        "test_*.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "output": "Published MsgBlast 0.1.1 (2)\nUploaded appcast.xml\nUploaded downloads/MsgBlast-1-2.zip\ntest_allocates_from_existing_verified_feed_and_only_missing_is_first_release (test_automate_release.AutomatedReleaseTests.test_allocates_from_existing_verified_feed_and_only_missing_is_first_release) ... ok\ntest_archive_and_immutable_manifest_precede_feed (test_automate_release.AutomatedReleaseTests.test_archive_and_immutable_manifest_precede_feed) ... ok\ntest_changed_prepared_artifact_cannot_publish (test_automate_release.AutomatedReleaseTests.test_changed_prepared_artifact_cannot_publish) ... ok\ntest_concurrent_feed_publication_cannot_overwrite_newer_release (test_automate_release.AutomatedReleaseTests.test_concurrent_feed_publication_cannot_overwrite_newer_release) ... ok\ntest_counter_reservation_uses_conditional_writes (test_automate_release.AutomatedReleaseTests.test_counter_reservation_uses_conditional_writes) ... ok\ntest_counter_reservations_survive_failed_builds_without_reusing_archive_names (test_automate_release.AutomatedReleaseTests.test_counter_reservations_survive_failed_builds_without_reusing_archive_names) ... ok\ntest_existing_archive_is_never_overwritten (test_automate_release.AutomatedReleaseTests.test_existing_archive_is_never_overwritten) ... ok\ntest_failed_public_archive_verification_leaves_previous_feed (test_automate_release.AutomatedReleaseTests.test_failed_public_archive_verification_leaves_previous_feed) ... ok\ntest_invalid_feed_signature_stops_counter_allocation (test_automate_release.AutomatedReleaseTests.test_invalid_feed_signature_stops_counter_allocation) ... ok\ntest_main_carries_reserved_build_feed_snapshot_revision_and_summary (test_automate_release.AutomatedReleaseTests.test_main_carries_reserved_build_feed_snapshot_revision_and_summary) ... ok\ntest_main_rejects_malformed_key_before_storage_or_signing_without_echo (test_automate_release.AutomatedReleaseTests.test_main_rejects_malformed_key_before_storage_or_signing_without_echo) ... ok\ntest_release_urls_must_match_destination (test_automate_release.AutomatedReleaseTests.test_release_urls_must_match_destination) ... ok\ntest_version_tag_and_public_base_are_validated (test_automate_release.AutomatedReleaseTests.test_version_tag_and_public_base_are_validated) ... ok\ntest_access_denied_does_not_become_an_empty_release_history (test_automate_release.R2BoundaryTests.test_access_denied_does_not_become_an_empty_release_history) ... ok\ntest_missing_object_is_the_only_first_release_response (test_automate_release.R2BoundaryTests.test_missing_object_is_the_only_first_release_response) ... ok\ntest_storage_writes_protect_mutable_feed_and_immutable_archive (test_automate_release.R2BoundaryTests.test_storage_writes_protect_mutable_feed_and_immutable_archive) ... ok\ntest_adhoc_dry_run_needs_no_apple_credentials_or_key_file_access (test_release.ReleaseTests.test_adhoc_dry_run_needs_no_apple_credentials_or_key_file_access) ... ok\ntest_adhoc_plan_builds_release_without_apple_signing (test_release.ReleaseTests.test_adhoc_plan_builds_release_without_apple_signing) ... ok\ntest_adhoc_prepare_retains_signature_trust_and_records_no_notarization (test_release.ReleaseTests.test_adhoc_prepare_retains_signature_trust_and_records_no_notarization) ... ok\ntest_adhoc_signs_nested_code_inside_out_preserving_helper_entitlements (test_release.ReleaseTests.test_adhoc_signs_nested_code_inside_out_preserving_helper_entitlements) ... ok\ntest_bad_appcast_signature_or_url_prevents_success_manifest (test_release.ReleaseTests.test_bad_appcast_signature_or_url_prevents_success_manifest) ... ok\ntest_command_plan_keeps_build_settings_signing_and_export (test_release.ReleaseTests.test_command_plan_keeps_build_settings_signing_and_export) ... ok\ntest_dry_run_has_no_subprocess_or_file_writes (test_release.ReleaseTests.test_dry_run_has_no_subprocess_or_file_writes) ... ok\ntest_existing_output_is_not_overwritten (test_release.ReleaseTests.test_existing_output_is_not_overwritten) ... ok\ntest_exported_metadata_and_frameworks_are_checked_before_notarizing (test_release.ReleaseTests.test_exported_metadata_and_frameworks_are_checked_before_notarizing) ... ok\ntest_file_key_mismatch_and_invalid_seed_stop_before_build_without_leaking (test_release.ReleaseTests.test_file_key_mismatch_and_invalid_seed_stop_before_build_without_leaking) ... ok\ntest_invalid_notarization_stops_before_stapling_and_publication (test_release.ReleaseTests.test_invalid_notarization_stops_before_stapling_and_publication) ... ok\ntest_mismatched_key_stops_before_build (test_release.ReleaseTests.test_mismatched_key_stops_before_build) ... ok\ntest_missing_certificate_fails_before_build (test_release.ReleaseTests.test_missing_certificate_fails_before_build) ... ok\ntest_missing_notarization_credentials_and_command_failure_stop_pipeline (test_release.ReleaseTests.test_missing_notarization_credentials_and_command_failure_stop_pipeline) ... ok\ntest_prepare_verifies_and_records_actual_artifacts (test_release.ReleaseTests.test_prepare_verifies_and_records_actual_artifacts) ... ok\ntest_rejects_unsafe_or_missing_configuration (test_release.ReleaseTests.test_rejects_unsafe_or_missing_configuration) ... ok\n\n----------------------------------------------------------------------\nRan 32 tests in 0.053s\n\nOK\n"
+    },
+    {
+      "command": [
+        "/tmp/msgblast-actionlint/actionlint",
+        "-shellcheck=",
+        ".github/workflows/release-adhoc.yml"
+      ],
+      "exit_code": 0,
+      "output": ""
+    },
+    {
+      "command": [
+        "codesign",
+        "--verify",
+        "--deep",
+        "--strict",
+        "--verbose=2",
+        "build/releases/adhoc-proof-1790972181/export/MsgBlast.app"
+      ],
+      "exit_code": 0,
+      "output": "--prepared:/Users/contains/.codex/worktrees/sparkle-updates/msgblast/build/releases/adhoc-proof-1790972181/export/MsgBlast.app/Contents/Frameworks/Sparkle.framework/Versions/Current/.\n--prepared:/Users/contains/.codex/worktrees/sparkle-updates/msgblast/build/releases/adhoc-proof-1790972181/export/MsgBlast.app/Contents/Frameworks/MsgBlastCore.framework/Versions/Current/.\n--validated:/Users/contains/.codex/worktrees/sparkle-updates/msgblast/build/releases/adhoc-proof-1790972181/export/MsgBlast.app/Contents/Frameworks/MsgBlastCore.framework/Versions/Current/.\n--prepared:/Users/contains/.codex/worktrees/sparkle-updates/msgblast/build/releases/adhoc-proof-1790972181/export/MsgBlast.app/Contents/Frameworks/Sparkle.framework/Versions/Current/Autoupdate\n--validated:/Users/contains/.codex/worktrees/sparkle-updates/msgblast/build/releases/adhoc-proof-1790972181/export/MsgBlast.app/Contents/Frameworks/Sparkle.framework/Versions/Current/Autoupdate\n--prepared:/Users/contains/.codex/worktrees/sparkle-updates/msgblast/build/releases/adhoc-proof-1790972181/export/MsgBlast.app/Contents/Frameworks/Sparkle.framework/Versions/Current/Updater.app\n--prepared:/Users/contains/.codex/worktrees/sparkle-updates/msgblast/build/releases/adhoc-proof-1790972181/export/MsgBlast.app/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/Installer.xpc\n--prepared:/Users/contains/.codex/worktrees/sparkle-updates/msgblast/build/releases/adhoc-proof-1790972181/export/MsgBlast.app/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/Downloader.xpc\n--validated:/Users/contains/.codex/worktrees/sparkle-updates/msgblast/build/releases/adhoc-proof-1790972181/export/MsgBlast.app/Contents/Frameworks/Sparkle.framework/Versions/Current/Updater.app\n--validated:/Users/contains/.codex/worktrees/sparkle-updates/msgblast/build/releases/adhoc-proof-1790972181/export/MsgBlast.app/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/Installer.xpc\n--validated:/Users/contains/.codex/worktrees/sparkle-updates/msgblast/build/releases/adhoc-proof-1790972181/export/MsgBlast.app/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/Downloader.xpc\n--validated:/Users/contains/.codex/worktrees/sparkle-updates/msgblast/build/releases/adhoc-proof-1790972181/export/MsgBlast.app/Contents/Frameworks/Sparkle.framework/Versions/Current/.\nbuild/releases/adhoc-proof-1790972181/export/MsgBlast.app: valid on disk\nbuild/releases/adhoc-proof-1790972181/export/MsgBlast.app: satisfies its Designated Requirement\n"
+    },
+    {
+      "command": [
+        "codesign",
+        "-dv",
+        "--verbose=4",
+        "build/releases/adhoc-proof-1790972181/export/MsgBlast.app"
+      ],
+      "exit_code": 0,
+      "output": "Executable=/Users/contains/.codex/worktrees/sparkle-updates/msgblast/build/releases/adhoc-proof-1790972181/export/MsgBlast.app/Contents/MacOS/MsgBlast\nIdentifier=com.msgblast.mac\nFormat=app bundle with Mach-O universal (x86_64 arm64)\nCodeDirectory v=20500 size=5841 flags=0x10002(adhoc,runtime) hashes=172+7 location=embedded\nVersionPlatform=1\nVersionMin=1703936\nVersionSDK=1769472\nHash type=sha256 size=32\nCandidateCDHash sha256=e11392af3ec3c1482d22d6629a2248bf190fee69\nCandidateCDHashFull sha256=e11392af3ec3c1482d22d6629a2248bf190fee69b7be9dd7821a7c2a7e8efc37\nHash choices=sha256\nCMSDigest=e11392af3ec3c1482d22d6629a2248bf190fee69b7be9dd7821a7c2a7e8efc37\nCMSDigestType=2\nExecutable Segment base=0\nExecutable Segment limit=950272\nExecutable Segment flags=0x1\nPage size=16384\nCDHash=e11392af3ec3c1482d22d6629a2248bf190fee69\nSignature=adhoc\nInfo.plist entries=30\nTeamIdentifier=not set\nRuntime Version=27.0.0\nSealed Resources version=2 rules=13 files=96\nInternal requirements count=0 size=12\nTotal signatures=1\nChosen signature=1\n"
+    }
+  ],
+  "real_local_preparation_manifest": {
+    "version": "0.1.0",
+    "build": 1,
+    "previous_build": 0,
+    "feed_url": "https://updates.example.com/msgblast/appcast.xml",
+    "archive_url": "https://updates.example.com/msgblast/downloads/MsgBlast-0.1.0-1.zip",
+    "signing_mode": "ad-hoc",
+    "signing_identity": "-",
+    "public_key": "0BXAlUwOJZSxKiJdpthSr8M+PSVSbCgvvNtGQo17hqg=",
+    "notarization": null,
+    "archive_signature": "D0DrdXpT/sjl9NyA6qqK0AvzktkdoCpqof5Dpi5tMYQRRid9AI6mVdtlPrDMquQoxg5QPsHTs4IJ4W6Ai4vvCA==",
+    "sha256": {
+      "MsgBlast-0.1.0-1.zip": "28eb8666ad6c0c538c75adee1a40c7122de5a6e17c4596d861ff9d01140e6295",
+      "MsgBlast-0.1.0-1.md": "d32405ff94c09c39adf92e88968c57982f1a1a927d882dcc122a4d4b8efdb54a",
+      "appcast.xml": "5b1c1c25736cd33207ed74ebc37a8307eb3b7a1736399ebea5f11f65e507f3e6"
+    }
+  },
+  "limitations": [
+    "Publication tests use synthetic storage/network/CLI responses.",
+    "Actual Release archive preparation and Sparkle signing succeeded locally with an ephemeral test key and example HTTPS URLs; nothing was uploaded.",
+    "The preparation preceded behavior-preserving command-construction cleanup and strict-key-validator extraction; this capture verifies the prepared app and current tooling. The new orchestration guard does not change preparation commands.",
+    "actionlint ran without external ShellCheck; xcode-27 is allowlisted from official hosted-runner documentation.",
+    "No hosted Actions run, R2 publishing, Gatekeeper acceptance or distributed permission retention has been validated.",
+    "Native Terminal capture is unavailable through the enabled computer-use surface; no unrelated screenshots substitute for automation evidence."
+  ],
+  "review": {
+    "status": "complete",
+    "run_id": "20261002-132710-e4ec132a",
+    "artifact_path": "/tmp/compound-engineering-501/ce-code-review/20261002-132710-e4ec132a",
+    "verdict_before_fix": "Ready with fixes",
+    "applied_inline": [
+      1
+    ],
+    "skipped": [],
+    "unresolved_actionable_findings": [],
+    "verification": "Malformed-base64/wrong-length main regression failed before the fix and passes afterward. All 32 Python tests pass; current actionlint and strict codesign verification pass. Successful orchestration is tested with synthetic storage/preparation/publication."
+  }
+}

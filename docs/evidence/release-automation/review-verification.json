@@ -1,0 +1,29 @@
+{
+  "review_run": "20261002-213628-1fe181ad",
+  "reviewed_base": "5a4c9e4d371a80f043903514ae3b95a9ee00cd71",
+  "finding": {
+    "id": 1,
+    "severity": "P2",
+    "status": "resolved",
+    "change": "Isolated fixture build selects AppIconDemo; source icon guard rejects AppIcon before key/temp work; README command and native evidence refreshed."
+  },
+  "verification": {
+    "incorrect_source_exit": 2,
+    "incorrect_source_error": "Updater fixtures require AppIconDemo; rebuild with ASSETCATALOG_COMPILER_APPICON_NAME=AppIconDemo",
+    "rebuilt_source_icon": "AppIconDemo",
+    "standard_project_icon": "AppIcon",
+    "real_sparkle_cases": 4,
+    "real_sparkle_result": "Passed",
+    "native_ui_version_after": "0.1.2 (2)",
+    "draft_attachment_preferences_retained": true,
+    "prior_exact_review_python_tests": 32,
+    "prior_exact_review_xcode_core_tests": 46,
+    "actionlint": "passed; external ShellCheck disabled"
+  },
+  "source_sha256": {
+    "scripts/test_updates.py": "303daa37f959c3c13f4eaae115d214ea10cd5772ceb6037f8184f67f18982776",
+    ".github/workflows/release-adhoc.yml": "d680e204dbfd8a088da389fe6d3fbc95f6929307c03ccfa30c2f537328d3a729",
+    "README.md": "1d3d341e9655039385c0fd019cc613609c98e3f7c28aef2b77d76ba8e727a9a6"
+  },
+  "limits": "Local synthetic ad-hoc Debug fixtures. Hosted Actions app release and distributed Release permission retention not yet exercised."
+}
