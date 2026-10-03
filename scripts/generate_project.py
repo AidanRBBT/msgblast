@@ -22,11 +22,12 @@ icon = obj('MsgBlast/AppIcon.icon', '{isa = PBXFileReference; lastKnownFileType 
 demo_icon = obj('MsgBlast/AppIconDemo.icon', '{isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = "MsgBlast/AppIconDemo.icon"; sourceTree = SOURCE_ROOT;}')
 notice = obj('MsgBlast/ThirdPartyNotices.txt', '{isa = PBXFileReference; lastKnownFileType = text; path = "MsgBlast/ThirdPartyNotices.txt"; sourceTree = SOURCE_ROOT;}')
 discover = obj('MsgBlast/Resources/Discover', '{isa = PBXFileReference; lastKnownFileType = folder; path = "MsgBlast/Resources/Discover"; sourceTree = SOURCE_ROOT;}')
+muse_avatar = obj('MsgBlast/Resources/MuseAvatar.jpg', '{isa = PBXFileReference; lastKnownFileType = image.jpeg; path = "MsgBlast/Resources/MuseAvatar.jpg"; sourceTree = SOURCE_ROOT;}')
 products = {}
 for name, kind, ext in [('MsgBlastCore','wrapper.framework','.framework'),('MsgBlast','wrapper.application','.app'),('MsgBlastTests','wrapper.cfbundle','.xctest'),('MsgBlastUITests','wrapper.cfbundle','.xctest')]:
     products[name] = obj(name+'product', '{isa = PBXFileReference; explicitFileType = '+kind+'; path = '+name+ext+'; sourceTree = BUILT_PRODUCTS_DIR;}')
 product_group = obj('products', '{isa = PBXGroup; name = Products; sourceTree = "<group>"; children = '+seq(list(products.values()))+';}')
-main_group = obj('mainGroup', '{isa = PBXGroup; sourceTree = "<group>"; children = '+seq(list(files.values())+[icon, demo_icon, notice, discover, product_group])+';}')
+main_group = obj('mainGroup', '{isa = PBXGroup; sourceTree = "<group>"; children = '+seq(list(files.values())+[icon, demo_icon, notice, discover, muse_avatar, product_group])+';}')
 targets = {}
 for name in products:
     own = [p for p in files if (p.startswith('MsgBlast/Core/') if name == 'MsgBlastCore' else p.startswith('MsgBlastTests/') if name == 'MsgBlastTests' else p.startswith('MsgBlastUITests/') if name == 'MsgBlastUITests' else p.startswith('MsgBlast/') and not p.startswith('MsgBlast/Core/'))]
@@ -52,7 +53,8 @@ for name in products:
         demo_icon_build = obj('demoAppIconBuild', '{isa = PBXBuildFile; fileRef = '+demo_icon+';}')
         notice_build = obj('thirdPartyNoticeBuild', '{isa = PBXBuildFile; fileRef = '+notice+';}')
         discover_build = obj('discoverResourcesBuild', '{isa = PBXBuildFile; fileRef = '+discover+';}')
-        phases.append(obj('appResources', '{isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = '+seq([icon_build, demo_icon_build, notice_build, discover_build])+'; runOnlyForDeploymentPostprocessing = 0;}'))
+        muse_avatar_build = obj('museAvatarBuild', '{isa = PBXBuildFile; fileRef = '+muse_avatar+';}')
+        phases.append(obj('appResources', '{isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = '+seq([icon_build, demo_icon_build, notice_build, discover_build, muse_avatar_build])+'; runOnlyForDeploymentPostprocessing = 0;}'))
         embed = obj('embedCoreBuild','{isa = PBXBuildFile; fileRef = '+products['MsgBlastCore']+'; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy,);};}')
         phases.append(obj('embedCore','{isa = PBXCopyFilesBuildPhase; buildActionMask = 2147483647; dstPath = ""; dstSubfolderSpec = 10; files = '+seq([embed])+'; name = "Embed Frameworks"; runOnlyForDeploymentPostprocessing = 0;}'))
     config = configs(name, settings)

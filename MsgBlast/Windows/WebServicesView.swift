@@ -13,7 +13,7 @@ struct AgentsWorkspaceView: View {
     @ObservedObject var session: MuseWebSession
     @Binding var showingComparison: Bool
     @State private var sending = false
-    private static let muse = Agent(name: "Muse", handles: [], colorIndex: 4)
+    private static let muse = Agent(name: "Muse", handles: [], avatar: Bundle.main.url(forResource: "MuseAvatar", withExtension: "jpg").flatMap { try? Data(contentsOf: $0) }, colorIndex: 4)
     private var busy: Bool { sending || model.busy || session.isSending }
     private var nativeRecipients: [Agent] { model.state.agents.filter { model.state.selection.contains($0.id) } }
     private var canSend: Bool {
@@ -100,7 +100,7 @@ struct AgentsWorkspaceView: View {
     private var musePane: some View {
         VStack(spacing: 0) {
             HStack(spacing: 10) {
-                Image(systemName: "globe").font(.title2).foregroundStyle(.teal)
+                AgentAvatar(agent: Self.muse, name: "Muse", size: 38)
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Muse").font(.headline)
                     Text(session.webView.url?.host ?? "muse.ai").font(.caption).foregroundStyle(.secondary)
@@ -124,7 +124,7 @@ struct AgentsWorkspaceView: View {
                 EmbeddedServicePage(webView: session.webView)
             } else {
                 VStack(spacing: 18) {
-                    Image(systemName: "globe").font(.system(size: 46, weight: .light)).foregroundStyle(.teal)
+                    AgentAvatar(agent: Self.muse, name: "Muse", size: 80)
                     Text("Muse, inside MsgBlast").font(.title2.weight(.semibold))
                     Text("Sign in here once, then send from the shared composer. Your Muse conversation and replies stay in this window.")
                         .foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 380)
