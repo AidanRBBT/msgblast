@@ -69,11 +69,12 @@ jobs:
       - name: Test release tooling
         run: python3 -m unittest discover -s scripts/tests -p 'test_*.py' -v
 
-      - name: Build Debug app and run core regressions
+      - name: Build isolated demo-icon Debug app and run core regressions
         run: |
           xcodebuild -project MsgBlast.xcodeproj -scheme MsgBlast \
             -derivedDataPath build/updater-validation \
             -destination 'platform=macOS,arch=arm64' \
+            ASSETCATALOG_COMPILER_APPICON_NAME=AppIconDemo \
             -only-testing:MsgBlastTests test -quiet
 
       - name: Exercise real Sparkle updater with isolated fixtures

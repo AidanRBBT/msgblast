@@ -60,9 +60,12 @@ Configured app bundles use Sparkle’s native update dialog and release notes. S
 
 Push a `vVERSION` tag to run the [automated ad-hoc release pipeline](docs/automated-releases.md) after its one-time R2 hosting and Actions key setup. It tests, builds, signs and publishes without Apple Developer credentials; build counters are allocated automatically. The source repository remains private. [Developer ID signing and notarization](docs/updates.md) remain an optional distribution path. Install the first updater-enabled build manually before relying on future updates.
 
-After building in a separate derived-data directory, exercise real Sparkle with temporary signed localhost fixtures:
+Build the isolated fixture source with the blue demo icon, then exercise real Sparkle with temporary signed localhost fixtures:
 
 ```sh
+xcodebuild -project MsgBlast.xcodeproj -scheme MsgBlast -configuration Debug \
+  -derivedDataPath build/updater-validation -destination 'platform=macOS,arch=arm64' \
+  ASSETCATALOG_COMPILER_APPICON_NAME=AppIconDemo build -quiet
 python3 scripts/test_updates.py --derived-data build/updater-validation --keep
 python3 scripts/test_updates.py --derived-data build/updater-validation --ui --keep
 ```

@@ -80,6 +80,9 @@ def main():
     tools = derived / "SourcePackages/artifacts/sparkle/Sparkle/bin"
     if not source.is_dir():
         parser.error("Build the Debug app with Xcode in the chosen derived data directory first")
+    source_info = plistlib.loads((source / "Contents/Info.plist").read_bytes())
+    if source_info.get("CFBundleIconName") != "AppIconDemo":
+        parser.error("Updater fixtures require AppIconDemo; rebuild with ASSETCATALOG_COMPILER_APPICON_NAME=AppIconDemo")
     work = Path(tempfile.mkdtemp(prefix="msgblast-update-fixture-"))
     server = None
     key_file = None

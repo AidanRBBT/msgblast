@@ -10,7 +10,7 @@ Workflow lint passes with external ShellCheck disabled. The `xcode-27` label is 
 
 ## Screenshots
 
-Release automation is a nonvisual CI/storage change. A meaningful screenshot of an actual hosted run cannot be captured yet: the workflow is not merged/activated and R2 credentials/domain are not configured. Native Terminal is unavailable through the enabled computer-use surface. The actual command outputs are retained in `validation.json`; no unrelated browser screenshot is used. The original native updater screenshots in `../updates/` still demonstrate the unchanged app feature.
+Release automation is a nonvisual CI/storage change. A meaningful screenshot of an actual hosted run cannot be captured yet: the workflow is not merged and no hosted app release has run. R2 bucket/domain, credentials, Actions configuration and cache bypass are now configured; authenticated conditional writes and anonymous diagnostic download/hash verification passed. Native Terminal is unavailable through the enabled computer-use surface. The actual command outputs are retained in `validation.json`; no unrelated browser screenshot is used. The original native updater screenshots in `../updates/` still demonstrate the unchanged app feature.
 
 ## Video
 
@@ -21,3 +21,7 @@ No hosted release video is claimed because no hosted release has run. The origin
 Full CE review completed (`20261002-132710-e4ec132a`). Confirmed P2 finding 1 was applied inline: reusable strict seed validation now precedes all publisher signing-tool calls. The orchestration regression failed before the fix and passes afterward, with no storage/tool invocation or key content in either output stream. All 32 Python tests pass. No actionable findings remain unresolved. A separate success-path orchestration test verifies counter/snapshot propagation, source revision and summary using synthetic preparation/publication.
 
 Hosted publication and actual Release-artifact installation/relaunch with permission retention remain activation checks. The final public feed check can fail after publication; the operator guide explains how to inspect authenticated state before a rerun.
+
+## PR 1 merge review
+
+Fresh nine-lens review (`20261002-213628-1fe181ad`) confirmed one P2 fixture-icon mismatch. It is corrected: the isolated Debug source selects `AppIconDemo`, and the fixture script rejects an incorrect source icon before any key generation or temporary fixture creation. The rejection was exercised against the existing live-icon source, then the corrected fixture passed all four real Sparkle scenarios. Native screenshots/video were recaptured with the blue demo icon, successful relaunch, retained draft/attachment and preferences. Standard and Release defaults retain `AppIcon`. See `review-verification.json` for source hashes and limits.
