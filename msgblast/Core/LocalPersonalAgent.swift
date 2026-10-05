@@ -30,9 +30,16 @@ public enum PersonalAgentProvider: String, CaseIterable, Identifiable, Sendable 
     }
 
     // Keep the raw value for saved preferences and reports, but fail closed until
-    // Cursor has a verified way to deny every tool, including read/search and MCP.
+    // Each blocked adapter needs verified denial of every built-in and MCP tool.
     public var unavailabilityReason: String? {
-        self == .cursor ? "Cursor is unavailable for comparison reports because its CLI cannot disable all tools with a verified policy. Choose another installed personal agent; saved Cursor reports remain readable." : nil
+        switch self {
+        case .cursor:
+            return "Cursor is unavailable for comparison reports because its CLI cannot disable all tools with a verified policy. Choose another installed personal agent; saved Cursor reports remain readable."
+        case .grok:
+            return "Grok is unavailable for comparison reports because its current adapter cannot enforce complete tool denial independently of inherited configuration. Choose another installed personal agent; saved Grok reports remain readable."
+        default:
+            return nil
+        }
     }
 
     func arguments(in directory: URL) throws -> [String] {
@@ -53,8 +60,7 @@ public enum PersonalAgentProvider: String, CaseIterable, Identifiable, Sendable 
         case .pi:
             return ["--print", "--no-tools", "--no-extensions", "--no-skills", "--no-context-files", "--no-prompt-templates", "--no-session"]
         case .grok:
-            return ["--prompt-file", directory.appendingPathComponent("input.txt").path, "--output-format", "plain",
-                    "--tools", "", "--no-subagents", "--disable-web-search", "--permission-mode", "dontAsk", "--max-turns", "1"]
+            throw PersonalAgentError.unsupportedProvider(self)
         case .hermes:
             return ["chat", "--query-file", "-", "--quiet", "--toolsets", "none", "--safe-mode", "--source", "tool", "--max-turns", "1"]
         }
