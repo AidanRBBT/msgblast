@@ -108,7 +108,7 @@ class ReleaseTests(unittest.TestCase):
 
     def test_adhoc_signs_nested_code_inside_out_preserving_helper_entitlements(self):
         options = release.parse_args(self.adhoc_args())
-        app = options.output / "export/MsgBlast.app"
+        app = options.output / "export/msgblast.app"
         framework = app / "Contents/Frameworks/Sparkle.framework"
         helper = framework / "Versions/B/XPCServices/Installer.xpc"
         executable = helper / "Contents/MacOS/Installer"
@@ -172,11 +172,12 @@ class ReleaseTests(unittest.TestCase):
             if Path(cmd[0]).name == "generate_keys":
                 return (base64.b64encode(bytes(32)).decode() if mismatched_key else self.key) + "\n"
             if "-exportArchive" in cmd or (cmd[0] == "xcodebuild" and "archive" in cmd and options.signing_mode == "ad-hoc"):
-                app = (options.output / "MsgBlast.xcarchive/Products/Applications/MsgBlast.app"
-                       if options.signing_mode == "ad-hoc" else options.output / "export/MsgBlast.app")
-                (app / "Contents/Frameworks/MsgBlastCore.framework").mkdir(parents=True)
+                app = (options.output / "msgblast.xcarchive/Products/Applications/msgblast.app"
+                       if options.signing_mode == "ad-hoc" else options.output / "export/msgblast.app")
+                (app / "Contents/Frameworks/msgblastCore.framework").mkdir(parents=True)
                 (app / "Contents/Frameworks/Sparkle.framework").mkdir()
-                info = {"CFBundleIdentifier": "com.msgblast.mac", "CFBundleName": "MsgBlast",
+                info = {"CFBundleIdentifier": "com.msgblast.mac", "CFBundleName": "msgblast",
+                        "CFBundleDisplayName": "msgblast", "CFBundleExecutable": "msgblast",
                         "CFBundleVersion": str(options.build), "CFBundleShortVersionString": options.version,
                         "SUFeedURL": options.feed_url, "SUPublicEDKey": options.public_key,
                         "SUVerifyUpdateBeforeExtraction": True, "SURequireSignedFeed": True}
@@ -253,9 +254,10 @@ class ReleaseTests(unittest.TestCase):
 
     def test_exported_metadata_and_frameworks_are_checked_before_notarizing(self):
         changes = [
-            {"CFBundleVersion": "1"}, {"SUFeedURL": "https://wrong.example/feed.xml"},
+            {"CFBundleName": "WrongName"}, {"CFBundleDisplayName": "WrongName"},
+            {"CFBundleExecutable": "WrongName"}, {"CFBundleVersion": "1"}, {"SUFeedURL": "https://wrong.example/feed.xml"},
             {"SURequireSignedFeed": False}, {"SUVerifyUpdateBeforeExtraction": False},
-            {"MsgBlastDemo": True}, {"MsgBlastPermissionGuidePreview": True},
+            {"msgblastDemo": True}, {"msgblastPermissionGuidePreview": True},
             "missing core", "missing sparkle",
         ]
         for index, change in enumerate(changes):
@@ -266,9 +268,9 @@ class ReleaseTests(unittest.TestCase):
                 def fake(cmd):
                     result = base_runner(cmd)
                     if "-exportArchive" in cmd:
-                        app = options.output / "export/MsgBlast.app"
+                        app = options.output / "export/msgblast.app"
                         if isinstance(change, str):
-                            name = "MsgBlastCore" if change == "missing core" else "Sparkle"
+                            name = "msgblastCore" if change == "missing core" else "Sparkle"
                             shutil.rmtree(app / f"Contents/Frameworks/{name}.framework")
                         else:
                             info_path = app / "Contents/Info.plist"

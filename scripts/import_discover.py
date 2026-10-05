@@ -16,7 +16,7 @@ from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = "https://www.imessage.store/api/app/catalog"
-DEST = ROOT / "MsgBlast/Resources/Discover"
+DEST = ROOT / "msgblast/Resources/Discover"
 
 
 def download(url, path):

@@ -13,18 +13,18 @@ def configs(name, settings):
     for mode in ['Debug', 'Release']:
         s = dict(settings)
         s.update({'SWIFT_OPTIMIZATION_LEVEL': '"-Onone"' if mode == 'Debug' else '"-O"', 'SWIFT_ACTIVE_COMPILATION_CONDITIONS': '"DEBUG"' if mode == 'Debug' else '""'})
-        if name == 'MsgBlast' and mode == 'Debug': s['CODE_SIGN_ENTITLEMENTS'] = 'MsgBlast/MsgBlastDebug.entitlements'
+        if name == 'msgblast' and mode == 'Debug': s['CODE_SIGN_ENTITLEMENTS'] = 'msgblast/msgblastDebug.entitlements'
         ids.append(obj(name+mode, '{isa = XCBuildConfiguration; name = '+mode+'; buildSettings = {' + ''.join(f'{k} = {v};' for k,v in s.items()) + '};}'))
     return obj(name+'configs', '{isa = XCConfigurationList; buildConfigurations = '+seq(ids)+'; defaultConfigurationIsVisible = 0; defaultConfigurationName = Debug;}')
 files = {}
-for p in sorted(list(root.glob('MsgBlast/**/*.swift')) + list(root.glob('MsgBlastTests/*.swift')) + list(root.glob('MsgBlastUITests/*.swift'))):
+for p in sorted(list(root.glob('msgblast/**/*.swift')) + list(root.glob('msgblastTests/*.swift')) + list(root.glob('msgblastUITests/*.swift'))):
     rel = str(p.relative_to(root)); files[rel] = obj(rel, '{isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "'+rel+'"; sourceTree = SOURCE_ROOT;}')
-icon = obj('MsgBlast/AppIcon.icon', '{isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = "MsgBlast/AppIcon.icon"; sourceTree = SOURCE_ROOT;}')
-demo_icon = obj('MsgBlast/AppIconDemo.icon', '{isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = "MsgBlast/AppIconDemo.icon"; sourceTree = SOURCE_ROOT;}')
-notice = obj('MsgBlast/ThirdPartyNotices.txt', '{isa = PBXFileReference; lastKnownFileType = text; path = "MsgBlast/ThirdPartyNotices.txt"; sourceTree = SOURCE_ROOT;}')
-discover = obj('MsgBlast/Resources/Discover', '{isa = PBXFileReference; lastKnownFileType = folder; path = "MsgBlast/Resources/Discover"; sourceTree = SOURCE_ROOT;}')
+icon = obj('msgblast/AppIcon.icon', '{isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = "msgblast/AppIcon.icon"; sourceTree = SOURCE_ROOT;}')
+demo_icon = obj('msgblast/AppIconDemo.icon', '{isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = "msgblast/AppIconDemo.icon"; sourceTree = SOURCE_ROOT;}')
+notice = obj('msgblast/ThirdPartyNotices.txt', '{isa = PBXFileReference; lastKnownFileType = text; path = "msgblast/ThirdPartyNotices.txt"; sourceTree = SOURCE_ROOT;}')
+discover = obj('msgblast/Resources/Discover', '{isa = PBXFileReference; lastKnownFileType = folder; path = "msgblast/Resources/Discover"; sourceTree = SOURCE_ROOT;}')
 products = {}
-for name, kind, ext in [('MsgBlastCore','wrapper.framework','.framework'),('MsgBlast','wrapper.application','.app'),('MsgBlastTests','wrapper.cfbundle','.xctest'),('MsgBlastUITests','wrapper.cfbundle','.xctest')]:
+for name, kind, ext in [('msgblastCore','wrapper.framework','.framework'),('msgblast','wrapper.application','.app'),('msgblastTests','wrapper.cfbundle','.xctest'),('msgblastUITests','wrapper.cfbundle','.xctest')]:
     products[name] = obj(name+'product', '{isa = PBXFileReference; explicitFileType = '+kind+'; path = '+name+ext+'; sourceTree = BUILT_PRODUCTS_DIR;}')
 product_group = obj('products', '{isa = PBXGroup; name = Products; sourceTree = "<group>"; children = '+seq(list(products.values()))+';}')
 main_group = obj('mainGroup', '{isa = PBXGroup; sourceTree = "<group>"; children = '+seq(list(files.values())+[icon, demo_icon, notice, discover, product_group])+';}')
@@ -32,43 +32,43 @@ sparkle_package = obj('SparklePackage', '{isa = XCRemoteSwiftPackageReference; r
 sparkle_product = obj('SparkleProduct', '{isa = XCSwiftPackageProductDependency; package = '+sparkle_package+'; productName = Sparkle;}')
 targets = {}
 for name in products:
-    own = [p for p in files if (p.startswith('MsgBlast/Core/') if name == 'MsgBlastCore' else p.startswith('MsgBlastTests/') if name == 'MsgBlastTests' else p.startswith('MsgBlastUITests/') if name == 'MsgBlastUITests' else p.startswith('MsgBlast/') and not p.startswith('MsgBlast/Core/'))]
-    if name == 'MsgBlastTests': own.append('MsgBlast/Permissions/MessagesAccessGuide.swift')
+    own = [p for p in files if (p.startswith('msgblast/Core/') if name == 'msgblastCore' else p.startswith('msgblastTests/') if name == 'msgblastTests' else p.startswith('msgblastUITests/') if name == 'msgblastUITests' else p.startswith('msgblast/') and not p.startswith('msgblast/Core/'))]
+    if name == 'msgblastTests': own.append('msgblast/Permissions/MessagesAccessGuide.swift')
     builds = [obj(name+p+'build', '{isa = PBXBuildFile; fileRef = '+files[p]+';}') for p in own]
     sources = obj(name+'sources', '{isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = '+seq(builds)+'; runOnlyForDeploymentPostprocessing = 0;}')
     framework_builds = []
     dependencies = []
-    if name not in ('MsgBlastCore','MsgBlastUITests'):
-        framework_builds.append(obj(name+'linkCore', '{isa = PBXBuildFile; fileRef = '+products['MsgBlastCore']+';}'))
-        dependencies.append(obj(name+'dep', '{isa = PBXTargetDependency; target = '+ident('MsgBlastCoretarget')+';}'))
-    if name == 'MsgBlast':
+    if name not in ('msgblastCore','msgblastUITests'):
+        framework_builds.append(obj(name+'linkCore', '{isa = PBXBuildFile; fileRef = '+products['msgblastCore']+';}'))
+        dependencies.append(obj(name+'dep', '{isa = PBXTargetDependency; target = '+ident('msgblastCoretarget')+';}'))
+    if name == 'msgblast':
         framework_builds.append(obj('linkSparkle', '{isa = PBXBuildFile; productRef = '+sparkle_product+';}'))
     framework_phase = obj(name+'frameworks', '{isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = '+seq(framework_builds)+'; runOnlyForDeploymentPostprocessing = 0;}')
     phases = [sources, framework_phase]
-    settings = {'PRODUCT_NAME': '"$(TARGET_NAME)"', 'PRODUCT_BUNDLE_IDENTIFIER': 'com.msgblast.'+name, 'MACOSX_DEPLOYMENT_TARGET': '26.0', 'SWIFT_VERSION': '6.0', 'CODE_SIGN_STYLE': 'Automatic', 'CODE_SIGN_IDENTITY': '"-"', 'ENABLE_HARDENED_RUNTIME': 'YES' if name == 'MsgBlast' else 'NO', 'ENABLE_TESTABILITY': 'YES', 'GENERATE_INFOPLIST_FILE': 'YES', 'LD_RUNPATH_SEARCH_PATHS': '"$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks"'}
-    if name == 'MsgBlastUITests':
-        settings['TEST_TARGET_NAME'] = 'MsgBlast'
-        dependencies.append(obj(name+'dep', '{isa = PBXTargetDependency; target = '+ident('MsgBlasttarget')+';}'))
-    if name == 'MsgBlastCore':
+    settings = {'PRODUCT_NAME': '"$(TARGET_NAME)"', 'PRODUCT_BUNDLE_IDENTIFIER': 'com.msgblast.'+name, 'MACOSX_DEPLOYMENT_TARGET': '26.0', 'SWIFT_VERSION': '6.0', 'CODE_SIGN_STYLE': 'Automatic', 'CODE_SIGN_IDENTITY': '"-"', 'ENABLE_HARDENED_RUNTIME': 'YES' if name == 'msgblast' else 'NO', 'ENABLE_TESTABILITY': 'YES', 'GENERATE_INFOPLIST_FILE': 'YES', 'LD_RUNPATH_SEARCH_PATHS': '"$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks"'}
+    if name == 'msgblastUITests':
+        settings['TEST_TARGET_NAME'] = 'msgblast'
+        dependencies.append(obj(name+'dep', '{isa = PBXTargetDependency; target = '+ident('msgblasttarget')+';}'))
+    if name == 'msgblastCore':
         settings.update({'DEFINES_MODULE':'YES', 'DYLIB_INSTALL_NAME_BASE':'"@rpath"', 'SKIP_INSTALL':'YES', 'OTHER_LDFLAGS':'"$(inherited) -lsqlite3"'})
-    if name == 'MsgBlast':
-        settings.update({'GENERATE_INFOPLIST_FILE':'NO', 'INFOPLIST_FILE':'MsgBlast/Info.plist', 'CODE_SIGN_ENTITLEMENTS':'MsgBlast/MsgBlast.entitlements', 'PRODUCT_BUNDLE_IDENTIFIER':'com.msgblast.mac', 'ASSETCATALOG_COMPILER_APPICON_NAME':'AppIcon', 'MARKETING_VERSION':'0.1.0', 'CURRENT_PROJECT_VERSION':'1', 'SPARKLE_FEED_URL':'""', 'SPARKLE_PUBLIC_ED_KEY':'""'})
+    if name == 'msgblast':
+        settings.update({'GENERATE_INFOPLIST_FILE':'NO', 'INFOPLIST_FILE':'msgblast/Info.plist', 'CODE_SIGN_ENTITLEMENTS':'msgblast/msgblast.entitlements', 'MSGBLAST_APP_BUNDLE_IDENTIFIER':'com.msgblast.mac', 'PRODUCT_BUNDLE_IDENTIFIER':'"$(MSGBLAST_APP_BUNDLE_IDENTIFIER)"', 'ASSETCATALOG_COMPILER_APPICON_NAME':'AppIcon', 'MARKETING_VERSION':'0.1.0', 'CURRENT_PROJECT_VERSION':'1', 'SPARKLE_FEED_URL':'""', 'SPARKLE_PUBLIC_ED_KEY':'""'})
         icon_build = obj('appIconBuild', '{isa = PBXBuildFile; fileRef = '+icon+';}')
         demo_icon_build = obj('demoAppIconBuild', '{isa = PBXBuildFile; fileRef = '+demo_icon+';}')
         notice_build = obj('thirdPartyNoticeBuild', '{isa = PBXBuildFile; fileRef = '+notice+';}')
         discover_build = obj('discoverResourcesBuild', '{isa = PBXBuildFile; fileRef = '+discover+';}')
         phases.append(obj('appResources', '{isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = '+seq([icon_build, demo_icon_build, notice_build, discover_build])+'; runOnlyForDeploymentPostprocessing = 0;}'))
-        embed = obj('embedCoreBuild','{isa = PBXBuildFile; fileRef = '+products['MsgBlastCore']+'; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy,);};}')
+        embed = obj('embedCoreBuild','{isa = PBXBuildFile; fileRef = '+products['msgblastCore']+'; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy,);};}')
         phases.append(obj('embedCore','{isa = PBXCopyFilesBuildPhase; buildActionMask = 2147483647; dstPath = ""; dstSubfolderSpec = 10; files = '+seq([embed])+'; name = "Embed Frameworks"; runOnlyForDeploymentPostprocessing = 0;}'))
     config = configs(name, settings)
-    type_ = 'framework' if name == 'MsgBlastCore' else 'application' if name == 'MsgBlast' else 'bundle.ui-testing' if name == 'MsgBlastUITests' else 'bundle.unit-test'
-    targets[name] = obj(name+'target', '{isa = PBXNativeTarget; name = '+name+'; productName = '+name+'; productReference = '+products[name]+'; productType = "com.apple.product-type.'+type_+'"; buildConfigurationList = '+config+'; buildPhases = '+seq(phases)+'; buildRules = (); dependencies = '+seq(dependencies)+'; packageProductDependencies = '+seq([sparkle_product] if name == 'MsgBlast' else [])+';}')
+    type_ = 'framework' if name == 'msgblastCore' else 'application' if name == 'msgblast' else 'bundle.ui-testing' if name == 'msgblastUITests' else 'bundle.unit-test'
+    targets[name] = obj(name+'target', '{isa = PBXNativeTarget; name = '+name+'; productName = '+name+'; productReference = '+products[name]+'; productType = "com.apple.product-type.'+type_+'"; buildConfigurationList = '+config+'; buildPhases = '+seq(phases)+'; buildRules = (); dependencies = '+seq(dependencies)+'; packageProductDependencies = '+seq([sparkle_product] if name == 'msgblast' else [])+';}')
 project_config = configs('project', {'SDKROOT':'macosx', 'CLANG_ENABLE_MODULES':'YES', 'SWIFT_VERSION':'6.0', 'MACOSX_DEPLOYMENT_TARGET':'26.0'})
 project = obj('project', '{isa = PBXProject; attributes = {LastUpgradeCheck = 2700;}; buildConfigurationList = '+project_config+'; compatibilityVersion = "Xcode 14.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en, Base,); mainGroup = '+main_group+'; productRefGroup = '+product_group+'; projectDirPath = ""; projectRoot = ""; packageReferences = '+seq([sparkle_package])+'; targets = '+seq(list(targets.values()))+';}')
-dest = root / 'MsgBlast.xcodeproj'; dest.mkdir(exist_ok=True)
+dest = root / 'msgblast.xcodeproj'; dest.mkdir(exist_ok=True)
 (dest/'project.pbxproj').write_text('// !$*UTF8*$!\n{archiveVersion = 1; classes = {}; objectVersion = 56; objects = {\n'+ '\n'.join(f'{k} = {v};' for k,v in objects.items())+'\n}; rootObject = '+project+';}\n')
 schemes = dest/'xcshareddata/xcschemes'; schemes.mkdir(parents=True, exist_ok=True)
-def ref(name, suffix): return f'<BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="{targets[name]}" BuildableName="{name}{suffix}" BlueprintName="{name}" ReferencedContainer="container:MsgBlast.xcodeproj"/>'
-(schemes/'MsgBlast.xcscheme').write_text(f'''<?xml version="1.0" encoding="UTF-8"?>
-<Scheme LastUpgradeVersion="2700" version="1.3"><BuildAction parallelizeBuildables="YES" buildImplicitDependencies="YES"><BuildActionEntries><BuildActionEntry buildForTesting="YES" buildForRunning="YES" buildForProfiling="YES" buildForArchiving="YES" buildForAnalyzing="YES">{ref('MsgBlast','.app')}</BuildActionEntry><BuildActionEntry buildForTesting="YES" buildForRunning="NO" buildForProfiling="NO" buildForArchiving="NO" buildForAnalyzing="YES">{ref('MsgBlastTests','.xctest')}</BuildActionEntry><BuildActionEntry buildForTesting="YES" buildForRunning="NO" buildForProfiling="NO" buildForArchiving="NO" buildForAnalyzing="YES">{ref('MsgBlastUITests','.xctest')}</BuildActionEntry></BuildActionEntries></BuildAction><TestAction buildConfiguration="Debug" selectedDebuggerIdentifier="Xcode.DebuggerFoundation.Debugger.LLDB" selectedLauncherIdentifier="Xcode.IDEFoundation.Launcher.LLDB" shouldUseLaunchSchemeArgsEnv="YES"><Testables><TestableReference skipped="NO">{ref('MsgBlastTests','.xctest')}</TestableReference><TestableReference skipped="NO">{ref('MsgBlastUITests','.xctest')}</TestableReference></Testables></TestAction><LaunchAction buildConfiguration="Debug" selectedDebuggerIdentifier="Xcode.DebuggerFoundation.Debugger.LLDB" selectedLauncherIdentifier="Xcode.IDEFoundation.Launcher.LLDB" launchStyle="0" useCustomWorkingDirectory="NO" ignoresPersistentStateOnLaunch="NO" debugDocumentVersioning="YES" debugServiceExtension="internal" allowLocationSimulation="YES"><BuildableProductRunnable runnableDebuggingMode="0">{ref('MsgBlast','.app')}</BuildableProductRunnable></LaunchAction><ProfileAction buildConfiguration="Release" shouldUseLaunchSchemeArgsEnv="YES" savedToolIdentifier="" useCustomWorkingDirectory="NO" debugDocumentVersioning="YES"><BuildableProductRunnable runnableDebuggingMode="0">{ref('MsgBlast','.app')}</BuildableProductRunnable></ProfileAction><AnalyzeAction buildConfiguration="Debug"/><ArchiveAction buildConfiguration="Release" revealArchiveInOrganizer="YES"/></Scheme>''')
+def ref(name, suffix): return f'<BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="{targets[name]}" BuildableName="{name}{suffix}" BlueprintName="{name}" ReferencedContainer="container:msgblast.xcodeproj"/>'
+(schemes/'msgblast.xcscheme').write_text(f'''<?xml version="1.0" encoding="UTF-8"?>
+<Scheme LastUpgradeVersion="2700" version="1.3"><BuildAction parallelizeBuildables="YES" buildImplicitDependencies="YES"><BuildActionEntries><BuildActionEntry buildForTesting="YES" buildForRunning="YES" buildForProfiling="YES" buildForArchiving="YES" buildForAnalyzing="YES">{ref('msgblast','.app')}</BuildActionEntry><BuildActionEntry buildForTesting="YES" buildForRunning="NO" buildForProfiling="NO" buildForArchiving="NO" buildForAnalyzing="YES">{ref('msgblastTests','.xctest')}</BuildActionEntry><BuildActionEntry buildForTesting="YES" buildForRunning="NO" buildForProfiling="NO" buildForArchiving="NO" buildForAnalyzing="YES">{ref('msgblastUITests','.xctest')}</BuildActionEntry></BuildActionEntries></BuildAction><TestAction buildConfiguration="Debug" selectedDebuggerIdentifier="Xcode.DebuggerFoundation.Debugger.LLDB" selectedLauncherIdentifier="Xcode.IDEFoundation.Launcher.LLDB" shouldUseLaunchSchemeArgsEnv="YES"><Testables><TestableReference skipped="NO">{ref('msgblastTests','.xctest')}</TestableReference><TestableReference skipped="NO">{ref('msgblastUITests','.xctest')}</TestableReference></Testables></TestAction><LaunchAction buildConfiguration="Debug" selectedDebuggerIdentifier="Xcode.DebuggerFoundation.Debugger.LLDB" selectedLauncherIdentifier="Xcode.IDEFoundation.Launcher.LLDB" launchStyle="0" useCustomWorkingDirectory="NO" ignoresPersistentStateOnLaunch="NO" debugDocumentVersioning="YES" debugServiceExtension="internal" allowLocationSimulation="YES"><BuildableProductRunnable runnableDebuggingMode="0">{ref('msgblast','.app')}</BuildableProductRunnable></LaunchAction><ProfileAction buildConfiguration="Release" shouldUseLaunchSchemeArgsEnv="YES" savedToolIdentifier="" useCustomWorkingDirectory="NO" debugDocumentVersioning="YES"><BuildableProductRunnable runnableDebuggingMode="0">{ref('msgblast','.app')}</BuildableProductRunnable></ProfileAction><AnalyzeAction buildConfiguration="Debug"/><ArchiveAction buildConfiguration="Release" revealArchiveInOrganizer="YES"/></Scheme>''')
 print(dest)

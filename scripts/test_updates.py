@@ -34,12 +34,12 @@ def bundle(source, destination, build, feed, key, store, probe=False):
     run(["ditto", source, destination])
     path = destination / "Contents/Info.plist"
     info = plistlib.loads(path.read_bytes())
-    info.update(CFBundleIdentifier="com.msgblast.update-fixture", CFBundleName="MsgBlast Update Fixture",
+    info.update(CFBundleIdentifier="com.msgblast.update-fixture", CFBundleName="msgblast Update Fixture",
                 CFBundleShortVersionString="0.1." + str(build), CFBundleVersion=str(build),
-                SUFeedURL=feed, SUPublicEDKey=key, MsgBlastDemo=True, MsgBlastUpdateFixture=True,
-                MsgBlastFixtureStore=str(store), MsgBlastUpdateProbeRelaunch=probe, SUEnableAutomaticChecks=False, SUAutomaticallyUpdate=False)
+                SUFeedURL=feed, SUPublicEDKey=key, msgblastDemo=True, msgblastUpdateFixture=True,
+                msgblastFixtureStore=str(store), msgblastUpdateProbeRelaunch=probe, SUEnableAutomaticChecks=False, SUAutomaticallyUpdate=False)
     path.write_bytes(plistlib.dumps(info))
-    run(["codesign", "--force", "--sign", "-", "--options", "runtime", "--entitlements", ROOT / "MsgBlast/MsgBlastDebug.entitlements", destination])
+    run(["codesign", "--force", "--sign", "-", "--options", "runtime", "--entitlements", ROOT / "msgblast/msgblastDebug.entitlements", destination])
     run(["codesign", "--verify", "--deep", "--strict", destination])
 
 def seed(store):
@@ -76,7 +76,7 @@ def main():
     parser.add_argument("--keep", action="store_true", help="Keep fixture bundles and reports; private key is always deleted")
     args = parser.parse_args()
     derived = args.derived_data.resolve()
-    source = derived / "Build/Products/Debug/MsgBlast.app"
+    source = derived / "Build/Products/Debug/msgblast.app"
     tools = derived / "SourcePackages/artifacts/sparkle/Sparkle/bin"
     if not source.is_dir():
         parser.error("Build the Debug app with Xcode in the chosen derived data directory first")
@@ -97,23 +97,23 @@ def main():
         # Store on macOS's per-user temporary root, which the DEBUG fixture policy accepts.
         store = work / "data"
         staged = seed(store)
-        candidate = work / "candidate/MsgBlast.app"
+        candidate = work / "candidate/msgblast.app"
         candidate.parent.mkdir()
         bundle(source, candidate, 2, base + "appcast.xml", public, store, probe=not args.ui)
-        archive = served / "MsgBlast-0.1.2.zip"
+        archive = served / "msgblast-0.1.2.zip"
         run(["ditto", "-c", "-k", "--sequesterRsrc", "--keepParent", candidate, archive])
-        (served / "MsgBlast-0.1.2.md").write_text("- Native update checks and preferences\n- Keep drafts and staged attachments through updates\n")
+        (served / "msgblast-0.1.2.md").write_text("- Native update checks and preferences\n- Keep drafts and staged attachments through updates\n")
         run([tools / "generate_appcast", "--ed-key-file", key_file, "--download-url-prefix", base, "--embed-release-notes", "--maximum-deltas", "0", served])
         good_feed = (served / "appcast.xml").read_bytes()
         if args.ui:
-            installed = work / "ui/MsgBlast.app"
+            installed = work / "ui/msgblast.app"
             installed.parent.mkdir()
             bundle(source, installed, 1, base + "appcast.xml", public, store)
             print(f"UI fixture app: {installed}\nSynthetic draft and attachment store: {store}\nSigned localhost feed: {base}appcast.xml", flush=True)
             try: threading.Event().wait()
             except KeyboardInterrupt: return
         for name, expected_exit, expected_build in [("install-and-preserve", 0, "2"), ("no-update", 3, "2"), ("invalid-signature", 1, "1"), ("failed-download", 1, "1")]:
-            installed = work / name / "MsgBlast.app"
+            installed = work / name / "msgblast.app"
             installed.parent.mkdir()
             starting_build = 2 if name == "no-update" else 1
             bundle(source, installed, starting_build, base + "appcast.xml", public, store, probe=True)
@@ -130,7 +130,7 @@ def main():
                     enclosure.set("url", base + "missing.zip")
                 feed.write_bytes(ET.tostring(tree, encoding="utf-8", xml_declaration=True))
                 run([tools / "sign_update", "--ed-key-file", key_file, feed])
-            command = [str(installed / "Contents/MacOS/MsgBlast"), "--update-probe"]
+            command = [str(installed / "Contents/MacOS/msgblast"), "--update-probe"]
             if name == "install-and-preserve": command.append("--update-probe-busy")
             output_path = installed.parent / "stdout.log"
             error_path = installed.parent / "stderr.log"

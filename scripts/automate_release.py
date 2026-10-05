@@ -95,7 +95,7 @@ def reserve_build(store, prefix, directory, published_build):
 
 def verify_public(url, expected_digest):
     release.validate_https(url)
-    request = Request(url, headers={"Cache-Control": "no-cache", "User-Agent": "MsgBlast-release-verifier"})
+    request = Request(url, headers={"Cache-Control": "no-cache", "User-Agent": "msgblast-release-verifier"})
     digest = hashlib.sha256()
     with urlopen(request, timeout=60) as response:
         release.validate_https(response.url)
@@ -114,7 +114,7 @@ def publish_release(store, base_url, publish, snapshot, tools, key_file):
     if (not isinstance(build, int) or build <= snapshot["build"]
             or manifest["previous_build"] != snapshot["build"]):
         raise ReleaseError("Prepared build does not follow the verified published counter")
-    archive = publish / f"MsgBlast-{version}-{build}.zip"
+    archive = publish / f"msgblast-{version}-{build}.zip"
     feed = publish / "appcast.xml"
     expected_archive_url = base_url + "downloads/" + archive.name
     if manifest["feed_url"] != base_url + "appcast.xml" or manifest["archive_url"] != expected_archive_url:
@@ -131,7 +131,7 @@ def publish_release(store, base_url, publish, snapshot, tools, key_file):
     # Compare-and-swap prevents a slower/competing publisher from replacing a newer feed.
     store.put(prefix + "appcast.xml", feed, "application/rss+xml", etag=snapshot["etag"])
     verify_public(base_url + "appcast.xml", manifest["sha256"][feed.name])
-    print(f"Published MsgBlast {version} ({build})", flush=True)
+    print(f"Published msgblast {version} ({build})", flush=True)
     return manifest
 
 
@@ -184,7 +184,7 @@ def main(args=None):
         summary = os.environ.get("GITHUB_STEP_SUMMARY")
         if summary:
             with Path(summary).open("a") as file:
-                file.write(f"MsgBlast {version} ({build}) published from `{revision}`.\n\n"
+                file.write(f"msgblast {version} ({build}) published from `{revision}`.\n\n"
                     f"[Download]({result['archive_url']}) · [Feed]({result['feed_url']})\n\n"
                     "Ad-hoc app signing; Sparkle archive/feed signatures verified. No Apple notarization.\n")
         return 0

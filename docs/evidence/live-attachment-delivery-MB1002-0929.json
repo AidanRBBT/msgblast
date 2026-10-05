@@ -7,12 +7,12 @@
   "scope": "Michael only; Pal excluded",
   "parts": [
     {
-      "filename": "MsgBlast-test-MB1002-0929.png",
+      "filename": "msgblast-test-MB1002-0929.png",
       "state": "submitted",
       "anchored": true
     },
     {
-      "filename": "MsgBlast-test-MB1002-0929.txt",
+      "filename": "msgblast-test-MB1002-0929.txt",
       "state": "submitted",
       "anchored": true
     }

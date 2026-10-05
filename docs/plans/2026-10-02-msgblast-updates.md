@@ -1,7 +1,7 @@
-# MsgBlast updates
+# msgblast updates
 
 ## Goal Capsule
-Use Sparkle 2.10.0 and its standard native UI to update installed MsgBlast bundles safely. Match the Flo State workflow: daily checks, automatic update preference, release notes, Install on Quit and Install and Relaunch. Preserve the live primary checkout and app.
+Use Sparkle 2.10.0 and its standard native UI to update installed msgblast bundles safely. Match the Flo State workflow: daily checks, automatic update preference, release notes, Install on Quit and Install and Relaunch. Preserve the live primary checkout and app.
 
 ## Product Contract
 - Updates run only in configured application bundles. Ordinary demos, permission previews, unbundled SwiftPM runs and XCTest must never query or install production updates.
@@ -13,7 +13,7 @@ Use Sparkle 2.10.0 and its standard native UI to update installed MsgBlast bundl
 
 ## Implementation Units
 ### U1. Native updater
-Files: Package.swift, Package.resolved, scripts/generate_project.py, generated Xcode project/resolved packages, MsgBlast/Info.plist, MsgBlast/App/MsgBlastApp.swift, new updater/settings sources, MsgBlast/Core/UpdateConfiguration.swift, MsgBlastTests/UpdateTests.swift, narrowly scoped app termination support, existing menu UI regression.
+Files: Package.swift, Package.resolved, scripts/generate_project.py, generated Xcode project/resolved packages, msgblast/Info.plist, msgblast/App/msgblastApp.swift, new updater/settings sources, msgblast/Core/UpdateConfiguration.swift, msgblastTests/UpdateTests.swift, narrowly scoped app termination support, existing menu UI regression.
 Use SPUStandardUpdaterController with observed canCheckForUpdates and preference properties. Info.plist configuration uses SPARKLE_FEED_URL, SPARKLE_PUBLIC_ED_KEY, MARKETING_VERSION and CURRENT_PROJECT_VERSION build settings. Blank feed/key are the development default. Add a narrowly scoped DEBUG-only local updater fixture/probe for isolated real Sparkle installation tests. Verify policy and termination behavior through focused tests and actual runtime.
 
 ### U2. Release tooling
