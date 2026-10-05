@@ -49,6 +49,10 @@ Select your agents, write a prompt, and press the send arrow. Their replies appe
 
 Check for new versions from **msgblast → Check for Updates**.
 
+## Comparison reports
+
+Click **Summarize** in a comparison to open a report with a recommended next action, a comparison of the replies, and open questions. Reports use an installed personal-agent CLI and its existing account. See [personal agent reports](docs/personal-agent-reports.md) for setup, supported CLIs, privacy limits, and fixture validation.
+
 ## Build it yourself
 
 Install **Xcode 27**, then clone this repository and build the app:

@@ -1,0 +1,9 @@
+file '02-cursor-unavailable.png'
+duration 3
+file '04-supported-selected.png'
+duration 3
+file '05-generated-report.png'
+duration 3
+file '06-grok-unavailable.png'
+duration 3
+file '06-grok-unavailable.png'

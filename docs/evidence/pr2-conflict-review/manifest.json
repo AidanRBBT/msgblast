@@ -1,0 +1,15 @@
+{
+  "source_commit": "6c945ac7683d4af48f79902570cb6d99a52dd306",
+  "core_tests": 57,
+  "core_failures": 0,
+  "shutdown_regression": "passed",
+  "signed_localhost_update_cases": 4,
+  "automated_ui_tests": "not executed",
+  "capture": "Actual native macOS demo window captures, synthetic replies and simulated report output; separate identity and temporary store; no provider contacted. Video assembled from three captured states with edited holds; not continuous screen recording. Mobile not applicable.",
+  "workflow": [
+    "Summarize toolbar with local replies",
+    "Separate report with best next action and 12 responses",
+    "Reopen Summarize after local follow-up generates updated report with 24 responses"
+  ],
+  "limitations": "No live provider/tool restriction verification, real Messages sends, Contacts writes or production publication."
+}

@@ -360,7 +360,7 @@ struct ConversationView: View {
                 }.padding(12)
                 FollowUpStatus(model: model, comparison: comparison, only: memberID)
                 }
-            }.frame(minWidth: 320, minHeight: 320).background(Color(nsColor: .textBackgroundColor)).ignoresSafeArea(.container, edges: embedded ? [] : .top)
+            }.frame(minWidth: 320, minHeight: 320).background(Color(nsColor: .textBackgroundColor))
         }
     }
     private var privateDraft: Binding<String> {

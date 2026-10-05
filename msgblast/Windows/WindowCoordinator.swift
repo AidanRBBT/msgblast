@@ -8,7 +8,7 @@ final class ComposerPanel: NSPanel {
 }
 
 @MainActor
-final class WindowCoordinator: NSObject, NSWindowDelegate {
+final class WindowCoordinator: NSObject, NSWindowDelegate, NSToolbarDelegate {
     unowned let model: AppModel
     private var windows: [String: NSWindow] = [:]
     private var placing = false
@@ -16,11 +16,10 @@ final class WindowCoordinator: NSObject, NSWindowDelegate {
 
     init(model: AppModel) { self.model = model }
 
-    func closeAll() {
+    func closeAll(keepingReports: Bool = false) {
         guard !windows.isEmpty else { return }
         closingAll = true
-        Array(windows.values).forEach { $0.close() }
-        windows = [:]
+        Array(windows.values).filter { !keepingReports || $0.identifier?.rawValue.hasSuffix(":report") != true }.forEach { $0.close() }
         closingAll = false
         model.persist()
     }
@@ -28,9 +27,9 @@ final class WindowCoordinator: NSObject, NSWindowDelegate {
     func reopenComparisons() {
         let previousKeyWindow = NSApp.keyWindow
         let openIDs = model.state.comparisons.filter { comparison in
-            windows.keys.contains { $0.hasPrefix(comparison.id.uuidString + ":") }
+            windows.keys.contains { $0.hasPrefix(comparison.id.uuidString + ":") && !$0.hasSuffix(":report") }
         }.map(\.id)
-        closeAll()
+        closeAll(keepingReports: true)
         for id in openIDs { open(id) }
         if previousKeyWindow?.isVisible == true { previousKeyWindow?.makeKeyAndOrderFront(nil) }
     }
@@ -54,6 +53,61 @@ final class WindowCoordinator: NSObject, NSWindowDelegate {
         window.setFrame(NSRect(x: screen.minX + frame.x, y: screen.minY + frame.y, width: frame.width, height: frame.height), display: false)
     }
 
+    private func addSummaryToolbar(to window: NSWindow, comparisonID: UUID) {
+        let toolbar = NSToolbar(identifier: "summarize:" + comparisonID.uuidString)
+        toolbar.delegate = self
+        toolbar.displayMode = .iconOnly
+        window.toolbar = toolbar
+    }
+
+    func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        [.flexibleSpace, NSToolbarItem.Identifier("summarize")]
+    }
+
+    func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] { toolbarDefaultItemIdentifiers(toolbar) }
+
+    func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier identifier: NSToolbarItem.Identifier, willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
+        guard identifier.rawValue == "summarize" else { return nil }
+        let item = NSToolbarItem(itemIdentifier: identifier)
+        item.label = "Summarize"
+        let button = NSButton(title: "Summarize", target: self, action: #selector(summarizeFromToolbar(_:)))
+        button.image = NSImage(systemSymbolName: "sparkles", accessibilityDescription: nil)
+        button.imagePosition = .imageLeading
+        button.bezelStyle = .texturedRounded
+        button.identifier = NSUserInterfaceItemIdentifier(String(toolbar.identifier.dropFirst("summarize:".count)))
+        button.toolTip = "Generate a comparison report and best next action with your personal agent"
+        button.setAccessibilityLabel("Summarize")
+        item.view = button
+        return item
+    }
+
+    @objc private func summarizeFromToolbar(_ button: NSButton) {
+        guard let value = button.identifier?.rawValue, let id = UUID(uuidString: value) else { return }
+        openReport(id)
+        Task { await model.personalAgent.requestReport(id, model: model) }
+    }
+
+    private func openReport(_ id: UUID) {
+        guard let comparison = model.comparison(id) else { return }
+        let windowKey = id.uuidString + ":report"
+        if windows[windowKey] == nil {
+            placing = true
+            defer { placing = false }
+            let screen = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+            let window = NSWindow(contentRect: .zero, styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
+            window.title = "Comparison report · \(comparison.title)" + (model.demo ? " [Demo]" : "")
+            window.identifier = NSUserInterfaceItemIdentifier(windowKey)
+            window.contentView = NSHostingView(rootView: ComparisonReportView(model: model, agent: model.personalAgent, comparisonID: id))
+            configureChrome(window)
+            window.tabbingMode = .disallowed
+            window.minSize = NSSize(width: 660, height: 620)
+            let width = min(820, screen.width - 40), height = min(820, screen.height - 60)
+            restore(window, frame: model.state.frames[windowKey] ?? SavedFrame(x: (screen.width - width) / 2, y: (screen.height - height) / 2, width: width, height: height), screen: screen)
+            windows[windowKey] = window
+        }
+        windows[windowKey]?.makeKeyAndOrderFront(nil)
+    }
+
     func open(_ id: UUID) {
         guard let comparison = model.comparison(id) else { return }
         if model.state.effectiveWindowStyle == .connected {
@@ -71,7 +125,7 @@ final class WindowCoordinator: NSObject, NSWindowDelegate {
                 window.identifier = NSUserInterfaceItemIdentifier(windowKey)
                 window.contentView = NSHostingView(rootView: ConversationView(model: model, comparisonID: id, memberID: member.id))
                 configureChrome(window)
-                window.toolbar = NSToolbar(identifier: "conversation-" + windowKey)
+                addSummaryToolbar(to: window, comparisonID: id)
                 window.titleVisibility = .hidden
                 window.minSize = NSSize(width: 320, height: 400)
                 restore(window, frame: model.state.frames[windowKey] ?? frames[offset], screen: screen)
@@ -90,6 +144,7 @@ final class WindowCoordinator: NSObject, NSWindowDelegate {
             glass.contentView = NSHostingView(rootView: FloatingComposer(model: model, comparisonID: id))
             panel.contentView = glass
             configureChrome(panel)
+            addSummaryToolbar(to: panel, comparisonID: id)
             panel.minSize = NSSize(width: 470, height: 170)
             panel.level = .floating
             panel.isFloatingPanel = true
@@ -104,19 +159,20 @@ final class WindowCoordinator: NSObject, NSWindowDelegate {
     private func openConnected(_ comparison: Comparison) {
         let windowKey = comparison.id.uuidString + ":connected"
         if windows[windowKey] == nil {
+            placing = true
+            defer { placing = false }
             let screen = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
             let window = NSWindow(contentRect: .zero, styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
             window.title = "All \(comparison.members.count) · \(comparison.title)" + (model.demo ? " [Demo]" : "")
             window.identifier = NSUserInterfaceItemIdentifier(windowKey)
             window.contentView = NSHostingView(rootView: ComparisonWorkspace(model: model, comparisonID: comparison.id))
             configureChrome(window)
+            addSummaryToolbar(to: window, comparisonID: comparison.id)
             window.minSize = NSSize(width: 640, height: 500)
             let width = min(screen.width - 40, max(800, Double(comparison.members.count) * 390))
             let height = min(screen.height - 60, 760)
-            placing = true
             restore(window, frame: model.state.frames[windowKey] ?? SavedFrame(x: (screen.width - width) / 2, y: (screen.height - height) / 2, width: width, height: height), screen: screen)
             windows[windowKey] = window
-            placing = false
         }
         windows[windowKey]?.makeKeyAndOrderFront(nil)
     }

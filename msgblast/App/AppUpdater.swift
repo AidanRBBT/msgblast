@@ -86,7 +86,7 @@ final class AppLifecycle: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
                 }
                 if let decision {
                     if let error = self.termination.error { self.showSaveError(error) }
-                    NSApp.reply(toApplicationShouldTerminate: decision == .allowed)
+                    self.replyToTermination(NSApp, allowed: decision == .allowed)
                 }
             }
         }
@@ -105,11 +105,26 @@ final class AppLifecycle: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         #endif
         guard let model else { return .terminateNow }
         switch termination.request(isBusy: model.busy, persist: { try model.save() }) {
-        case .allowed: return .terminateNow
+        case .allowed:
+            model.personalAgent.beginShutdown()
+            guard !model.personalAgent.running.isEmpty else { return .terminateNow }
+            replyToTermination(sender, allowed: true)
+            return .terminateLater
         case .deferred: return .terminateLater
         case .cancelled:
             showSaveError(termination.error ?? "Your drafts could not be saved.")
             return .terminateCancel
+        }
+    }
+    private func replyToTermination(_ sender: NSApplication, allowed: Bool) {
+        guard allowed, let model else {
+            sender.reply(toApplicationShouldTerminate: false)
+            return
+        }
+        model.personalAgent.beginShutdown()
+        Task {
+            await model.personalAgent.cancelAndWait()
+            sender.reply(toApplicationShouldTerminate: true)
         }
     }
     private func showSaveError(_ message: String) {

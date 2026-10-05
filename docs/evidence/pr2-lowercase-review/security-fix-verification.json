@@ -1,0 +1,20 @@
+{
+  "reviewer": "security",
+  "scope": "Targeted verification of the Grok tool-gating P1 only; current scoped working-tree changes on HEAD 310438a56ec673e3588861b6e57e3b221068af9d.",
+  "original_finding": "CWE-284: Grok empty tools retains executable capabilities",
+  "outcome": "fixed",
+  "reason": "Grok now returns an unavailability reason and its argument adapter throws unsupportedProvider. Existing shared guards exclude it from discovery and reject it in the controller, public summary adapter and process runner before transcript files or a process are created. No new gate hole was found in the scoped change.",
+  "evidence": [
+    "msgblast/Core/LocalPersonalAgent.swift:38-39 adds .grok to unavailabilityReason; lines 62-63 throw unsupportedProvider instead of returning the unsafe invocation.",
+    "msgblast/Core/LocalPersonalAgent.swift:132 rejects unavailable providers during executable discovery; line 146 rejects them before task creation; line 185 rejects them before the temporary directory and input.txt writes at lines 188-191.",
+    "msgblast/App/PersonalAgentController.swift:55 rejects unavailable providers before saving or starting the report task. Both remembered-provider requests and direct UI generation use this controller method.",
+    "msgblast/Windows/PersonalAgentView.swift:36-37 labels saved unavailable providers; line 51 disables generation when the provider is absent from supported discovery; line 62 displays the unavailability explanation. Saved report rendering is independent of current provider availability.",
+    "msgblastTests/PersonalAgentTests.swift extends the existing blocked-provider discovery, malicious-input/direct-process launch-marker, argument-rejection and saved-state decoding regressions to both Cursor and Grok. Supported-provider transport/argument loops skip unavailable providers.",
+    "docs/personal-agent-reports.md removes Grok from the supported CLI list and documents its fail-closed restriction and saved-data compatibility."
+  ],
+  "findings": [],
+  "validation_limits": [
+    "This reviewer inspected code and regression assertions only. No provider, agent process, Messages operation or Contacts operation was launched.",
+    "The parent reports the new Grok assertions failed before the production fix and is running the post-fix suite separately. This artifact does not claim those post-fix tests have completed."
+  ]
+}

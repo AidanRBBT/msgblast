@@ -2,6 +2,75 @@ import XCTest
 import AppKit
 final class WorkflowTests: XCTestCase {
     @MainActor
+    func testPersonalAgentOpensComparisonReportWithBestNextAction() {
+        let app = launchFixture(separateWindows: false)
+        defer { app.terminate() }
+        let prompt = "Personal agent comparison fixture"
+        let editor = app.textViews["Shared prompt"]
+        editor.click(); editor.typeKey("a", modifierFlags: .command); editor.typeText(prompt)
+        app.buttons["Send & compare"].click()
+        let workspace = app.windows["All 3 · \(prompt) [Demo]"]
+        XCTAssertTrue(workspace.waitForExistence(timeout: 10))
+        let summarize = workspace.toolbars.buttons["Summarize"]
+        guard summarize.waitForExistence(timeout: 5) else { return XCTFail("Summarize must be in the window toolbar") }
+        XCTAssertGreaterThan(summarize.frame.midX, workspace.frame.midX)
+        XCTAssertLessThan(summarize.frame.minY, workspace.frame.minY + 100)
+        XCTAssertTrue(workspace.staticTexts.matching(identifier: "Recipient reacted ✅").element(boundBy: 2).waitForExistence(timeout: 10))
+        let before = XCTAttachment(screenshot: workspace.screenshot())
+        before.name = "Summarize toolbar — synthetic comparison"
+        before.lifetime = .keepAlways; add(before)
+        summarize.click()
+        let report = app.windows["Comparison report · \(prompt) [Demo]"]
+        XCTAssertTrue(report.waitForExistence(timeout: 5))
+        XCTAssertEqual(app.sheets.count, 0, "The report must be a separate window")
+        XCTAssertTrue(workspace.exists)
+        let action = report.staticTexts.containing(NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", "Choose one representative example", "Choose one representative example")).firstMatch
+        XCTAssertTrue(action.waitForExistence(timeout: 10), "One toolbar click must generate the report")
+        XCTAssertTrue((action.label + (action.value as? String ?? "")).contains("representative example"))
+        XCTAssertTrue(report.staticTexts.containing(NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", "Cedar emphasizes clarity", "Cedar emphasizes clarity")).firstMatch.exists)
+        XCTAssertTrue(report.staticTexts["Demo analyst (simulated) · 3 of 3 participants · 6 responses"].exists)
+        let after = XCTAttachment(screenshot: report.screenshot())
+        after.name = "Comparison report — best next action — simulated output"
+        after.lifetime = .keepAlways; add(after)
+        // Keep the report open while continuing the source conversation.
+        let input = workspace.textViews["Universal message"]
+        input.click(); input.typeText("Compare the tradeoffs too")
+        workspace.buttons["Send to Cedar, Lumen, Orbit"].click()
+        let stale = report.staticTexts["Conversation changed · update the report to include the latest replies."]
+        XCTAssertTrue(stale.waitForExistence(timeout: 5))
+        XCTAssertTrue(workspace.staticTexts.matching(identifier: "Recipient reacted ✅").element(boundBy: 5).waitForExistence(timeout: 10))
+        workspace.toolbars.buttons["Summarize"].click()
+        XCTAssertEqual(app.windows.matching(identifier: "Comparison report · \(prompt) [Demo]").count, 1)
+        XCTAssertTrue(report.staticTexts["Demo analyst (simulated) · 3 of 3 participants · 12 responses"].waitForExistence(timeout: 10))
+        XCTAssertFalse(stale.exists)
+        XCTAssertTrue(action.waitForExistence(timeout: 10))
+        report.buttons[XCUIIdentifierCloseWindow].click()
+        workspace.toolbars.buttons["Summarize"].click()
+        XCTAssertTrue(report.waitForExistence(timeout: 5))
+        XCTAssertTrue(action.waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testSeparateConversationWindowsShareOneComparisonReport() {
+        let app = launchFixture(separateWindows: true)
+        defer { app.terminate() }
+        let prompt = "Separate report fixture"
+        let editor = app.textViews["Shared prompt"]
+        editor.click(); editor.typeKey("a", modifierFlags: .command); editor.typeText(prompt)
+        app.buttons["Send & compare"].click()
+        let cedar = app.windows["Cedar · \(prompt)"]
+        XCTAssertTrue(cedar.waitForExistence(timeout: 10))
+        XCTAssertTrue(cedar.staticTexts["Recipient reacted ✅"].firstMatch.waitForExistence(timeout: 10))
+        cedar.toolbars.buttons["Summarize"].click()
+        let report = app.windows["Comparison report · \(prompt) [Demo]"]
+        XCTAssertTrue(report.waitForExistence(timeout: 5))
+        XCTAssertTrue(report.staticTexts.containing(NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", "Choose one representative example", "Choose one representative example")).firstMatch.waitForExistence(timeout: 10))
+        app.windows["Lumen · \(prompt)"].toolbars.buttons["Summarize"].click()
+        XCTAssertEqual(app.windows.matching(identifier: "Comparison report · \(prompt) [Demo]").count, 1)
+        XCTAssertEqual(app.sheets.count, 0)
+    }
+
+    @MainActor
     func testApplicationMenuProvidesStandardActions() {
         let app = XCUIApplication()
         app.launchArguments = ["--demo", "--isolated-demo"]
