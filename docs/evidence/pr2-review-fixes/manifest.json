@@ -1,0 +1,15 @@
+{
+  "source_commit": "ea6edf77129ccf6efeac3330955bc5b86460ec73",
+  "core_tests": 60,
+  "core_failures": 0,
+  "cursor_regression": "New tests failed before fix; after fix discovery excludes Cursor and malicious input/direct requests cannot launch fixture executable; saved preference/report decodes.",
+  "controller_regression": "Actual controller with controlled storage/provider: successful preflight then final save fails, restores present/absent report, error and running state verified; success control passes. Scratch rollback-deleted controller fails expected assertion.",
+  "native_fixture": "Actual native Debug app from same source, AppIconDemo, dedicated temporary data store. Saved cursor preference is seeded; previous Cursor report is a simulated saved report whose provider label is edited and visibly marked synthetic. No Cursor/provider contacted.",
+  "video": "Edited sampled walkthrough built from three native screenshots with four-second holds; no continuous screen recording, no real messages/provider requests.",
+  "screenshots": [
+    "01-cursor-unavailable.png: saved Cursor unavailable explanation and disabled generation",
+    "02-supported-report.png: switch to supported simulated provider produces report",
+    "03-saved-cursor-report.png: relaunch retains labeled synthetic saved report and disables Cursor update"
+  ],
+  "limitations": "Native automated UI tests have not executed. Incoming demo replies do not persist through relaunch, so waiting/stale labels in saved-report capture are expected. Rollback change adds controlled test coverage; linked executable transcript is its evidence. Live remaining-provider behavior not verified."
+}

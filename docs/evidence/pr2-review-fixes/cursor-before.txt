@@ -1,0 +1,6 @@
+/Users/contains/.codex/worktrees/review-pr2/msgblast/MsgBlastTests/PersonalAgentTests.swift:125: error: -[MsgBlastTests.PersonalAgentTests testCursorCannotLaunchForUntrustedRepliesOrDirectProcessCalls] : failed - Cursor must be rejected before launch
+/Users/contains/.codex/worktrees/review-pr2/msgblast/MsgBlastTests/PersonalAgentTests.swift:129: error: -[MsgBlastTests.PersonalAgentTests testCursorCannotLaunchForUntrustedRepliesOrDirectProcessCalls] : XCTAssertFalse failed
+/Users/contains/.codex/worktrees/review-pr2/msgblast/MsgBlastTests/PersonalAgentTests.swift:130: error: -[MsgBlastTests.PersonalAgentTests testCursorCannotLaunchForUntrustedRepliesOrDirectProcessCalls] : XCTAssertThrowsError failed: did not throw an error
+/Users/contains/.codex/worktrees/review-pr2/msgblast/MsgBlastTests/PersonalAgentTests.swift:134: error: -[MsgBlastTests.PersonalAgentTests testCursorCannotLaunchForUntrustedRepliesOrDirectProcessCalls] : XCTAssertFalse failed
+/Users/contains/.codex/worktrees/review-pr2/msgblast/MsgBlastTests/PersonalAgentTests.swift:105: error: -[MsgBlastTests.PersonalAgentTests testCursorIsExcludedEvenWhenItsCLIIsInstalled] : XCTAssertEqual failed: ("[MsgBlastCore.PersonalAgentProvider.cursor, MsgBlastCore.PersonalAgentProvider.pi]") is not equal to ("[MsgBlastCore.PersonalAgentProvider.pi]")
+** TEST FAILED **

@@ -1,0 +1,5 @@
+Provider starts: 1; reports active after shutdown: 0
+PASS: pending discovery cannot start a report during shutdown
+PASS: final save failed, previous report present; report, error and running state verified
+PASS: final save failed, previous report absent; report, error and running state verified
+PASS: final save succeeded, previous report present; report, error and running state verified
