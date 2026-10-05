@@ -22,6 +22,8 @@ Read `docs/automated-releases.md` before activating or changing the pipeline; us
 - Respect archive cache headers and bypass cache for `appcast.xml` and `release-counter.json`. Do not host the feed behind GitHub login, expiring tokens or a development `r2.dev` URL.
 - Preserve bundle identifier `com.msgblast.mac`, update key and installed app location. Users whose current version lacks Sparkle need one manual installation into `/Applications`; ordinary development builds with no feed/key cannot receive updates.
 
+The README download URL is fixed at `https://updates.msgblast.app/latest.zip`. The `download/` Worker verifies the published signed appcast and redirects to its highest build; releases do not require README edits or Worker redeployments. Keep the redirect uncached and archive names immutable. See `download/README.md` for maintaining the endpoint and the limits of request logs as download metrics.
+
 ### Each release
 
 1. Select the reviewed source revision and write user-facing `release-notes/VERSION.md`; include them on the default branch.

@@ -50,6 +50,10 @@ No hosting account/bucket/domain is created by the workflow. Until these variabl
 
 No coding agent is needed for repetitive build/sign/upload steps once activation is complete. Release notes and the decision to release a source revision remain part of preparing the tag.
 
+## Fixed README download link
+
+The README uses [the latest-download URL](https://updates.msgblast.app/latest.zip). The separate `download/` Worker returns a no-store 302 redirect to the highest build in the authenticated Sparkle feed. Successful publication of the appcast automatically advances the destination, with no README rewrite or per-release Worker deployment. Failed publication before the feed update keeps the old destination. See [download endpoint operations](../download/README.md).
+
 ## What the workflow does
 
 1. Checks that the source is on the default branch, release notes and configuration exist, and Xcode 27 is selected on the `xcode-27` Apple Silicon runner. Official checkout/artifact actions are pinned by commit; the GitHub token has read-only contents permission.

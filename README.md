@@ -6,7 +6,7 @@ Requires **macOS 26 or later** and existing one-to-one iMessage conversations wi
 
 ## Download
 
-[Download msgblast for Mac — version 0.1.0](https://updates.msgblast.app/downloads/msgblast-0.1.0-2.zip)
+[Download msgblast for Mac](https://updates.msgblast.app/latest.zip)
 
 Unzip the download, drag **msgblast.app** into **Applications**, and open it.
 
