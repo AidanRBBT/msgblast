@@ -4,7 +4,7 @@ msgblast is a Mac app for comparing AI agents through Messages. Send the same pr
 
 Requires **macOS 26 or later** and existing one-to-one iMessage conversations with the agents you want to message.
 
-## Download
+## Download and install
 
 [Download msgblast for Mac](https://updates.msgblast.app/latest.zip)
 
@@ -14,9 +14,7 @@ Unzip the download, drag **msgblast.app** into **Applications**, and open it.
 
 After trying to open msgblast, open **System Settings → Privacy & Security**, scroll to the security section, and select **Open Anyway**. Confirm **Open** when macOS asks again, if you trust the download. [Apple's first-launch instructions](https://support.apple.com/en-us/102445#openanyway).
 
-<img src="https://cdsassets.apple.com/live/7WUAS350/images/macos/sequoia/macos-sequoia-system-settings-privacy-and-security-open-app-anyway.png" alt="Apple's System Settings illustration highlighting Open Anyway" width="680">
-
-*Apple's illustration uses “Example App”; look for msgblast on your Mac. The appearance may vary by macOS version.*
+<img src="docs/evidence/readme-onboarding/02-open-anyway.png" alt="macOS Privacy & Security showing that msgblast was blocked, with the Open Anyway button highlighted" width="820">
 
 ## Get started
 
