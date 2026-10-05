@@ -1,0 +1,12 @@
+warning: not stripping binary because it is signed: /Users/contains/.codex/worktrees/sparkle-updates/msgblast/build/pr2-lowercase-validation/Build/Products/Debug/msgblastCore.framework/Versions/A/msgblastCore (in target 'msgblast' from project 'msgblast')
+note: Disabling hardened runtime with ad-hoc codesigning. (in target 'msgblast' from project 'msgblast')
+2026-10-05 14:51:20.863 xcodebuild[84578:19298052]  DVTAssertions: Warning in IDEFrameworks/IDEFoundation/Execution/LaunchSystem/IDELaunchSession.m:394
+Details:  setRunnablePIDWithDiagnostics:logSection:andCompletionHandler: called without a completion handler - blocking until diagnostics setup completes. Callers should migrate to using a completion handler for better performance.
+Object:   <IDELaunchSession: 0x7a87860f00>
+Method:   -setRunnablePIDWithDiagnostics:logSection:andCompletionHandler:
+Thread:   <NSThread: 0x7a88e7ea80>{number = 2, name = (null)}
+Please file a bug at https://feedbackassistant.apple.com with this warning message and any useful information you can provide.
+2026-10-05 14:51:26.287 xcodebuild[84578:19298048] [MT] IDETestOperationsObserverDebug: 5.465 elapsed -- Testing started completed.
+2026-10-05 14:51:26.287 xcodebuild[84578:19298048] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-10-05 14:51:26.288 xcodebuild[84578:19298048] [MT] IDETestOperationsObserverDebug: 5.465 sec, +5.465 sec -- end
+Testing started

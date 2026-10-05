@@ -1,0 +1,20 @@
+2026-10-05 14:48:23.471 xcodebuild[81701:19277696]  DVTAssertions: Warning in IDEFrameworks/IDEFoundation/Execution/LaunchSystem/IDELaunchSession.m:394
+Details:  setRunnablePIDWithDiagnostics:logSection:andCompletionHandler: called without a completion handler - blocking until diagnostics setup completes. Callers should migrate to using a completion handler for better performance.
+Object:   <IDELaunchSession: 0x75d3afc900>
+Method:   -setRunnablePIDWithDiagnostics:logSection:andCompletionHandler:
+Thread:   <NSThread: 0x75d3f7f440>{number = 10, name = (null)}
+Please file a bug at https://feedbackassistant.apple.com with this warning message and any useful information you can provide.
+2026-10-05 14:48:28.851 xcodebuild[81701:19277609] [MT] IDETestOperationsObserverDebug: 5.404 elapsed -- Testing started completed.
+2026-10-05 14:48:28.851 xcodebuild[81701:19277609] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-10-05 14:48:28.851 xcodebuild[81701:19277609] [MT] IDETestOperationsObserverDebug: 5.404 sec, +5.404 sec -- end
+Failing tests:
+	PersonalAgentTests.testUnsafeProvidersAreExcludedEvenWhenTheirCLIsAreInstalled()
+	PersonalAgentTests.testUnsafeProvidersCannotLaunchForUntrustedRepliesOrDirectProcessCalls()
+	PersonalAgentTests.testUnsafeProvidersCannotLaunchForUntrustedRepliesOrDirectProcessCalls()
+	PersonalAgentTests.testUnsafeProvidersCannotLaunchForUntrustedRepliesOrDirectProcessCalls()
+	PersonalAgentTests.testUnsafeProvidersCannotLaunchForUntrustedRepliesOrDirectProcessCalls()
+	PersonalAgentTests.testUnsafeProvidersCannotLaunchForUntrustedRepliesOrDirectProcessCalls()
+
+** TEST FAILED **
+
+Testing started
