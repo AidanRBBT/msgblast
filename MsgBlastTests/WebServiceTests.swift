@@ -5,9 +5,9 @@ import WebKit
 @MainActor
 final class WebServiceTests: XCTestCase {
     func testOnlyMuseMainChatIsAnAutomationDestination() {
-        XCTAssertTrue(MuseWebSession.isChatURL(URL(string: "https://muse.ai/")!))
+        XCTAssertTrue(WebProvider.muse.isChatURL(URL(string: "https://muse.ai/")!))
         for url in ["http://muse.ai/", "https://muse.ai.evil.test/", "https://muse.ai/login", "https://grok.com/bot", "file:///tmp/chat.html"] {
-            XCTAssertFalse(MuseWebSession.isChatURL(URL(string: url)!))
+            XCTAssertFalse(WebProvider.muse.isChatURL(URL(string: url)!))
         }
     }
 
@@ -69,9 +69,9 @@ final class WebServiceTests: XCTestCase {
     func testReopeningWorkspaceRetainsSessionAndDraft() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("MsgBlast-WebPersistence-\(UUID())")
         let url = directory.appendingPathComponent("web.json")
-        let first = MuseWebSession(storageURL: url, fixture: false)
+        let first = WebAgentSession(provider: .muse, storageURL: url, fixture: false)
         first.updateState { $0.draft = "Keep my draft" }
-        let second = MuseWebSession(storageURL: url, fixture: false)
+        let second = WebAgentSession(provider: .muse, storageURL: url, fixture: false)
         XCTAssertEqual(first.state.sessionID, second.state.sessionID)
         XCTAssertEqual(second.state.draft, "Keep my draft")
         XCTAssertTrue(second.webView.configuration.websiteDataStore.isPersistent)
@@ -81,7 +81,7 @@ final class WebServiceTests: XCTestCase {
     func testStorageFailureAfterOutgoingObservationNeverClaimsNotSent() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("MsgBlast-WebFailure-\(UUID())")
         defer { try? FileManager.default.removeItem(at: directory) }
-        let session = MuseWebSession(storageURL: directory.appendingPathComponent("web.json"), fixture: true)
+        let session = WebAgentSession(provider: .muse, storageURL: directory.appendingPathComponent("web.json"), fixture: true)
         let failure = StorageFailureOnSend(directory: directory)
         session.webView.configuration.userContentController.add(failure, name: "failStorage")
         session.connect()
@@ -115,16 +115,16 @@ final class WebServiceTests: XCTestCase {
             for messagesSucceeds in [true, false] {
                 var draft = "  Shared question  "
                 let comparisonID = messagesSucceeds ? UUID() : nil
-                let result = await AgentBroadcast.send(draft: draft, currentDraft: { draft }, clearDraft: { draft = "" }, muse: { text in
+                let result = await AgentBroadcast.send(draft: draft, currentDraft: { draft }, clearDraft: { draft = "" }, web: { text in
                     XCTAssertEqual(text, "Shared question")
                     await Task.yield()
-                    return WebSendAttempt(text: text, status: museSucceeds ? .observed : .notSent)
+                    return [.muse: WebSendAttempt(text: text, status: museSucceeds ? .observed : .notSent)]
                 }, messages: { text in
                     XCTAssertEqual(text, "Shared question")
                     await Task.yield()
                     return comparisonID
                 })
-                XCTAssertEqual(result.muse?.status, museSucceeds ? .observed : .notSent)
+                XCTAssertEqual(result.web[.muse]?.status, museSucceeds ? .observed : .notSent)
                 XCTAssertEqual(result.comparisonID, comparisonID)
                 XCTAssertEqual(draft, museSucceeds || messagesSucceeds ? "" : "  Shared question  ")
             }
@@ -133,9 +133,9 @@ final class WebServiceTests: XCTestCase {
 
     func testBroadcastCompletionPreservesEditsToTheNextDraft() async {
         let draft = BroadcastDraft("First message")
-        _ = await AgentBroadcast.send(draft: draft.text, currentDraft: { draft.text }, clearDraft: { draft.text = "" }, muse: { text in
+        _ = await AgentBroadcast.send(draft: draft.text, currentDraft: { draft.text }, clearDraft: { draft.text = "" }, web: { text in
             await Task.yield()
-            return WebSendAttempt(text: text, status: .observed)
+            return [.muse: WebSendAttempt(text: text, status: .observed)]
         }, messages: { _ in
             draft.text = "My next message"
             await Task.yield()
@@ -189,9 +189,9 @@ final class WebServiceTests: XCTestCase {
         XCTAssertNil(session.avatar, "Multiple candidate hosts must not guess which avatar belongs to this account")
     }
 
-    private func makeSession() throws -> MuseWebSession {
+    private func makeSession() throws -> WebAgentSession {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("MsgBlast-WebTests-\(UUID())")
-        return MuseWebSession(storageURL: directory.appendingPathComponent("web.json"), fixture: true)
+        return WebAgentSession(provider: .muse, storageURL: directory.appendingPathComponent("web.json"), fixture: true)
     }
 
     private func waitFor(_ predicate: () -> Bool) async throws {

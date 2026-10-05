@@ -3,9 +3,9 @@ import Combine
 import WebKit
 
 @MainActor
-public final class MuseWebSession: NSObject, ObservableObject, WKNavigationDelegate, WKUIDelegate {
+public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDelegate, WKUIDelegate {
     @Published public private(set) var state = WebWorkspaceState()
-    @Published public private(set) var snapshot = MusePageSnapshot()
+    @Published public private(set) var snapshot = WebPageSnapshot()
     @Published public private(set) var isSending = false
     @Published public private(set) var connected = false
     @Published public private(set) var loading = false
@@ -21,9 +21,11 @@ public final class MuseWebSession: NSObject, ObservableObject, WKNavigationDeleg
     private var refreshing = false
     private var navigationGeneration = 0
     private var avatarKey: String?
-    private static let mainChatURL = URL(string: "https://muse.ai/")!
+    public let provider: WebProvider
+    private var script: WebPageScript { WebPageScript(provider: provider) }
 
-    public init(storageURL: URL, fixture: Bool) {
+    public init(provider: WebProvider, storageURL: URL, fixture: Bool) {
+        self.provider = provider
         self.storageURL = storageURL
         self.fixture = fixture
         var loaded = WebWorkspaceState()
@@ -46,10 +48,6 @@ public final class MuseWebSession: NSObject, ObservableObject, WKNavigationDeleg
     }
 
     deinit { poll?.cancel() }
-
-    public static func isChatURL(_ url: URL) -> Bool {
-        url.scheme == "https" && url.host == "muse.ai" && (url.path.isEmpty || url.path == "/") && url.user == nil && url.password == nil && (url.port == nil || url.port == 443)
-    }
 
     public func updateState(_ edit: (inout WebWorkspaceState) -> Void) {
         guard !storageFailed else { return }
@@ -83,19 +81,19 @@ public final class MuseWebSession: NSObject, ObservableObject, WKNavigationDeleg
     }
 
     private func loadMainChat() {
-        if fixture { webView.loadHTMLString(MusePageScript.fixture, baseURL: Self.mainChatURL) }
-        else { webView.load(URLRequest(url: Self.mainChatURL)) }
+        if fixture { webView.loadHTMLString(script.fixture, baseURL: provider.homeURL) }
+        else { webView.load(URLRequest(url: provider.homeURL)) }
     }
 
     public func closePopup() { popup = nil; popupURL = ""; Task { await refresh() } }
 
     public func refresh() async {
         guard connected, !loading, !refreshing else { return }
-        guard let url = webView.url, Self.isChatURL(url) else {
-            var current = MusePageSnapshot()
+        guard let url = webView.url, provider.isChatURL(url) else {
+            var current = WebPageSnapshot()
             current.url = webView.url?.absoluteString ?? ""
-            current.reason = "Sign in to Muse and open your main chat."
-            snapshot = current
+            current.reason = "Sign in to \(provider.name) and open your main chat."
+            if snapshot != current { snapshot = current }
             clearAvatar()
             return
         }
@@ -103,24 +101,27 @@ public final class MuseWebSession: NSObject, ObservableObject, WKNavigationDeleg
         defer { refreshing = false }
         let generation = navigationGeneration
         do {
-            let result = try await webView.callAsyncJavaScript(MusePageScript.inspect, arguments: [:], in: nil, contentWorld: .defaultClient)
+            let result = try await webView.callAsyncJavaScript(script.inspect, arguments: [:], in: nil, contentWorld: .defaultClient)
             guard generation == navigationGeneration, let result else { return }
-            let fresh = try JSONDecoder().decode(MusePageSnapshot.self, from: JSONSerialization.data(withJSONObject: result))
+            let fresh = try JSONDecoder().decode(WebPageSnapshot.self, from: JSONSerialization.data(withJSONObject: result))
             if snapshot != fresh { snapshot = fresh }
             await refreshAvatar(generation: generation)
         } catch {
             guard generation == navigationGeneration else { return }
-            var current = MusePageSnapshot()
-            current.reason = "Muse’s page is not ready. Reload or use the page directly."
-            snapshot = current
+            var current = WebPageSnapshot()
+            current.reason = "\(provider.name)’s page is not ready. Reload or use the page directly."
+            if snapshot != current { snapshot = current }
             clearAvatar()
         }
     }
 
-    private func clearAvatar() { avatarKey = nil; avatar = nil }
+    private func clearAvatar() {
+        avatarKey = nil
+        if avatar != nil { avatar = nil }
+    }
 
     private func refreshAvatar(generation: Int) async {
-        guard snapshot.ready else { clearAvatar(); return }
+        guard provider == .muse, snapshot.ready else { clearAvatar(); return }
         do {
             let result = try await webView.callAsyncJavaScript(MusePageScript.avatar, arguments: ["previousKey": avatarKey ?? ""], in: nil, contentWorld: .defaultClient) as? [String: Any]
             guard generation == navigationGeneration else { return }
@@ -140,7 +141,7 @@ public final class MuseWebSession: NSObject, ObservableObject, WKNavigationDeleg
     public func send(_ text: String) async -> WebSendAttempt? {
         guard !isSending, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
         guard !storageFailed else { error = "Repair web session storage before sending."; return nil }
-        guard !state.hasUnresolvedSend(text) else { error = "An earlier send of this text is unconfirmed. Check Muse; MsgBlast will not resend it automatically."; return nil }
+        guard !state.hasUnresolvedSend(text) else { error = "An earlier send of this text is unconfirmed. Check \(provider.name); MsgBlast will not resend it automatically."; return nil }
         isSending = true
         defer { isSending = false }
         var attempt = WebSendAttempt(text: text)
@@ -149,54 +150,72 @@ public final class MuseWebSession: NSObject, ObservableObject, WKNavigationDeleg
         do {
             try save()
             await refresh()
-            guard let url = webView.url, Self.isChatURL(url), snapshot.ready, !loading else {
+            guard let url = webView.url, provider.isChatURL(url), snapshot.ready, !loading else {
                 throw WebSessionFailure.notSent(snapshot.reason)
             }
             let generation = navigationGeneration
             let expectedURL = snapshot.url
-            let preparation = try await webView.callAsyncJavaScript(MusePageScript.prepare, arguments: ["text": text], in: nil, contentWorld: .defaultClient) as? [String: Any]
+            let preparation = try await webView.callAsyncJavaScript(script.prepare, arguments: ["text": text], in: nil, contentWorld: .defaultClient) as? [String: Any]
             guard preparation?["ok"] as? Bool == true, let messageIDs = preparation?["messageIDs"] as? [String] else {
-                throw WebSessionFailure.notSent(preparation?["reason"] as? String ?? "Could not prepare Muse’s message field.")
+                throw WebSessionFailure.notSent(preparation?["reason"] as? String ?? "Could not prepare \(provider.name)’s message field.")
             }
             let before = Set(messageIDs)
+            let baseline: [WebPageMessage]?
+            let existingPaths: Set<String>
+            if provider == .muse {
+                baseline = nil
+                existingPaths = []
+            } else {
+                guard let messages = preparation?["messages"], let paths = preparation?["existingConversationPaths"] as? [String] else {
+                    throw WebSessionFailure.notSent("Could not establish the conversation before sending.")
+                }
+                baseline = try JSONDecoder().decode([WebPageMessage].self, from: JSONSerialization.data(withJSONObject: messages))
+                existingPaths = Set(paths)
+            }
             // Allow React's input handler to enable its own Send control.
             try await Task.sleep(for: .milliseconds(150))
-            guard generation == navigationGeneration, !loading else { throw WebSessionFailure.notSent("Muse navigated before submission. Review its draft.") }
+            guard generation == navigationGeneration, !loading else { throw WebSessionFailure.notSent("\(provider.name) navigated before submission. Review its draft.") }
             attempt.status = .attempting
             try store(attempt) // The possible external side effect is durably recorded first.
             submissionWasPossible = true
-            let result = try await webView.callAsyncJavaScript(MusePageScript.clickSend, arguments: ["text": text, "expectedURL": expectedURL], in: nil, contentWorld: .defaultClient) as? [String: Any]
+            let result = try await webView.callAsyncJavaScript(script.clickSend, arguments: ["text": text, "expectedURL": expectedURL], in: nil, contentWorld: .defaultClient) as? [String: Any]
             if result?["clicked"] as? Bool == false {
                 submissionWasPossible = false
-                throw WebSessionFailure.notSent(result?["reason"] as? String ?? "Muse’s Send control was not clicked.")
+                throw WebSessionFailure.notSent(result?["reason"] as? String ?? "\(provider.name)’s Send control was not clicked.")
             }
             guard result?["clicked"] as? Bool == true else { throw WebSessionFailure.unconfirmed }
             let normalizedText = Self.normalized(text)
             for _ in 0..<20 {
                 try await Task.sleep(for: .milliseconds(250))
                 await refresh()
-                guard generation == navigationGeneration, snapshot.url == expectedURL else { break }
+                guard generation == navigationGeneration, let currentURL = URL(string: snapshot.url),
+                      provider.acceptsReceipt(from: url, at: currentURL) else { break }
+                // A user edit/navigation or changed history makes attribution ambiguous.
+                // First sends may create a URL, but cannot reuse an already linked chat.
+                guard snapshot.submissionInterrupted != true,
+                      currentURL.path == url.path || !existingPaths.contains(currentURL.path),
+                      baseline.map({ snapshot.messages.starts(with: $0) }) ?? true else { break }
                 let matches = snapshot.messages.filter { !before.contains($0.id) && $0.role == "user" && Self.normalized($0.text) == normalizedText }
                 if matches.count == 1 {
                     attempt.status = .observed
                     attempt.messageID = matches[0].id
-                    attempt.detail = "The outgoing message appeared in Muse. This is a page observation, not a server delivery receipt."
+                    attempt.detail = "The outgoing message appeared in \(provider.name). This is a page observation, not a server delivery receipt."
                     try store(attempt)
                     return attempt
                 }
                 if matches.count > 1 { break }
             }
             attempt.status = .uncertain
-            attempt.detail = "Send was clicked, but a unique outgoing message could not be confirmed. Check Muse; no automatic resend."
+            attempt.detail = "Send was clicked, but a unique outgoing message could not be confirmed. Check \(provider.name); no automatic resend."
         } catch {
             if attempt.status == .observed {
-                self.error = "The message appeared in Muse, but its receipt could not be saved. Repair storage before sending again."
+                self.error = "The message appeared in \(provider.name), but its receipt could not be saved. Repair storage before sending again."
             } else {
                 attempt.status = submissionWasPossible ? .uncertain : .notSent
                 attempt.detail = error.localizedDescription
             }
         }
-        do { try store(attempt) } catch { self.error = "Could not save the send result. Check Muse before retrying." }
+        do { try store(attempt) } catch { self.error = "Could not save the send result. Check \(provider.name) before retrying." }
         return attempt
     }
 
@@ -222,7 +241,7 @@ public final class MuseWebSession: NSObject, ObservableObject, WKNavigationDeleg
 
     public func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
         if webView === self.webView {
-            navigationGeneration += 1; loading = true; snapshot = MusePageSnapshot(); clearAvatar()
+            navigationGeneration += 1; loading = true; snapshot = WebPageSnapshot(); clearAvatar()
         }
     }
     public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
@@ -234,19 +253,19 @@ public final class MuseWebSession: NSObject, ObservableObject, WKNavigationDeleg
     private func failedNavigation(_ view: WKWebView, error: Error) {
         guard view === webView else { return }
         loading = false
-        if (error as NSError).code != NSURLErrorCancelled { self.error = "Muse could not load: \(error.localizedDescription)" }
+        if (error as NSError).code != NSURLErrorCancelled { self.error = "\(provider.name) could not load: \(error.localizedDescription)" }
     }
     public func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
         if webView === self.webView {
-            navigationGeneration += 1; loading = false; snapshot = MusePageSnapshot(); clearAvatar()
-            error = "Muse’s web process stopped. Reload its page. Pending submissions will not be resent."
+            navigationGeneration += 1; loading = false; snapshot = WebPageSnapshot(); clearAvatar()
+            error = "\(provider.name)’s web process stopped. Reload its page. Pending submissions will not be resent."
         }
     }
     public func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction) async -> WKNavigationActionPolicy {
         guard let url = navigationAction.request.url else { return .cancel }
-        let allowed = fixture ? (url.absoluteString == "about:blank" || Self.isChatURL(url)) : url.scheme == "https"
+        let allowed = fixture ? (url.absoluteString == "about:blank" || provider.isChatURL(url)) : url.scheme == "https"
         if !allowed {
-            error = "This link cannot open inside MsgBlast. Stay on Muse’s website to continue."
+            error = "This link cannot open inside MsgBlast. Stay on \(provider.name)’s website to continue."
         }
         if webView === popup { popupURL = url.absoluteString }
         return allowed ? .allow : .cancel
@@ -267,7 +286,7 @@ private enum WebSessionFailure: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .notSent(let message): message
-        case .unconfirmed: "Muse did not return a reliable result after Send. Check its page; no automatic resend."
+        case .unconfirmed: "The page did not return a reliable result after Send. Check its page; no automatic resend."
         }
     }
 }

@@ -231,7 +231,7 @@ struct MainView: View {
             VStack(spacing: 0) {
                 if model.demo { demoControls }
                 MessagesAccessBanner(model: model)
-                AgentsWorkspaceView(model: model, session: model.webSession, showingComparison: $showingComparison)
+                AgentsWorkspaceView(model: model, web: model.webAgents, showingComparison: $showingComparison)
             }.navigationTitle("")
             }
         }

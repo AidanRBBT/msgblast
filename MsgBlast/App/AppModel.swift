@@ -27,7 +27,7 @@ final class AppModel: ObservableObject {
     let linkPreviews = LinkPreviewStore()
     let accessGuide = MessagesAccessGuide(defaults: ProcessInfo.processInfo.arguments.contains("--demo") ? UserDefaults(suiteName: "com.msgblast.demo-permissions") ?? .standard : .standard)
     let local: LocalStore
-    lazy var webSession = MuseWebSession(storageURL: local.url.deletingLastPathComponent().appendingPathComponent("web-services.json"), fixture: demo && Bundle.main.object(forInfoDictionaryKey: "MsgBlastLiveWebPreview") as? Bool != true)
+    lazy var webAgents = WebAgents(directory: local.url.deletingLastPathComponent(), fixture: demo && Bundle.main.object(forInfoDictionaryKey: "MsgBlastLiveWebPreview") as? Bool != true)
     var database: MessagesDatabase?
     var timer: Timer?
     var coordinator: WindowCoordinator?
