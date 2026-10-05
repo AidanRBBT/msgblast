@@ -29,7 +29,13 @@ public enum PersonalAgentProvider: String, CaseIterable, Identifiable, Sendable 
         }
     }
 
-    func arguments(in directory: URL) -> [String] {
+    // Keep the raw value for saved preferences and reports, but fail closed until
+    // Cursor has a verified way to deny every tool, including read/search and MCP.
+    public var unavailabilityReason: String? {
+        self == .cursor ? "Cursor is unavailable for comparison reports because its CLI cannot disable all tools with a verified policy. Choose another installed personal agent; saved Cursor reports remain readable." : nil
+    }
+
+    func arguments(in directory: URL) throws -> [String] {
         switch self {
         case .codex:
             return ["exec", "--skip-git-repo-check", "--ephemeral", "--ignore-user-config", "--sandbox", "read-only",
@@ -40,7 +46,7 @@ public enum PersonalAgentProvider: String, CaseIterable, Identifiable, Sendable 
                     "--permission-mode", "dontAsk", "--no-session-persistence", "--disable-slash-commands",
                     "--setting-sources", "", "--settings", "{\"disableAllHooks\":true}"]
         case .cursor:
-            return ["--print", "--mode", "ask", "--output-format", "json", "--workspace", directory.path]
+            throw PersonalAgentError.unsupportedProvider(self)
         case .gemini:
             return ["--prompt", "Summarize the comparison supplied on stdin.", "--output-format", "json", "--approval-mode", "plan", "--extensions", "none",
                     "--policy", directory.appendingPathComponent("no-tools.toml").path]
@@ -86,10 +92,11 @@ public struct InstalledPersonalAgent: Identifiable, Equatable, Sendable {
 }
 
 public enum PersonalAgentError: LocalizedError {
-    case unavailable(String), failed(String, Int32), timedOut, tooLarge, invalidResponse(String)
+    case unavailable(String), unsupportedProvider(PersonalAgentProvider), failed(String, Int32), timedOut, tooLarge, invalidResponse(String)
     public var errorDescription: String? {
         switch self {
         case .unavailable(let name): "\(name) could not be launched. Refresh installed agents and check its CLI installation."
+        case .unsupportedProvider(let provider): provider.unavailabilityReason ?? "\(provider.name) is unavailable for comparison reports."
         case .failed(let name, let code): "\(name) exited with status \(code). Open its CLI in Terminal to check sign-in, usage limits, and updates, then try again."
         case .timedOut: "The personal agent did not finish within three minutes. Try again when it is ready."
         case .tooLarge: "The comparison or agent output is too large to summarize in one request. No partial summary was saved."
@@ -116,6 +123,7 @@ public enum LocalPersonalAgent {
     public static func discover(path: String) -> [InstalledPersonalAgent] {
         let directories = path.split(separator: ":").map(String.init).filter { $0.hasPrefix("/") && !$0.contains("\n") }
         return PersonalAgentProvider.allCases.compactMap { provider in
+            guard provider.unavailabilityReason == nil else { return nil }
             for directory in directories {
                 let url = URL(fileURLWithPath: directory).appendingPathComponent(provider.executable)
                 var isDirectory: ObjCBool = false
@@ -129,6 +137,7 @@ public enum LocalPersonalAgent {
     }
 
     public static func summarize(_ input: ComparisonSummaryInput, using agent: InstalledPersonalAgent) async throws -> String {
+        guard agent.provider.unavailabilityReason == nil else { throw PersonalAgentError.unsupportedProvider(agent.provider) }
         let cancellation = AgentCancellation()
         return try await withTaskCancellationHandler {
             try Task.checkCancellation()
@@ -166,6 +175,8 @@ enum AgentProcess {
     }
     static func run(executable: URL, arguments: [String] = [], input: String, environment: [String: String],
                     timeout: TimeInterval, cancellation: AgentCancellation, provider: PersonalAgentProvider? = nil) throws -> Result {
+        // Reject blocked adapters before writing the transcript or launching any process.
+        if let provider, provider.unavailabilityReason != nil { throw PersonalAgentError.unsupportedProvider(provider) }
         let files = FileManager.default
         let directory = files.temporaryDirectory.appendingPathComponent("MsgBlast-Summary-\(UUID())", isDirectory: true)
         try files.createDirectory(at: directory, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
@@ -183,7 +194,7 @@ enum AgentProcess {
         let stdout = try FileHandle(forWritingTo: stdoutURL), stderr = try FileHandle(forWritingTo: stderrURL)
         defer { try? stdin.close(); try? stdout.close(); try? stderr.close() }
         let process = Process()
-        process.executableURL = executable; process.arguments = provider?.arguments(in: directory) ?? arguments
+        process.executableURL = executable; process.arguments = try provider?.arguments(in: directory) ?? arguments
         process.currentDirectoryURL = directory; process.environment = environment
         process.standardInput = stdin; process.standardOutput = stdout; process.standardError = stderr
         if cancellation.isCancelled { throw CancellationError() }

@@ -25,7 +25,7 @@ struct ComparisonReportView: View {
             } else if agent.installed.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("No supported agent CLI found").font(.headline)
-                    Text("Install and sign in to Codex, Claude Code, Cursor, Gemini CLI, Pi, Grok, or Hermes in Terminal, then refresh.")
+                    Text("Install and sign in to Codex, Claude Code, Gemini CLI, Pi, Grok, or Hermes in Terminal, then refresh.")
                         .foregroundStyle(.secondary)
                 }
             } else {
@@ -34,7 +34,7 @@ struct ComparisonReportView: View {
                         model.state.personalAgentProvider = $0; model.persist()
                     })) {
                         if let selected, !agent.installed.contains(where: { $0.provider == selected }) {
-                            Text("\(selected.name) · not found").tag(selected.rawValue)
+                            Text("\(selected.name) · \(selected.unavailabilityReason == nil ? "not found" : "unavailable")").tag(selected.rawValue)
                         }
                         ForEach(agent.installed) { installed in
                             Text(agent.demo ? "Demo analyst (simulated)" : installed.provider.name).tag(installed.id)
@@ -59,7 +59,7 @@ struct ComparisonReportView: View {
                 Button("Refresh agents") { Task { await agent.discover() } }.disabled(agent.discovering || running)
             }
             if let selected, !agent.demo {
-                Text("Sign in or troubleshoot in Terminal: \(selected.setup)")
+                Text(selected.unavailabilityReason ?? "Sign in or troubleshoot in Terminal: \(selected.setup)")
                     .font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
             }
             Divider()

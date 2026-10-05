@@ -52,6 +52,7 @@ final class PersonalAgentController: ObservableObject {
             guard model.databaseAvailable else { throw AppFailure.blocked("Refresh Messages history before summarizing this comparison.") }
             let snapshot = try input(for: id, model: model)
             guard snapshot.responseCount > 0 else { throw AppFailure.blocked("Waiting for the first response. You can summarize as soon as a participant replies.") }
+            guard provider.unavailabilityReason == nil else { throw PersonalAgentError.unsupportedProvider(provider) }
             guard let agent = installed.first(where: { $0.provider == provider }) else { throw PersonalAgentError.unavailable(provider.name) }
             // Check storage before starting a provider request that may consume the user's plan.
             try model.save()
