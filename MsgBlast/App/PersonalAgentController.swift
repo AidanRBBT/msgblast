@@ -90,8 +90,9 @@ final class PersonalAgentController: ObservableObject {
 
     func cancel(_ id: UUID) { tasks[id]?.cancel() }
     func cancelAll() { for task in tasks.values { task.cancel() } }
+    func beginShutdown() { shuttingDown = true }
     func cancelAndWait() async {
-        shuttingDown = true
+        beginShutdown()
         let pending = Array(tasks.values)
         for task in pending { task.cancel() }
         for task in pending { await task.value }

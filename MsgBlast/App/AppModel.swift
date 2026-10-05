@@ -37,7 +37,15 @@ final class AppModel: ObservableObject {
     init() {
         demo = ProcessInfo.processInfo.arguments.contains("--demo") || Bundle.main.object(forInfoDictionaryKey: "MsgBlastDemo") as? Bool == true
         personalAgent = PersonalAgentController(demo: demo)
-        local = LocalStore(demo: demo, isolated: ProcessInfo.processInfo.arguments.contains("--isolated-demo") || Bundle.main.object(forInfoDictionaryKey: "MsgBlastPermissionGuidePreview") as? Bool == true)
+        var fixtureDirectory: URL?
+        #if DEBUG
+        if UpdateProbe.isLocalFixture, let path = Bundle.main.object(forInfoDictionaryKey: "MsgBlastFixtureStore") as? String {
+            let directory = URL(fileURLWithPath: path).standardizedFileURL
+            let temporaryRoot = FileManager.default.temporaryDirectory.standardizedFileURL.path + "/"
+            if directory.path.hasPrefix(temporaryRoot) { fixtureDirectory = directory }
+        }
+        #endif
+        local = LocalStore(demo: demo, isolated: ProcessInfo.processInfo.arguments.contains("--isolated-demo") || Bundle.main.object(forInfoDictionaryKey: "MsgBlastPermissionGuidePreview") as? Bool == true, fixtureDirectory: fixtureDirectory)
         do { state = try local.load(); try local.save(state) } catch { storageLoadFailed = true; self.error = "Local state could not be loaded or saved: \(error.localizedDescription). Sending is unavailable until storage works." }
         if demo { setupDemo() }
         state.selection = Set(state.agents.map(\.id))

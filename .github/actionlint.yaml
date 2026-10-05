@@ -1,0 +1,5 @@
+# actionlint 1.7.12 does not yet recognize GitHub's official Xcode 27 preview label.
+# This allowlist affects linting only; the workflow uses a GitHub-hosted runner.
+self-hosted-runner:
+  labels:
+    - xcode-27

@@ -1,0 +1,15 @@
+file '01-settings.jpg'
+duration 2
+file '02-checks-on.jpg'
+duration 2
+file '03-preferences-on.jpg'
+duration 2
+file '04-update-available.jpg'
+duration 2
+file '05-ready.jpg'
+duration 2
+file '06-draft-retained.jpg'
+duration 2
+file '07-version-2.jpg'
+duration 2
+file '07-version-2.jpg'
