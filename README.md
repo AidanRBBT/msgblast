@@ -1,73 +1,33 @@
 # MsgBlast
 
-A local native Mac app for comparing agents in existing, separate one-to-one Messages conversations. Uses SwiftUI, AppKit windows and toolbars, and native Liquid Glass on macOS 26 or later.
+MsgBlast is a Mac app for comparing AI agents through Messages. Send the same prompt to selected agents and read their replies side by side. Attach photos or files, send follow-ups, and reopen saved comparisons.
 
-## Build and run
+Requires **macOS 26 or later** and existing one-to-one iMessage conversations with the agents you want to message.
 
-Requires Xcode 27 (tested with 27.0) and macOS 26+.
+## Download
 
-```sh
-xcodebuild -project MsgBlast.xcodeproj -scheme MsgBlast -derivedDataPath build -destination 'platform=macOS,arch=arm64' build
-open build/Build/Products/Debug/MsgBlast.app
-```
+[Download MsgBlast for Mac — version 0.1.0](https://updates.msgblast.app/downloads/MsgBlast-0.1.0-1.zip)
 
-Open `MsgBlast.xcodeproj` in Xcode to run, debug, and test. The project has a shared `MsgBlast` scheme, core unit tests, and a native UI test target. `python3 scripts/generate_project.py` regenerates the project after adding Swift files. Xcode resolves the pinned Sparkle 2.10.0 package for native updates.
+Unzip the download, drag **MsgBlast.app** into **Applications**, and open it. If macOS blocks the first launch, follow [Apple's instructions for opening the app](https://support.apple.com/en-us/102445).
 
-A fixture app can be built with `scripts/build_demo.sh`. Open `build/Build/Products/Debug/MsgBlast Demo.app`. Standard development builds use the blue-green icon; the demo uses the blue icon and compiles in `build/icon-demo` before copying to its usual app path. This has synthetic contacts and delayed synthetic replies; it cannot submit real messages. “Simulate one failure” exercises a known failure before submission. “Reset sample data” clears only the demo's app-owned state. Demo and live state are stored in separate directories.
+## Get started
 
-## Use
+1. Enable MsgBlast in **System Settings → Privacy & Security → Full Disk Access**, then quit and reopen it so it can read your Messages conversations. Allow Contacts and Messages Automation when prompted.
+2. Find agents in **Discover**, or use **+** to add an existing contact. Start a conversation in Messages first if the agent does not have one yet.
+3. Select your agents, write a prompt, and press the send arrow. Their replies appear together for comparison.
 
-1. Give **MsgBlast** Full Disk Access in System Settings → Privacy & Security, then quit and reopen it. The app opens `~/Library/Messages/chat.db` with `SQLITE_OPEN_READONLY`.
-2. Use the toolbar's **+** button to search by name, email, or phone number. You can enter an account absent from Contacts: **Add** creates its Contacts entry and saves the real contact ID in MsgBlast, even without an existing chat. Contacts permission is required to save that entry. Only existing one-to-one Messages chats are eligible for sending; an account with no matching conversation stays saved and unselected until a conversation is available.
-3. All available saved agents start selected. Tap a pinned avatar or its check overlay to change selection, write your prompt in the bottom input, and press the send arrow. By default, one connected native window holds the conversation columns and the universal input across the bottom.
-4. Joined conversations have one universal input. A row of named recipient pills starts with every agent highlighted. Tap a pill to exclude that agent; tap again to include it. Click a conversation or its avatar to send only to that conversation, then add or remove recipients with the same pills. Highlighting always matches the next message's recipients. Changing targets retains the draft. When the columns do not fit, scroll horizontally; selecting a conversation brings its column into view. **MsgBlast → Settings → Conversations → Separate windows** restores independently draggable conversations and the floating shared composer. Changing the preference immediately rearranges open comparisons and preserves drafts, receipts, and each layout's saved frames.
-5. Reopen comparisons from the sidebar or Comparisons menu. Another prompt in the same chat bounds ordinary history in the earlier comparison; explicit thread replies remain included.
+Check for new versions from **MsgBlast → Check for Updates**.
 
-Web links render as native image-backed cards with website titles and domains. Click a card to open its URL. Standard and custom emoji reactions attach to the original message, including replacement and removal events. Preview metadata is fetched from the linked website and cached in memory; a website that cannot provide metadata still has a usable native link card.
+## Build it yourself
 
-The circular **+** beside each message field opens Photos or the native file picker. Attach multiple photos/files, paste images or copied Finder files, or drop them into the composer. Previews can be removed before sending and opened in native Quick Look. A message can contain attachments without a caption. Drafts retain staged files across relaunch; each caption/file has its own saved submission receipt, so partial retries skip accepted parts. Conversation history displays photo previews and file cards.
-
-The first ordinary send asks macOS to allow Automation of Messages. A successful Apple Event means **submitted to Messages**, not delivered. Sends run in an isolated child process with a timeout so they do not block the app's main thread. Known Automation denial can be retried; an ambiguous send is quarantined instead of automatically resending. Refresh reconciles a unique outgoing record when available. Interrupted follow-ups expose separate actions for failed and never-attempted recipients.
-
-## Current integration gates
-
-This build is a development app, **not a verified v1 release**. Read [integration findings](docs/integration-findings.md) for observed results and remaining gates.
-
-- Live MsgBlast submitted controlled text to the authorized Michael and Pal destinations, reconciled outgoing anchors, and preserved private/shared recipient scopes. Real Contacts records were saved/reused for Pal and the pending Outlook address. The October 2 09:28 build regained history access and sent a fresh synthetic PNG and text file to Michael's self-address: Messages shows received copies and Read, and MsgBlast displays their live cards and delivery receipt. This verifies the self-address transfer; the earlier failed attachments remain Not Delivered and were not retried. See [the scoped delivery receipt](docs/evidence/live-attachment-delivery-MB1002-0929.json).
-- A genuine inline reply was observed through native Messages UI. App-driven exact-prompt inline targeting and its database linkage still need end-to-end verification. Native Messages reported msgisaway@outlook.com as unregistered; no message was sent to it. Contact creation is independent of messaging registration.
-- An older comparison's follow-up is blocked for members who joined a newer comparison, because genuine inline targeting by this app is unproven. It does not silently substitute quoted text.
-- An isolated full run passed 50 checks (41 core/controller and nine native workflows), including actual Quick Look image pixels and reopening. Subsequent photo aspect-ratio and first-send Contacts consent improvements compile; their new native run was interrupted when the Mac locked. This fixture coverage does not establish app-driven inline replies.
-
-## Local data
-
-Live state: `~/Library/Application Support/MsgBlast/state.json`. Fixture state: `~/Library/Application Support/MsgBlast-Demo/state.json`. Stores agent metadata, app-authored prompts/drafts, anchor GUIDs and row IDs, per-recipient/per-part attempt states, and outer window frames. Files the user attaches are staged under the corresponding `Attachments` directory with owner-only permissions. Sending creates a separate private transport copy per recipient under `~/Library/Messages/Attachments/MsgBlast-Outgoing`, retained for asynchronous native transfer. Removing an unsent preview deletes its draft copy after a successful state save, provided no other saved draft or send references it. Messages history attachments are read from their original locations and are not copied into app storage. An unreadable or corrupt state file is preserved rather than overwritten.
-
-## Test
+Install **Xcode 27**, then clone this repository and build the app:
 
 ```sh
-xcodebuild -project MsgBlast.xcodeproj -scheme MsgBlast -derivedDataPath build/validation -destination 'platform=macOS,arch=arm64' -only-testing:MsgBlastTests test
+git clone https://github.com/mgalpert/msgblast.git
+cd msgblast
+xcodebuild -project MsgBlast.xcodeproj -scheme MsgBlast \
+  -derivedDataPath build/from-source -destination 'platform=macOS' build
+open build/from-source/Build/Products/Debug/MsgBlast.app
 ```
 
-Remove `-only-testing:MsgBlastTests` to include UI tests after authorizing their runner. Those tests launch with `--demo --isolated-demo`, using a new temporary store for each launch so their reset cannot overwrite the normal Demo app's comparisons. The core SQLite fixture tests verify that reads leave database bytes unchanged, exclude groups/SMS/empty chats, retain thread relationships, and bind query parameters.
-
-The isolated run at October 2, 09:15:53 passed 41 core/controller tests and nine native workflows, with zero failures/skips. A targeted extension also passed same-image close/reopen. Core regressions cover optional delivery columns, read-only history, recipient scopes and private transport copies, including rejected symlinks. Native workflows cover onboarding return, pending-contact eligibility, joined selection, partial retries, rendered previews and repeated private sends. The later photo-layout/Contacts-consent revision passed 41 core checks; its UI run was stopped after two activation failures with the screen locked. AppIntents metadata, synthetic file-URL sandbox and internal XCTest QoS warnings remain. See the current [completion audit](docs/completion-audit.md) for precise results and remaining live gates. Keep validation builds separate from the live app bundle to avoid replacing its executable/signature during permission checks.
-
-The private repository is [mgalpert/msgblast](https://github.com/mgalpert/msgblast). Any future PR must include actual-feature **Screenshots** and **Video** sections, with repository-accessible evidence from the reviewed build; local screenshots alone do not satisfy that requirement.
-
-## Updates
-
-Configured app bundles use Sparkle’s native update dialog and release notes. Settings shows the version/build, automatic check and download preferences, and Check for Updates. Updates wait for active submissions and save drafts before quitting. Development builds without a feed/key explain that updates are unavailable; ordinary demos, previews, XCTest and unbundled runs never query production feeds.
-
-Push a `vVERSION` tag to run the [automated ad-hoc release pipeline](docs/automated-releases.md) after its one-time R2 hosting and Actions key setup. It tests, builds, signs and publishes without Apple Developer credentials; build counters are allocated automatically. The source repository remains private. [Developer ID signing and notarization](docs/updates.md) remain an optional distribution path. Install the first updater-enabled build manually before relying on future updates.
-
-Build the isolated fixture source with the blue demo icon, then exercise real Sparkle with temporary signed localhost fixtures:
-
-```sh
-xcodebuild -project MsgBlast.xcodeproj -scheme MsgBlast -configuration Debug \
-  -derivedDataPath build/updater-validation -destination 'platform=macOS,arch=arm64' \
-  ASSETCATALOG_COMPILER_APPICON_NAME=AppIconDemo build -quiet
-python3 scripts/test_updates.py --derived-data build/updater-validation --keep
-python3 scripts/test_updates.py --derived-data build/updater-validation --ui --keep
-```
-
-The UI mode serves a synthetic app until interrupted. Neither mode sends real messages or writes Contacts. Fixture bundles are ad-hoc Debug builds, so these checks do not establish production notarization or Gatekeeper acceptance.
+You can also open **MsgBlast.xcodeproj** in Xcode, select the **MsgBlast** scheme, and click **Run**.
