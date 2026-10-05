@@ -4,8 +4,8 @@ Implemented the user-approved AskForPermission-style history handoff: source-car
 
 ## Verified
 
-- Full application suite: **41 passed, 0 failed, 0 skipped**, including all seven native UI workflows. Result: `build/Logs/Test/Test-MsgBlast-2026.10.01_19-56-45--0700.xcresult`. Three internal QoS runtime warnings were reported; there were no test failures.
-- After the final Settings-close completion fix: **36 passed, 0 failed, 0 skipped, 0 runtime warnings** (35 core/AppKit/controller tests plus the native guide interaction). Result: `build/Logs/Test/Test-MsgBlast-2026.10.01_20-00-23--0700.xcresult`.
+- Full application suite: **41 passed, 0 failed, 0 skipped**, including all seven native UI workflows. Result: `build/Logs/Test/Test-msgblast-2026.10.01_19-56-45--0700.xcresult`. Three internal QoS runtime warnings were reported; there were no test failures.
+- After the final Settings-close completion fix: **36 passed, 0 failed, 0 skipped, 0 runtime warnings** (35 core/AppKit/controller tests plus the native guide interaction). Result: `build/Logs/Test/Test-msgblast-2026.10.01_20-00-23--0700.xcresult`.
 - Native interaction opens Full Disk Access, discovers the floating guide as a dialog, checks its enabled app drag card, performs a cancelled drag, and uses Back to restore the original row without claiming access.
 - Core/AppKit tests verify actual file-URL pasteboard round trips, reject non-app/remote/missing paths, clamp geometry across display coordinates, and prove a drop alone cannot mark access available.
 - Controller tests verify completion survives a required restart, repeated successful checks do not republish unchanged state, closing Settings retains pending completion, and explicit Back abandons it.
@@ -37,4 +37,6 @@ Changes remain local alongside existing app WIP. No PR was created. The broader 
 
 ## Dock follow-up
 
-When the user reported no Dock icon, the actual running-app/process lookup initially found no MsgBlast process. MsgBlast was reopened from its existing final build, without rebuilding or changing its signature. The live process was then verified running with `NSRunningApplication.activationPolicy == .regular` (raw value 0); it is not configured as a hidden accessory app. The built bundle includes `CFBundleIconFile=AppIcon`, `CFBundleIconName=AppIcon`, `AppIcon.icns`, and `Assets.car`. `msgblast-app-icon.png` is an extraction of the actual built icon, not a mockup. Dock visual inspection through the native tool timed out, so no screenshot proving Dock placement is claimed.
+When the user reported no Dock icon, the actual running-app/process lookup initially found no msgblast process. msgblast was reopened from its existing final build, without rebuilding or changing its signature. The live process was then verified running with `NSRunningApplication.activationPolicy == .regular` (raw value 0); it is not configured as a hidden accessory app. The built bundle includes `CFBundleIconFile=AppIcon`, `CFBundleIconName=AppIcon`, `AppIcon.icns`, and `Assets.car`. `msgblast-app-icon.png` is an extraction of the actual built icon, not a mockup. Dock visual inspection through the native tool timed out, so no screenshot proving Dock placement is claimed.
+
+Historical capture text uses the current lowercase product spelling after the repository-wide rename; its original captures predate this rename. Current branding captures are recorded separately.

@@ -99,7 +99,7 @@ def validate_options(options):
 
 
 def archive_name(options):
-    return f"MsgBlast-{options.version}-{options.build}.zip"
+    return f"msgblast-{options.version}-{options.build}.zip"
 
 
 def feed_path(options):
@@ -115,7 +115,7 @@ def commands_by_step(options):
     """Single command contract shared by dry-run output and real preparation."""
     output = options.output
     ad_hoc = options.signing_mode == "ad-hoc"
-    app = output / "export/MsgBlast.app"
+    app = output / "export/msgblast.app"
     archive = output / "publish" / archive_name(options)
     account = (["--ed-key-file", str(options.ed_key_file)] if options.ed_key_file
                else ["--account", options.keychain_account])
@@ -145,20 +145,20 @@ print(key.publicKey.rawRepresentation.base64EncodedString())
     if ad_hoc:
         archive_tail.append("CODE_SIGNING_ALLOWED=NO")
     commands["archive"] = [
-        "xcodebuild", "-project", str(ROOT / "MsgBlast.xcodeproj"), "-scheme", "MsgBlast",
+        "xcodebuild", "-project", str(ROOT / "msgblast.xcodeproj"), "-scheme", "msgblast",
         "-configuration", "Release", "-destination", "generic/platform=macOS",
-        "-derivedDataPath", str(output / "DerivedData"), "-archivePath", str(output / "MsgBlast.xcarchive"),
+        "-derivedDataPath", str(output / "DerivedData"), "-archivePath", str(output / "msgblast.xcarchive"),
         "MARKETING_VERSION=" + options.version, "CURRENT_PROJECT_VERSION=" + str(options.build),
         "SPARKLE_FEED_URL=" + options.feed_url, "SPARKLE_PUBLIC_ED_KEY=" + options.public_key,
         *signing_settings, *archive_tail, "archive"]
     if ad_hoc:
-        commands["export"] = ["ditto", str(output / "MsgBlast.xcarchive/Products/Applications/MsgBlast.app"), str(app)]
+        commands["export"] = ["ditto", str(output / "msgblast.xcarchive/Products/Applications/msgblast.app"), str(app)]
         # The nested code paths exist only after archiving. prepare() signs them
         # inside-out before this outer app command.
         commands["ad_hoc_sign"] = ["codesign", "--force", "--sign", "-", "--options", "runtime", "--entitlements",
-                                   str(ROOT / "MsgBlast/MsgBlastAdHoc.entitlements"), str(app)]
+                                   str(ROOT / "msgblast/msgblastAdHoc.entitlements"), str(app)]
     else:
-        commands["export"] = ["xcodebuild", "-exportArchive", "-archivePath", str(output / "MsgBlast.xcarchive"),
+        commands["export"] = ["xcodebuild", "-exportArchive", "-archivePath", str(output / "msgblast.xcarchive"),
                               "-exportPath", str(output / "export"), "-exportOptionsPlist", str(output / "ExportOptions.plist")]
     commands["code_verify"] = ["codesign", "--verify", "--deep", "--strict", "--verbose=2", str(app)]
     commands["code_identity"] = ["codesign", "-dv", "--verbose=4", str(app)]
@@ -202,7 +202,7 @@ def validate_private_seed(options):
 
 
 def sign_nested_code(options):
-    app = options.output / "export/MsgBlast.app"
+    app = options.output / "export/msgblast.app"
     code = []
     for path in (app / "Contents/Frameworks").rglob("*"):
         if path.is_symlink():
@@ -261,19 +261,21 @@ def check_tools(options):
 
 
 def verify_bundle(options):
-    app = options.output / "export/MsgBlast.app"
+    app = options.output / "export/msgblast.app"
     with (app / "Contents/Info.plist").open("rb") as file:
         info = plistlib.load(file)
-    expected = {"CFBundleIdentifier": "com.msgblast.mac", "CFBundleVersion": str(options.build),
+    expected = {"CFBundleIdentifier": "com.msgblast.mac", "CFBundleName": "msgblast",
+                "CFBundleDisplayName": "msgblast", "CFBundleExecutable": "msgblast",
+                "CFBundleVersion": str(options.build),
                 "CFBundleShortVersionString": options.version, "SUFeedURL": options.feed_url,
                 "SUPublicEDKey": options.public_key, "SUVerifyUpdateBeforeExtraction": True,
                 "SURequireSignedFeed": True}
     for key, value in expected.items():
         if info.get(key) != value:
             raise ReleaseError(f"Exported bundle {key} does not match release configuration")
-    if info.get("MsgBlastDemo") or info.get("MsgBlastPermissionGuidePreview"):
+    if info.get("msgblastDemo") or info.get("msgblastPermissionGuidePreview"):
         raise ReleaseError("A demo/permission-preview bundle cannot be released")
-    for name in ("MsgBlastCore", "Sparkle"):
+    for name in ("msgblastCore", "Sparkle"):
         if not (app / f"Contents/Frameworks/{name}.framework").is_dir():
             raise ReleaseError(f"Exported app is missing {name}.framework")
 

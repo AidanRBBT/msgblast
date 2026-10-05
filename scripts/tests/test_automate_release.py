@@ -65,7 +65,7 @@ class R2BoundaryTests(unittest.TestCase):
             self.assertEqual(feed[feed.index("--if-match") + 1], '"old-feed"')
             self.assertEqual(feed[feed.index("--cache-control") + 1], "no-store")
             self.assertNotIn("--if-none-match", feed)
-            self.store.put("downloads/MsgBlast-1-2.zip", Path("archive.zip"), "application/zip")
+            self.store.put("downloads/msgblast-1-2.zip", Path("archive.zip"), "application/zip")
             archive = run.call_args.args[0]
             self.assertEqual(archive[archive.index("--if-none-match") + 1], "*")
             self.assertIn("immutable", archive[archive.index("--cache-control") + 1])
@@ -85,7 +85,7 @@ class AutomatedReleaseTests(unittest.TestCase):
         self.tools = self.root / "tools"
         self.publish = self.root / "publish"
         self.publish.mkdir()
-        self.archive = self.publish / "MsgBlast-0.1.1-2.zip"
+        self.archive = self.publish / "msgblast-0.1.1-2.zip"
         self.archive.write_bytes(b"synthetic archive")
         self.feed = self.publish / "appcast.xml"
         self.feed.write_bytes(self.feed_bytes(2))
@@ -248,8 +248,8 @@ class AutomatedReleaseTests(unittest.TestCase):
         publication.assert_called_once()
         self.assertEqual(json.loads(self.store.objects[self.prefix + "release-counter.json"])["build"], 2)
         self.assertIn(revision, summary.read_text())
-        self.assertIn("MsgBlast 0.1.0 (2) published", summary.read_text())
-        self.assertIn(self.base + "downloads/MsgBlast-0.1.0-2.zip", summary.read_text())
+        self.assertIn("msgblast 0.1.0 (2) published", summary.read_text())
+        self.assertIn(self.base + "downloads/msgblast-0.1.0-2.zip", summary.read_text())
 
     def test_main_rejects_malformed_key_before_storage_or_signing_without_echo(self):
         environment = {

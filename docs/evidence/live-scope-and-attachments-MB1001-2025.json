@@ -1,9 +1,9 @@
 {
   "comparisonID": "98C3A92C-28BF-44E2-A340-1EF2194CC54A",
-  "prompt": "MsgBlast test MB1001-1657: please reply ack. This is only a messaging test.",
+  "prompt": "msgblast test MB1001-1657: please reply ack. This is only a messaging test.",
   "followUps": [
     {
-      "text": "MsgBlast scope test MB1001-2010-private: only Michael should receive this message. Please reply ack; no research or actions requested.",
+      "text": "msgblast scope test MB1001-2010-private: only Michael should receive this message. Please reply ack; no research or actions requested.",
       "recipients": [
         "mgalpert@gmail.com"
       ],
@@ -13,7 +13,7 @@
       "parts": {}
     },
     {
-      "text": "MsgBlast scope test MB1001-2016-shared: Michael and Pal should each receive one copy. Please reply ack; no research or actions requested.",
+      "text": "msgblast scope test MB1001-2016-shared: Michael and Pal should each receive one copy. Please reply ack; no research or actions requested.",
       "recipients": [
         "mgalpert@gmail.com",
         "palcowen@gmail.com"
@@ -39,14 +39,14 @@
           {
             "state": "submitted",
             "anchorPresent": true,
-            "filename": "MsgBlast-test-MB1001-2025.png"
+            "filename": "msgblast-test-MB1001-2025.png"
           }
         ],
         "mgalpert@gmail.com": [
           {
             "state": "submitted",
             "anchorPresent": true,
-            "filename": "MsgBlast-test-MB1001-2025.png"
+            "filename": "msgblast-test-MB1001-2025.png"
           }
         ]
       }
@@ -64,7 +64,7 @@
           {
             "state": "submitted",
             "anchorPresent": true,
-            "filename": "MsgBlast-test-MB1001-2025.txt"
+            "filename": "msgblast-test-MB1001-2025.txt"
           }
         ]
       }
@@ -92,7 +92,7 @@
     },
     {
       "recipient": "palcowen@gmail.com",
-      "filename": "MsgBlast-test-MB1001-2025.png",
+      "filename": "msgblast-test-MB1001-2025.png",
       "status": "Not Delivered",
       "quickLook": "Image Preview names the selected synthetic PNG"
     }

@@ -28,12 +28,12 @@
       "passed": 52,
       "failed": 0,
       "skipped": 0,
-      "result_bundle": "Test-MsgBlast-2026.10.02_13-34-18--0700.xcresult"
+      "result_bundle": "Test-msgblast-2026.10.02_13-34-18--0700.xcresult"
     },
     "ui_tests": {
       "status": "not_executed",
       "reason": "macOS authentication canceled before the UI test runner initialized. Updated tests compile; selectors checked against the observed accessibility tree.",
-      "attempt_result_bundle": "Test-MsgBlast-2026.10.02_12-54-10--0700.xcresult"
+      "attempt_result_bundle": "Test-msgblast-2026.10.02_12-54-10--0700.xcresult"
     },
     "manual_native_checks": [
       "Top-right Summarize in connected and separate windows and floating composer",

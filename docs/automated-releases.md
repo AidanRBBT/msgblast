@@ -45,7 +45,7 @@ No hosting account/bucket/domain is created by the workflow. Until these variabl
    git push origin v0.1.1
    ```
 
-   Alternatively, run **Release MsgBlast without Apple credentials** from the default branch in Actions and enter `0.1.1`. Version values are numeric; branch names and shell expressions are rejected. A source push without a release tag does not distribute a build.
+   Alternatively, run **Release msgblast without Apple credentials** from the default branch in Actions and enter `0.1.1`. Version values are numeric; branch names and shell expressions are rejected. A source push without a release tag does not distribute a build.
 3. GitHub Actions performs the remaining steps. Its summary provides the published version/build, source revision, ZIP URL and feed URL. Successful artifacts are retained privately in Actions for 30 days; public archives and immutable release manifests remain on R2.
 
 No coding agent is needed for repetitive build/sign/upload steps once activation is complete. Release notes and the decision to release a source revision remain part of preparing the tag.
@@ -67,7 +67,7 @@ Only one stable release workflow runs at a time. GitHub concurrency can replace 
 
 ## Install and operational limits
 
-Install the first updater-enabled `MsgBlast.app` manually in `/Applications`. Ad-hoc downloads may require macOS first-launch approval; this app has no Apple-verified publisher identity or notarization. Confirm Full Disk Access, Contacts and Messages Automation, and test their retention during a real distributed update. Stable bundle ID and Sparkle key do not guarantee TCC permission retention with ad-hoc code signing.
+Install the first updater-enabled `msgblast.app` manually in `/Applications`. Ad-hoc downloads may require macOS first-launch approval; this app has no Apple-verified publisher identity or notarization. Confirm Full Disk Access, Contacts and Messages Automation, and test their retention during a real distributed update. Stable bundle ID and Sparkle key do not guarantee TCC permission retention with ad-hoc code signing.
 
 Later releases can install through Check for Updates or automatic checks. Preserve app-owned drafts/attachments and verify the version after the first distributed update. Publishing an update does not force an immediate installation on every client.
 

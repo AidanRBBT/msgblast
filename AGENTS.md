@@ -1,12 +1,12 @@
-# MsgBlast agent instructions
+# msgblast agent instructions
 
 ## App icons
 
-- **Development/live app:** use the saved blue-green duplicate of exploration 32. Its source is `output/icon-gradients/32-WhiteToClearSoftFadeBlueGreen.icon`; the app resource is `MsgBlast/AppIcon.icon`.
-- **Demo/fixture app:** use the saved blue duplicate of exploration 32. Its source is `output/icon-gradients/32-WhiteToClearSoftFadeBlue.icon`; the app resource is `MsgBlast/AppIconDemo.icon`.
+- **Development/live app:** use the saved blue-green duplicate of exploration 32. Its source is `output/icon-gradients/32-WhiteToClearSoftFadeBlueGreen.icon`; the app resource is `msgblast/AppIcon.icon`.
+- **Demo/fixture app:** use the saved blue duplicate of exploration 32. Its source is `output/icon-gradients/32-WhiteToClearSoftFadeBlue.icon`; the app resource is `msgblast/AppIconDemo.icon`.
 - Standard builds select `ASSETCATALOG_COMPILER_APPICON_NAME=AppIcon`. `scripts/build_demo.sh` selects `AppIconDemo`. The distinction is development versus demo, not Debug versus Release.
 - Preserve the user's saved artwork when copying these icons into the app resources. Keep both icon resources registered in `scripts/generate_project.py` and the generated Xcode project.
-- Validate icon changes with an isolated derived data directory. The demo script uses `build/icon-demo` and packages `build/Build/Products/Debug/MsgBlast Demo.app`. Do not overwrite or restart the user's running development app merely to validate an icon change.
+- Validate icon changes with an isolated derived data directory. The demo script uses `build/icon-demo` and packages `build/Build/Products/Debug/msgblast Demo.app`. Do not overwrite or restart the user's running development app merely to validate an icon change.
 
 ## Building and publishing app updates
 

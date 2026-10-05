@@ -25,3 +25,5 @@ Hosted publication and actual Release-artifact installation/relaunch with permis
 ## PR 1 merge review
 
 Fresh nine-lens review (`20261002-213628-1fe181ad`) confirmed one P2 fixture-icon mismatch. It is corrected: the isolated Debug source selects `AppIconDemo`, and the fixture script rejects an incorrect source icon before any key generation or temporary fixture creation. The rejection was exercised against the existing live-icon source, then the corrected fixture passed all four real Sparkle scenarios. Native screenshots/video were recaptured with the blue demo icon, successful relaunch, retained draft/attachment and preferences. Standard and Release defaults retain `AppIcon`. See `review-verification.json` for source hashes and limits.
+
+Historical capture text uses the current lowercase product spelling after the repository-wide rename; its original captures predate this rename. Current branding captures are recorded separately.

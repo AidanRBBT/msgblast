@@ -1,0 +1,23 @@
+{
+  "capture_date": "2026-10-05",
+  "source_revision": "Rename working tree based on b6dbb9e",
+  "release_code_revision": "298d60dd7ab5be69af243b749ceb8ac38100d0d8",
+  "capture": "Fresh actual native CUA screenshots after the complete lowercase rename; blue demo icon, synthetic contacts and simulated history denial.",
+  "fixture": {
+    "bundle_id": "com.msgblast.readme-onboarding",
+    "demo": true,
+    "isolated": true,
+    "simulated_history_denial": true
+  },
+  "limits": "No real message, contact, permission or live app changes. Current captures show the history banner and Add agent sheet. The earlier permission-card image was removed; no fabricated replacement is used.",
+  "source_sha256": {
+    "msgblast/Permissions/MessagesAccessGuide.swift": "1c7e7be55aaf70aada883de0ead9eb5de898932051832b5cb3671296b3684b5b",
+    "msgblast/Windows/Views.swift": "889ca3e725f7422abb11725ee3f7d8603332f59e92bbfadfb10bdf753bc3b059",
+    "msgblast/App/AppModel.swift": "8ed8292e77188fc918149bcaefe97a46d5d8f73587fc136739f2ad826ef51825"
+  },
+  "apple_image": {
+    "url": "https://cdsassets.apple.com/live/7WUAS350/images/macos/sequoia/macos-sequoia-system-settings-privacy-and-security-open-app-anyway.png",
+    "source": "https://support.apple.com/en-us/102445#openanyway",
+    "type": "Apple-hosted illustration; not a capture of msgblast first launch"
+  }
+}

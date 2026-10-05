@@ -1,5 +1,5 @@
 import Foundation
-import MsgBlastCore
+import msgblastCore
 
 // Controlled storage and provider substitutes: no real app data, provider CLI or network.
 @MainActor

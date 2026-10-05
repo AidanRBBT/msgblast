@@ -1,5 +1,5 @@
 import Foundation
-import MsgBlastCore
+import msgblastCore
 
 @MainActor
 final class AppModel {

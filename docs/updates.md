@@ -1,6 +1,6 @@
-# MsgBlast updates
+# msgblast updates
 
-MsgBlast integrates Sparkle 2.10.0's native updater. A configured installed app checks daily, offers release notes and the standard installation choices, and stores update preferences through Sparkle. Settings → Updates shows the current version/build, automatic check and download preferences, and Check for Updates.
+msgblast integrates Sparkle 2.10.0's native updater. A configured installed app checks daily, offers release notes and the standard installation choices, and stores update preferences through Sparkle. Settings → Updates shows the current version/build, automatic check and download preferences, and Check for Updates.
 
 Ordinary development builds have no feed or signing key, so updates remain unavailable. Demos, permission previews, unbundled SwiftPM runs and XCTest do not query production feeds. Local update verification uses separate temporary fixtures, not the user's running app.
 
@@ -23,7 +23,7 @@ The release operator needs:
 - A chosen static **HTTPS** feed URL and archive directory. These must be downloadable by the installed app without a GitHub login or expiring URL. The private `mgalpert/msgblast` repository's release assets and raw-file URLs are not anonymous update hosting. Keep the repo private; select distribution hosting separately.
 - An explicit release counter. For the first release, use build `1` and previous build `0`. For later releases, read the highest counter already published and choose a larger value, even if the marketing version has not changed. Never derive the counter from Git commit count. The script validates the supplied previous counter; it does not contact a production feed or reserve counters for multiple operators.
 
-Install the first updater-enabled, signed and notarized `MsgBlast.app` in `/Applications`. Users whose current app predates the updater need this one manual installation. Quit the existing copy before installing; keep developer and demo bundles in separate paths. Confirm Full Disk Access, Contacts and Messages Automation on the first installation. Stable signing is necessary for consistent app identity, but permission preservation must also be checked during the first real Developer ID update.
+Install the first updater-enabled, signed and notarized `msgblast.app` in `/Applications`. Users whose current app predates the updater need this one manual installation. Quit the existing copy before installing; keep developer and demo bundles in separate paths. Confirm Full Disk Access, Contacts and Messages Automation on the first installation. Stable signing is necessary for consistent app identity, but permission preservation must also be checked during the first real Developer ID update.
 
 ## Prepare locally
 
@@ -53,21 +53,21 @@ Remove `--dry-run` to prepare production artifacts. The script:
 
 1. Requires the selected Developer ID Application identity in Keychain, checks the Sparkle Keychain public key matches the configured key, and checks the notarization profile before building.
 2. Runs `xcodebuild archive` in an isolated derived data directory and exports with `method=developer-id`. Xcode signs nested frameworks and Sparkle helpers; the script does not recursively re-sign them or substitute ad-hoc signing. The release uses the saved development/live icon (`AppIcon`), not the demo icon.
-3. Supplies `MARKETING_VERSION`, `CURRENT_PROJECT_VERSION`, `SPARKLE_FEED_URL`, and `SPARKLE_PUBLIC_ED_KEY`. Verifies exported metadata, archive signature policy, `MsgBlastCore.framework`, `Sparkle.framework`, Developer ID identity, hardened runtime and the Messages Automation entitlement.
+3. Supplies `MARKETING_VERSION`, `CURRENT_PROJECT_VERSION`, `SPARKLE_FEED_URL`, and `SPARKLE_PUBLIC_ED_KEY`. Verifies exported metadata, archive signature policy, `msgblastCore.framework`, `Sparkle.framework`, Developer ID identity, hardened runtime and the Messages Automation entitlement.
 4. Packages with `ditto`, submits to Apple notarization and requires an Accepted result. Staples and validates the ticket, checks Gatekeeper and the code signature again, then makes the final ZIP **after** stapling.
 5. Signs and verifies that ZIP using Sparkle. Generates a one-release appcast with embedded Markdown notes and no delta artifacts, checks the enclosure's URL/signature/size and version/build, then signs and verifies the appcast itself.
-6. Writes a local manifest containing the release configuration, notarization result, archive signature and artifact SHA-256 hashes. Never uploads, publishes a GitHub release, changes repository visibility, replaces `/Applications/MsgBlast.app`, or restarts the running app.
+6. Writes a local manifest containing the release configuration, notarization result, archive signature and artifact SHA-256 hashes. Never uploads, publishes a GitHub release, changes repository visibility, replaces `/Applications/msgblast.app`, or restarts the running app.
 
 Artifacts default to `build/releases/VERSION-BUILD/`. A directory must be fresh; failures leave diagnostic/build artifacts and cannot overwrite earlier output. After fixing a failure, choose a fresh `--output` path. Do not publish a directory without `publish/release.json`, which is written only after all checks succeed.
 
 ```text
 build/releases/0.1.0-1/
-  MsgBlast.xcarchive/
+  msgblast.xcarchive/
   ExportOptions.plist
-  export/MsgBlast.app             signed, notarized, stapled app
+  export/msgblast.app             signed, notarized, stapled app
   publish/
-    MsgBlast-0.1.0-1.zip          final signed update archive
-    MsgBlast-0.1.0-1.md           source notes, embedded into appcast
+    msgblast-0.1.0-1.zip          final signed update archive
+    msgblast-0.1.0-1.md           source notes, embedded into appcast
     appcast.xml                 archive signature plus feed signature
     release.json                successful preparation manifest
 ```
