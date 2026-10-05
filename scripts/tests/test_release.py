@@ -49,6 +49,20 @@ class ReleaseTests(unittest.TestCase):
             del args[index:index + 2]
         return args + ["--signing-mode", "ad-hoc"]
 
+    def test_release_rejects_development_artwork_before_building(self):
+        saved = self.root / "output/icon-gradients/32-WhiteToClearSoftFade-Polished.icon"
+        resource = self.root / "msgblast/AppIcon.icon"
+        shutil.copytree(release.ROOT / "output/icon-gradients/32-WhiteToClearSoftFade-Polished.icon", saved)
+        shutil.copytree(release.ROOT / "output/icon-gradients/32-WhiteToClearSoftFadeBlueGreen.icon", resource)
+        with self.assertRaisesRegex(release.ReleaseError, "green polished"):
+            release.validate_production_icon(self.root)
+        shutil.rmtree(resource)
+        shutil.copytree(saved, resource)
+        release.validate_production_icon(self.root)
+        (resource / "Assets/thick-glass-stack.png").write_bytes(b"wrong artwork")
+        with self.assertRaisesRegex(release.ReleaseError, "green polished"):
+            release.validate_production_icon(self.root)
+
     def test_adhoc_dry_run_needs_no_apple_credentials_or_key_file_access(self):
         private = self.root / "not-provisioned-yet.key"
         with patch.object(release, "run", side_effect=AssertionError("No commands")), contextlib.redirect_stdout(io.StringIO()):

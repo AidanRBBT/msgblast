@@ -50,6 +50,10 @@ No hosting account/bucket/domain is created by the workflow. Until these variabl
 
 No coding agent is needed for repetitive build/sign/upload steps once activation is complete. Release notes and the decision to release a source revision remain part of preparing the tag.
 
+## Production icon
+
+Release preparation verifies that `msgblast/AppIcon.icon` matches the saved green polished icon at `output/icon-gradients/32-WhiteToClearSoftFade-Polished.icon`, including its layer artwork. It stops before building if development/demo artwork has been substituted. Normal source builds use this green resource; development work can select the saved blue-green variant locally. Updater fixtures continue to select `AppIconDemo`.
+
 ## Fixed README download link
 
 The README uses [the latest-download URL](https://updates.msgblast.app/latest.zip). The separate `download/` Worker returns a no-store 302 redirect to the highest build in the authenticated Sparkle feed. Successful publication of the appcast automatically advances the destination, with no README rewrite or per-release Worker deployment. Failed publication before the feed update keeps the old destination. See [download endpoint operations](../download/README.md).

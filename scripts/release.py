@@ -65,7 +65,24 @@ def validate_https(url):
     return parsed
 
 
+def validate_production_icon(root=ROOT):
+    """Stop release preparation if the app resource differs from the saved live icon."""
+    saved = root / "output/icon-gradients/32-WhiteToClearSoftFade-Polished.icon"
+    resource = root / "msgblast/AppIcon.icon"
+
+    def contents(directory):
+        if not directory.is_dir():
+            raise ReleaseError("Saved production icon and AppIcon resource must exist")
+        return {str(path.relative_to(directory)): path.read_bytes()
+                for path in directory.rglob("*") if path.is_file() and path.name != ".DS_Store"}
+
+    expected = contents(saved)
+    if not expected or expected != contents(resource):
+        raise ReleaseError("Release AppIcon must match the saved green polished production icon; see AGENTS.md")
+
+
 def validate_options(options):
+    validate_production_icon()
     if not re.fullmatch(r"[0-9]+(?:\.[0-9]+){1,2}", options.version):
         raise ReleaseError("Marketing version must be numeric, e.g. 0.1.0")
     if options.previous_build < 0 or options.build <= options.previous_build:
