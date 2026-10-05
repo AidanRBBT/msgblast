@@ -1,0 +1,2 @@
+Provider starts: 1; reports active after shutdown: 0
+PASS: pending discovery cannot start a report during shutdown
