@@ -1,0 +1,28 @@
+{
+  "verdicts": [
+    {
+      "#": 1,
+      "status": "confirmed",
+      "protected_subject": "data-loss",
+      "reason": "MuseWebSession.swift:154-168 mutates an observed attempt before the throwing store, then reclassifies any resulting non-notSent error as notSent, while store at lines 177-185 updates in-memory state before filesystem work and WebServices.swift:36-37 allows retry of notSent; the required post-observation storage failure is reachable from the throwing create/write/permission operations, though its incidence was not measured."
+    },
+    {
+      "#": 2,
+      "status": "confirmed",
+      "protected_subject": "data-loss",
+      "reason": "WebServicesView.swift:179 keeps the shared editor bound to model.state.draft during the awaits at lines 216-218, MessageEditor.swift:35-37 remains editable, and line 223 unconditionally overwrites any text entered before either nonnil result completes; the required ordering is a user edit during the documented Muse or Messages suspension, whose incidence was not measured."
+    },
+    {
+      "#": 4,
+      "status": "confirmed",
+      "protected_subject": null,
+      "reason": "AppModel.swift:257-261 saves the comparison but returns its ID only after await submit completes, while WebServicesView.swift:58 and 218-220 cannot render native panes until that returned ID is assigned, and submit can suspend for six 500 ms observations per recipient at lines 313-323; the delay requires at least one native recipient and was not measured in use."
+    },
+    {
+      "#": 5,
+      "status": "confirmed",
+      "protected_subject": null,
+      "reason": "Targeted inspection found WebServiceWorkflowTests.swift:5-41 covers only the shared Muse-plus-Messages success path and the separate WorkflowTests.swift:270-294 failure test covers native Messages recipients only, with no test exercising either one-side-fails outcome or both-fail behavior through WebServicesView.swift:216-223."
+    }
+  ]
+}

@@ -11,6 +11,8 @@ final class AppModel: ObservableObject {
     @Published var databaseAvailable = false
     @Published var error: String?
     @Published var busy = false
+    @Published var webBroadcastBusy = false
+    @Published var webComparisonRequest = UUID()
     @Published var contactResults: [Agent] = []
     @Published var contactQuery = ""
     @Published var demoFailureOnce = false
@@ -28,6 +30,7 @@ final class AppModel: ObservableObject {
     let linkPreviews = LinkPreviewStore()
     let accessGuide = MessagesAccessGuide(defaults: ProcessInfo.processInfo.arguments.contains("--demo") ? UserDefaults(suiteName: "com.msgblast.demo-permissions") ?? .standard : .standard)
     let local: LocalStore
+    lazy var webAgents = WebAgents(directory: local.url.deletingLastPathComponent(), fixture: demo && Bundle.main.object(forInfoDictionaryKey: "msgblastLiveWebPreview") as? Bool != true)
     var database: MessagesDatabase?
     var timer: Timer?
     var coordinator: WindowCoordinator?
@@ -45,7 +48,7 @@ final class AppModel: ObservableObject {
             if directory.path.hasPrefix(temporaryRoot) { fixtureDirectory = directory }
         }
         #endif
-        local = LocalStore(demo: demo, isolated: ProcessInfo.processInfo.arguments.contains("--isolated-demo") || Bundle.main.object(forInfoDictionaryKey: "msgblastPermissionGuidePreview") as? Bool == true, fixtureDirectory: fixtureDirectory)
+        local = LocalStore(demo: demo, isolated: ProcessInfo.processInfo.arguments.contains("--isolated-demo") || Bundle.main.object(forInfoDictionaryKey: "msgblastPermissionGuidePreview") as? Bool == true || Bundle.main.object(forInfoDictionaryKey: "msgblastIsolatedDemo") as? Bool == true, fixtureDirectory: fixtureDirectory, webPreview: Bundle.main.object(forInfoDictionaryKey: "msgblastLiveWebPreview") as? Bool == true)
         do { state = try local.load(); try local.save(state) } catch { storageLoadFailed = true; self.error = "Local state could not be loaded or saved: \(error.localizedDescription). Sending is unavailable until storage works." }
         if demo { setupDemo() }
         state.selection = Set(state.agents.map(\.id))
@@ -209,12 +212,12 @@ final class AppModel: ObservableObject {
     }
     func route(_ agent: Agent) -> Chat? { ChatResolver.resolve(handles: agent.handles, chats: chats) }
     func removeAgent(_ agent: Agent) { state.agents.removeAll { $0.id == agent.id }; state.selection.remove(agent.id); persist() }
-    func validateMembers(prompt: String) throws -> [Member] {
+    func validateMembers(prompt: String, selectedIDs: Set<UUID>? = nil) throws -> [Member] {
         guard databaseAvailable else { throw AppFailure.blocked(databaseStatus) }
         var result: [Member] = []
         let previewChats = chats
         if !demo { chats = try database!.chats() }
-        for agent in state.agents where state.selection.contains(agent.id) {
+        for agent in state.agents where (selectedIDs ?? state.selection).contains(agent.id) {
             let fresh = demo ? agent : try contacts.refreshed(agent)
             if fresh != agent, let saved = state.agents.firstIndex(where: { $0.id == agent.id }) {
                 state.agents[saved] = fresh
@@ -254,6 +257,36 @@ final class AppModel: ObservableObject {
             coordinator?.open(comparison.id)
             await submit(comparison.id, retry: false)
         } catch { self.error = error.localizedDescription }
+    }
+    func prepareWebComparison(_ text: String, recipientIDs: Set<UUID>, providers: [WebProvider]) async -> UUID? {
+        guard !busy else { return nil }
+        do {
+            if !recipientIDs.isEmpty, !demo, contacts.status == .notDetermined { try await contacts.request() }
+            let members = recipientIDs.isEmpty ? [] : try validateMembers(prompt: text, selectedIDs: recipientIDs)
+            var comparison = Comparison(prompt: text, members: members)
+            comparison.webProviders = providers
+            state.comparisons.insert(comparison, at: 0)
+            do { try save() }
+            catch { state.comparisons.removeAll { $0.id == comparison.id }; throw error }
+            webAgents.setComparison(comparison.id)
+            return comparison.id
+        } catch { self.error = error.localizedDescription; return nil }
+    }
+    func openWebComparison(_ id: UUID) {
+        guard !webBroadcastBusy, let comparison = comparison(id) else { return }
+        webAgents.setComparison(id)
+        state.selection = Set(comparison.members.map(\.id))
+        for session in webAgents.sessions {
+            session.updateState { $0.selected = comparison.webProviders?.contains(session.provider) == true }
+        }
+        webAgents.connectSelected()
+        webComparisonRequest = UUID()
+        if comparison.webProviders?.contains(.muse) == true {
+            Task {
+                guard webAgents.comparisonID == id else { return }
+                await webAgents.sessions.first { $0.provider == .muse }?.openMuseComparison(id)
+            }
+        }
     }
     func comparison(_ id: UUID) -> Comparison? { state.comparisons.first { $0.id == id } }
     func index(_ id: UUID) -> Int? { state.comparisons.firstIndex { $0.id == id } }

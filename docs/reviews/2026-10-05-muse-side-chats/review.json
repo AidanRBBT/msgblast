@@ -1,0 +1,351 @@
+{
+  "status": "complete",
+  "verdict": "Ready with fixes",
+  "verdict_reason": "Four confirmed P2 defects remain in the captured pre-fix delta. Restore the Muse origin indicator and make reopening latest-request-wins, then repair native follow-up attachments and recovery status. No fixes were applied by this review.",
+  "fix_order": [
+    4,
+    2,
+    1,
+    3
+  ],
+  "scope": {
+    "base": "f838cb57efdee6a544b93615f94421acbb08878f",
+    "branch": "codex/webkit-services",
+    "head_sha": "f838cb57efdee6a544b93615f94421acbb08878f",
+    "pr_url": null,
+    "files_changed": 14,
+    "reviewed_delta": "Captured uncommitted side-chat delta, reconstructed in reviewed-tree; later caller edits excluded.",
+    "diff_sha256": "c15d7cbd86e9c58a52ec83991168f3a7fc36cbe231d09dbb7e798242a8ba7b77"
+  },
+  "intent": "Create one Muse side chat per saved comparison rather than posting in the main chat. Reuse each comparison\u2019s saved side-chat URL for follow-ups and reopening, never fall back to main-chat sends, and retain the existing persistent WKWebView login session.",
+  "intent_confidence": "explicit",
+  "reviewers": [
+    "correctness",
+    "project-standards",
+    "testing",
+    "maintainability",
+    "security",
+    "reliability",
+    "adversarial",
+    "julik-frontend-races",
+    "swift-ios"
+  ],
+  "findings": [
+    {
+      "#": 1,
+      "autofix_class": "manual",
+      "confidence": 100,
+      "evidence": [
+        "WebServicesView.swift:127-130 uses global attachmentDraft()/addAttachments(); 182-186 copies only text into the existing comparison before followUp.",
+        "AppModel.swift:404-405 reads comparison attachments and returns when both text and those attachments are empty; AttachmentDelivery.swift:6-7 distinguishes global and comparison drafts."
+      ],
+      "file": "msgblast/Windows/WebServicesView.swift",
+      "first_evidence": "msgblast/Windows/WebServicesView.swift:185 -- model.state.comparisons[i].allDraft = text",
+      "independent_reviewers": [
+        "adversarial",
+        "correctness"
+      ],
+      "line": 185,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "adversarial",
+        "correctness"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Bind attachment import, display, removal, and followUp to the active comparison draft, preserving in-flight edits. Test attachment-only and text-plus-attachment native follow-ups after all web agents are deselected.",
+      "title": "Deselecting web agents drops attachments from native follow-ups",
+      "why_it_matters": "In an existing mixed comparison, deselecting all web agents enables attachments, but followUp reads comparison attachments while the shared composer stores global attachments. Attachment-only sends silently return; text-plus-attachment sends omit the displayed files.",
+      "validation_status": "confirmed",
+      "validation_reason": "For an existing mixed comparison with anchored Messages recipients and every web agent deselected, the reachable recipient toggles and attachment-enabled composer store files globally (WebServicesView.swift:116-130), while the new follow-up branch copies only text (185-186) and AppModel.swift:404-405,426-429 reads comparison attachments, so attachment-only sends return and text-plus-attachment sends omit the displayed files; incidence was not measured."
+    },
+    {
+      "#": 2,
+      "autofix_class": "gated_auto",
+      "confidence": 75,
+      "evidence": [
+        "WebAgentSession.swift:102 captures comparisonURL; 103 and 120-123 suspend without checking the current comparison; 118 can load the old target and 98 publishes its error.",
+        "WebServicesView.swift:29 clears comparison selection; WebAgents.swift:20 only changes the ID. navigationGeneration protects refresh results, not the reopen task."
+      ],
+      "file": "msgblast/App/AppModel.swift",
+      "first_evidence": "msgblast/App/AppModel.swift:285 -- Task { await webAgents.sessions.first { $0.provider == .muse }?.openMuseComparison(id) }",
+      "independent_reviewers": [
+        "julik-frontend-races"
+      ],
+      "line": 285,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "julik-frontend-races"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Cancel or invalidate pending reopen work whenever the comparison changes, including New comparison. Check the request token and comparison ID after awaits and before loading, accepting readiness, or publishing errors. Test overlapping opens and clearing selection during an open.",
+      "title": "Overlapping reopen tasks can restore stale Muse chat",
+      "why_it_matters": "Opening another comparison or choosing New comparison during a pending reopen leaves older navigation running on the shared WKWebView. It can load the previous chat or publish its timeout after the current selection changes.",
+      "validation_status": "confirmed",
+      "validation_reason": "When a second sidebar reopen or New comparison occurs during an earlier reopen's awaits, AppModel.swift:275-285 launches an uncancelled task and WebAgents.swift:20 only changes the ID, allowing WebAgentSession.swift:102-125 to resume with the old target, load it or eventually publish its stale timeout at line 98 without checking the current comparison, while navigationGeneration guards only refresh results (142-150); the UI permits this ordering because reopen does not set its busy flags, and incidence was not measured.",
+      "protected_subject": "concurrency"
+    },
+    {
+      "#": 3,
+      "autofix_class": "manual",
+      "confidence": 75,
+      "evidence": [
+        "AppModel.swift:431,461-464 saves the attempt and recipient errors without setting model.error; WebServicesView.swift:187 returns an ID when the attempt count increases, causing WebServices.swift:114-116 to clear the draft.",
+        "Views.swift:345-350 hides FollowUpStatus for embedded ConversationView; WebServicesView.swift:83 embeds it and supplies no replacement. WindowCoordinator.swift:112-115 reopens the same workspace."
+      ],
+      "file": "msgblast/Windows/WebServicesView.swift",
+      "first_evidence": "msgblast/Windows/WebServicesView.swift:186 -- await model.followUp(comparisonID, recipients: Array(recipients))",
+      "independent_reviewers": [
+        "adversarial"
+      ],
+      "line": 186,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "adversarial"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Show FollowUpStatus for the active native comparison in AgentsWorkspaceView. Disable retry/resume while either native or web sending is busy. Verify failed and uncertain attempts remain visible after draft clearing and reopening.",
+      "title": "Failed Messages follow-ups disappear without status or retry controls",
+      "why_it_matters": "A failed Messages follow-up is saved and clears the shared composer, but this workspace hides its per-recipient status and retry controls. Reopening returns to the same workspace, so users cannot see or recover the failed submission.",
+      "validation_status": "confirmed",
+      "validation_reason": "For an anchored mixed comparison whose native follow-up submission fails, including the explicit Automation-denied path in Messages/MessageSender.swift:45-46, AppModel.swift:431,461-464 saves the attempt and per-recipient error without setting model.error, and the new WebServicesView.swift:182-187 branch consequently clears the unchanged shared draft through WebServices.swift:114-116 while rendering no FollowUpStatus, suppressing it in embedded ConversationView (Views.swift:345-350), and reopening into that same workspace (WindowCoordinator.swift:112-115); incidence was not measured."
+    },
+    {
+      "#": 4,
+      "autofix_class": "gated_auto",
+      "confidence": 75,
+      "evidence": [
+        "WebAgentSession.swift:320 permits any HTTPS destination outside fixture mode; WebServicesView.swift:227 embeds that page.",
+        "WebServicesView.swift:242 displays a URL only in the popup sheet, leaving the main Muse pane without its previous host indicator."
+      ],
+      "file": "msgblast/Windows/WebServicesView.swift",
+      "first_evidence": "msgblast/Windows/WebServicesView.swift:206 -- Text(session.provider == .muse ? \"Side chat\" : session.webView.url?.host ?? session.provider.homeURL.host!).font(.caption).foregroundStyle(.secondary)",
+      "independent_reviewers": [
+        "security"
+      ],
+      "line": 206,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "security"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Display the actual webView URL host for Muse. Add Side chat only when the current URL passes the Muse chat allowlist. Verify same-window navigation to another HTTPS host updates the native header.",
+      "title": "Preserve the actual host in the Muse pane",
+      "why_it_matters": "After same-window navigation to another HTTPS host, the native header still identifies the page as Muse / Side chat. The missing origin indicator can make an external sign-in form appear trusted; automated-send allowlisting does not protect credentials typed directly into the page.",
+      "validation_status": "confirmed",
+      "validation_reason": "A live Muse pane can reach an external HTTPS page through same-window navigation because WebAgentSession.swift:318-325 permits any HTTPS destination, but the changed WebServicesView.swift:205-206 replaces the actual host with the unconditional Muse/Side chat heading and embeds the page at line 227, leaving no main-pane origin indicator for direct sign-in entry while URL display at line 242 applies only to popups; this establishes the newly introduced origin-misrepresentation condition, with navigation and credential-entry incidence not measured.",
+      "protected_subject": "authorization-authentication"
+    }
+  ],
+  "actionable_findings": [
+    {
+      "#": 1,
+      "autofix_class": "manual",
+      "confidence": 100,
+      "evidence": [
+        "WebServicesView.swift:127-130 uses global attachmentDraft()/addAttachments(); 182-186 copies only text into the existing comparison before followUp.",
+        "AppModel.swift:404-405 reads comparison attachments and returns when both text and those attachments are empty; AttachmentDelivery.swift:6-7 distinguishes global and comparison drafts."
+      ],
+      "file": "msgblast/Windows/WebServicesView.swift",
+      "first_evidence": "msgblast/Windows/WebServicesView.swift:185 -- model.state.comparisons[i].allDraft = text",
+      "independent_reviewers": [
+        "adversarial",
+        "correctness"
+      ],
+      "line": 185,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "adversarial",
+        "correctness"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Bind attachment import, display, removal, and followUp to the active comparison draft, preserving in-flight edits. Test attachment-only and text-plus-attachment native follow-ups after all web agents are deselected.",
+      "title": "Deselecting web agents drops attachments from native follow-ups",
+      "why_it_matters": "In an existing mixed comparison, deselecting all web agents enables attachments, but followUp reads comparison attachments while the shared composer stores global attachments. Attachment-only sends silently return; text-plus-attachment sends omit the displayed files.",
+      "validation_status": "confirmed",
+      "validation_reason": "For an existing mixed comparison with anchored Messages recipients and every web agent deselected, the reachable recipient toggles and attachment-enabled composer store files globally (WebServicesView.swift:116-130), while the new follow-up branch copies only text (185-186) and AppModel.swift:404-405,426-429 reads comparison attachments, so attachment-only sends return and text-plus-attachment sends omit the displayed files; incidence was not measured."
+    },
+    {
+      "#": 2,
+      "autofix_class": "gated_auto",
+      "confidence": 75,
+      "evidence": [
+        "WebAgentSession.swift:102 captures comparisonURL; 103 and 120-123 suspend without checking the current comparison; 118 can load the old target and 98 publishes its error.",
+        "WebServicesView.swift:29 clears comparison selection; WebAgents.swift:20 only changes the ID. navigationGeneration protects refresh results, not the reopen task."
+      ],
+      "file": "msgblast/App/AppModel.swift",
+      "first_evidence": "msgblast/App/AppModel.swift:285 -- Task { await webAgents.sessions.first { $0.provider == .muse }?.openMuseComparison(id) }",
+      "independent_reviewers": [
+        "julik-frontend-races"
+      ],
+      "line": 285,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "julik-frontend-races"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Cancel or invalidate pending reopen work whenever the comparison changes, including New comparison. Check the request token and comparison ID after awaits and before loading, accepting readiness, or publishing errors. Test overlapping opens and clearing selection during an open.",
+      "title": "Overlapping reopen tasks can restore stale Muse chat",
+      "why_it_matters": "Opening another comparison or choosing New comparison during a pending reopen leaves older navigation running on the shared WKWebView. It can load the previous chat or publish its timeout after the current selection changes.",
+      "validation_status": "confirmed",
+      "validation_reason": "When a second sidebar reopen or New comparison occurs during an earlier reopen's awaits, AppModel.swift:275-285 launches an uncancelled task and WebAgents.swift:20 only changes the ID, allowing WebAgentSession.swift:102-125 to resume with the old target, load it or eventually publish its stale timeout at line 98 without checking the current comparison, while navigationGeneration guards only refresh results (142-150); the UI permits this ordering because reopen does not set its busy flags, and incidence was not measured.",
+      "protected_subject": "concurrency"
+    },
+    {
+      "#": 3,
+      "autofix_class": "manual",
+      "confidence": 75,
+      "evidence": [
+        "AppModel.swift:431,461-464 saves the attempt and recipient errors without setting model.error; WebServicesView.swift:187 returns an ID when the attempt count increases, causing WebServices.swift:114-116 to clear the draft.",
+        "Views.swift:345-350 hides FollowUpStatus for embedded ConversationView; WebServicesView.swift:83 embeds it and supplies no replacement. WindowCoordinator.swift:112-115 reopens the same workspace."
+      ],
+      "file": "msgblast/Windows/WebServicesView.swift",
+      "first_evidence": "msgblast/Windows/WebServicesView.swift:186 -- await model.followUp(comparisonID, recipients: Array(recipients))",
+      "independent_reviewers": [
+        "adversarial"
+      ],
+      "line": 186,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "adversarial"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Show FollowUpStatus for the active native comparison in AgentsWorkspaceView. Disable retry/resume while either native or web sending is busy. Verify failed and uncertain attempts remain visible after draft clearing and reopening.",
+      "title": "Failed Messages follow-ups disappear without status or retry controls",
+      "why_it_matters": "A failed Messages follow-up is saved and clears the shared composer, but this workspace hides its per-recipient status and retry controls. Reopening returns to the same workspace, so users cannot see or recover the failed submission.",
+      "validation_status": "confirmed",
+      "validation_reason": "For an anchored mixed comparison whose native follow-up submission fails, including the explicit Automation-denied path in Messages/MessageSender.swift:45-46, AppModel.swift:431,461-464 saves the attempt and per-recipient error without setting model.error, and the new WebServicesView.swift:182-187 branch consequently clears the unchanged shared draft through WebServices.swift:114-116 while rendering no FollowUpStatus, suppressing it in embedded ConversationView (Views.swift:345-350), and reopening into that same workspace (WindowCoordinator.swift:112-115); incidence was not measured."
+    },
+    {
+      "#": 4,
+      "autofix_class": "gated_auto",
+      "confidence": 75,
+      "evidence": [
+        "WebAgentSession.swift:320 permits any HTTPS destination outside fixture mode; WebServicesView.swift:227 embeds that page.",
+        "WebServicesView.swift:242 displays a URL only in the popup sheet, leaving the main Muse pane without its previous host indicator."
+      ],
+      "file": "msgblast/Windows/WebServicesView.swift",
+      "first_evidence": "msgblast/Windows/WebServicesView.swift:206 -- Text(session.provider == .muse ? \"Side chat\" : session.webView.url?.host ?? session.provider.homeURL.host!).font(.caption).foregroundStyle(.secondary)",
+      "independent_reviewers": [
+        "security"
+      ],
+      "line": 206,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "security"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Display the actual webView URL host for Muse. Add Side chat only when the current URL passes the Muse chat allowlist. Verify same-window navigation to another HTTPS host updates the native header.",
+      "title": "Preserve the actual host in the Muse pane",
+      "why_it_matters": "After same-window navigation to another HTTPS host, the native header still identifies the page as Muse / Side chat. The missing origin indicator can make an external sign-in form appear trusted; automated-send allowlisting does not protect credentials typed directly into the page.",
+      "validation_status": "confirmed",
+      "validation_reason": "A live Muse pane can reach an external HTTPS page through same-window navigation because WebAgentSession.swift:318-325 permits any HTTPS destination, but the changed WebServicesView.swift:205-206 replaces the actual host with the unconditional Muse/Side chat heading and embeds the page at line 227, leaving no main-pane origin indicator for direct sign-in entry while URL display at line 242 applies only to popups; this establishes the newly introduced origin-misrepresentation condition, with navigation and credential-entry incidence not measured.",
+      "protected_subject": "authorization-authentication"
+    }
+  ],
+  "triage_groups": [
+    {
+      "title": "Messages follow-up payload and recovery",
+      "findings": [
+        1,
+        3
+      ],
+      "kind": "apply-queue",
+      "context": "The new shared workspace sends existing native comparisons without carrying both the comparison attachment draft and its failure UI.",
+      "preferred_resolution": "Repair the attachment binding in #1, then restore follow-up status and retry/resume controls in #3; verify successful, failed, and uncertain native follow-ups together.",
+      "why": "The fixes address different failure modes in the same shared follow-up workflow and should share a targeted regression check."
+    }
+  ],
+  "pre_existing_findings": [],
+  "requirements_completeness": null,
+  "learnings": [],
+  "agent_native_gaps": [],
+  "deployment_notes": [],
+  "residual_risks": [
+    "The production Muse side-chat contract remains dependent on the authenticated site continuing to use /thread/new, UUID-shaped /thread/<id> URLs, and the reviewed DOM markers; the local fixture simulates those behaviors but cannot establish live compatibility. The implementation fails closed and retains an unconfirmed attempt when that contract is not observed."
+  ],
+  "testing_gaps": [
+    "Muse trusted-user interruption remains untested by a real input/navigation event in this review: the new listener ignores untrusted synthetic events. A controlled browser fixture should show that a trusted edit or navigation during receipt polling leaves the attempt uncertain and does not save a side-chat URL. Existing changed-thread tests establish URL-attribution rejection, but do not exercise this listener's trusted-event branch."
+  ],
+  "coverage": {
+    "depth": "full",
+    "mode": "agent report-only",
+    "notes": [
+      "Full depth required by scope helper: 262 executable non-test changed lines, 358 changed lines, large size band. Fourteen tracked paths reviewed; no untracked paths excluded.",
+      "Project standards use the root AGENTS.md instruction-file fallback for all changed paths. No CE configuration, declared packs, or matching side-chat plan found; formal requirements completeness is not assessed.",
+      "External cross-model review did not start because automatic approval had rejected exporting this private repository to the external Claude CLI earlier in the session. No retry or alternate recipient was attempted; adversarial lens ran locally. No cross-model independence is claimed.",
+      "Only one reviewer leaf fit the observed host capacity. All nine selected local reviewers completed serially in this turn; capacity rejections were queued and retried, not counted as failures.",
+      "Parent reported 92 passing core tests and successful Xcode build before four small cleanups; this review did not rerun them. Source remained unchanged through dispatch. Prior multiweb implementation and integrated main baseline have separate prior tests/reviews and are outside this delta except interacting callers.",
+      "Parent manual CUA fixture evidence exercises production entry points: selected Muse+Cedar, submitted initial and follow-up prompts in same Muse UUID; created new Muse-only comparison with different UUID; reopened original via sidebar WindowCoordinator.open, restored original UUID, Cedar recipient selection/native pane, and both original user messages. Local fixtures simulate web and Messages sends; this does not prove authenticated live Muse DOM compatibility.",
+      "Parent runtime evidence: unchanged production msgblast/App/AppUpdater.swift compiled with a controlled local @Published AppModel in /tmp/msgblast-web-lifecycle.swift. /tmp/msgblast-web-lifecycle.log reportedly PASS: webBroadcastBusy alone defers applicationShouldTerminate, pending updater callback stays deferred when native busy remains true after web flag clears, then fires exactly once once both flags clear. Sparkle startingUpdater:false, no downloads/real termination. Merge/validator may inspect artifacts. Parent also reported controller shutdown/save-rollback script passed.",
+      "Parent reported a manually observed stale receipt header on reopening: pane displays state.attempts.first from another comparison. Parent also raised a stale refresh/draft navigation candidate; neither was independently reviewed in this dispatch. Do not convert these comments into confirmed findings without evidence.",
+      "No UI, live sends, source edits, commits, PR updates, or publication performed by this review. No PR Screenshots/Video evidence evaluated because this is a local report-only delta review.",
+      "Agent-native, learnings, performance, public API contract, data-migration, deployment, and previous-PR-comment reviewers were not selected because their explicit surfaces are absent.",
+      "Additional parent runtime evidence: actual production AppModel and WindowCoordinator compiled in /tmp/msgblast-sidechat-model.swift, with /tmp/msgblast-sidechat-model.log reported PASS. Covers new mixed comparison, native fixture submit, second web-only comparison, coordinator.open(first), original Muse UUID restored, native recipient and Muse selection restored. Source remains unchanged. Merge/validator may inspect these artifacts.",
+      "Parent began caller-owned fixes after all reviewer results were collected. Finish and validation use the reconstructed immutable reviewed-tree snapshot (git archive of f838cb57efdee6a544b93615f94421acbb08878f plus full.diff), not the edited live worktree. This receipt covers the captured pre-fix delta only.",
+      "Settlement suppression was not evaluated because no plan was discovered.",
+      "The merge inspected the parent runtime harnesses and PASS logs for AppLifecycle deferral and AppModel/WindowCoordinator reopening; the corresponding test-absence claims were rejected.",
+      "One validator batch returned all four verdicts within its bound: 4 confirmed, 0 rejected, 0 unresolved, 0 malformed, 0 failed, and 0 shortcut-skipped. No verified external cross-model corroboration qualified for a shortcut. All four defects were confirmed from code; incidence was not measured.",
+      "Findings #2 and #4 concern concurrency and authorization/authentication respectively. No protected-subject reclassification or validation-degraded blocker remains.",
+      "Caller-owned fixes made after capture are outside this receipt; the report does not assess whether those fixes resolve these findings."
+    ],
+    "reviewer_selection": {
+      "correctness": "Trace comparison creation, follow-ups, and reopening behavior.",
+      "project-standards": "AGENTS.md governs all changed paths.",
+      "testing": "New side-chat tests and fixtures must exercise consequential failure paths.",
+      "maintainability": "262 executable non-test lines introduce comparison/session coordination.",
+      "security": "Validate outgoing user-input handling, destination allowlisting, and session isolation.",
+      "reliability": "Inspect persistence failures, navigation timeout, and uncertain-send recovery.",
+      "adversarial": "Attack cross-component ordering and external-send attribution; local fallback.",
+      "julik-frontend-races": "Async navigation, DOM observation, and selection can interleave.",
+      "swift-ios": "SwiftUI state and MainActor task ordering changed."
+    },
+    "cross_model_outcome": "in-process-fallback",
+    "validator": {
+      "outcome": "verdicts",
+      "batches": 1,
+      "selected": 4,
+      "confirmed": 4,
+      "rejected": 0,
+      "unresolved": 0,
+      "malformed": 0,
+      "failed": 0,
+      "shortcut_skipped": 0,
+      "bound_exceeded": false,
+      "protected_subject_reclassifications": 0
+    },
+    "suppressed_by_confidence": {},
+    "first_evidence_backfilled": 0,
+    "quote_gate_demotions": 0,
+    "mode_aware_demotions": 0,
+    "malformed_findings": 0,
+    "malformed_returns": 0,
+    "semantic_duplicates_merged": 1,
+    "admission_rejections": 4,
+    "settlement_suppression_evaluated": false,
+    "settlement_suppressed": 0,
+    "failed_reviewers": [],
+    "compound_packs": {
+      "roots": [],
+      "errors": [],
+      "warnings": []
+    }
+  },
+  "artifact_path": "/tmp/compound-engineering-501/ce-code-review/20261005-185010-53a39e8f",
+  "run_id": "20261005-185010-53a39e8f"
+}

@@ -2,10 +2,10 @@ import Foundation
 import msgblastCore
 struct LocalStore: Sendable {
     let url: URL
-    init(demo: Bool, isolated: Bool = false, fixtureDirectory: URL? = nil) {
-        let root = fixtureDirectory ?? (demo && isolated
+    init(demo: Bool, isolated: Bool = false, fixtureDirectory: URL? = nil, webPreview: Bool = false) {
+        let root = fixtureDirectory ?? (demo && isolated && !webPreview
             ? FileManager.default.temporaryDirectory.appendingPathComponent("msgblast-UIFixture-" + UUID().uuidString, isDirectory: true)
-            : FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent(demo ? "msgblast-Demo" : "msgblast", isDirectory: true))
+            : FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent(webPreview ? "MsgBlast-WebPreview" : demo ? "msgblast-Demo" : "msgblast", isDirectory: true))
         url = root.appendingPathComponent("state.json")
     }
     func load() throws -> AppState {

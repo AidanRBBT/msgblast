@@ -1,0 +1,492 @@
+{
+  "status": "complete",
+  "verdict": "Ready with fixes",
+  "verdict_reason": "PRE-FIX review: preserve observed Muse results when receipt persistence fails (#1) and preserve drafts edited during a broadcast (#2). Then publish native progress before submissions finish (#4) and cover partial broadcast outcomes (#5). Later parent edits are outside this captured review.",
+  "scope": {
+    "base": "HEAD",
+    "branch": "codex/webkit-services",
+    "head_sha": "2d18b30fccda937f700eb023172f699f960134a2",
+    "pr_url": null,
+    "files_changed": 13,
+    "diff": "/tmp/compound-engineering-501/ce-code-review/20261002-124557-f1c8e4e5/full.diff",
+    "snapshot": "PRE-FIX working tree, including seven untracked feature files"
+  },
+  "intent": "Add actual embedded Muse WKWebView as an agent in My agents alongside Messages, using the shared native composer and independent broadcast results. Preserve existing Messages-only behavior, separate persistent login, site drafts, exact main-chat readiness checks, and no automatic retry of ambiguous sends. No Grok UI.",
+  "intent_confidence": "explicit",
+  "reviewers": [
+    "correctness",
+    "project-standards",
+    "testing",
+    "maintainability",
+    "security",
+    "reliability",
+    "adversarial",
+    "julik-frontend-races",
+    "swift-ios"
+  ],
+  "findings": [
+    {
+      "#": 1,
+      "title": "A receipt save failure misreports an observed Muse send as not sent",
+      "severity": "P1",
+      "file": "MsgBlast/Core/MuseWebSession.swift",
+      "line": 168,
+      "confidence": 100,
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "pre_existing": false,
+      "suggested_fix": "Preserve .observed when saving its receipt fails and expose the storage error separately. Retain .uncertain for other ambiguous post-click failures; only known pre-click failures may become .notSent. Add failure injection after a matching outgoing message is observed and assert that both returned and in-memory results never claim notSent.",
+      "first_evidence": "MsgBlast/Core/MuseWebSession.swift:168 -- attempt.status = attempt.status == .attempting ? .uncertain : .notSent",
+      "why_it_matters": "If the first intent saves succeed, Muse is clicked, a matching outgoing message is observed, and the receipt write or permission update then fails, the catch changes observed to notSent. The UI falsely reports that nothing was sent, and a later repeat is permitted. Preserve the known observation and surface the storage error separately. This is a code-established failure path; storage-failure incidence was not measured.",
+      "evidence": [
+        "MsgBlast/Core/MuseWebSession.swift:168 -- attempt.status = attempt.status == .attempting ? .uncertain : .notSent",
+        "MsgBlast/Core/MuseWebSession.swift:154-157 -- attempt.status = .observed; attempt.messageID = matches[0].id; attempt.detail = \"The outgoing message appeared in Muse. This is a page observation, not a server delivery receipt.\"; try store(attempt)",
+        "MsgBlast/Core/WebServices.swift:36-37 -- attempts.contains { $0.text == text && [.attempting, .uncertain].contains($0.status) }",
+        "Trigger: the initial intent and attempting saves succeed, the click runs, and one new matching outgoing message appears; then the filesystem write or permission update for the observed-result save fails.",
+        "MsgBlast/Core/MuseWebSession.swift:154-157 sets attempt.status = .observed before try store(attempt), so the error arrives at :168 with a status other than attempting and becomes notSent.",
+        "MsgBlast/Core/MuseWebSession.swift:177-185 updates in-memory state before saving and has throwing file creation, atomic write, and permission-setting operations. The final :172 store updates memory to notSent even if storage remains unavailable.",
+        "MsgBlast/Core/WebServices.swift:36-37 blocks repeats only for attempting or uncertain; observed-result persistence failure therefore removes the safeguard while WebSendStatus.notSent displays 'Not sent to Muse'.",
+        "MsgBlast/Core/MuseWebSession.swift:154 -- attempt.status = .observed",
+        "MsgBlast/Core/MuseWebSession.swift:157 -- try store(attempt)",
+        "MsgBlast/Core/MuseWebSession.swift:172 -- do { try store(attempt) } catch { self.error = \"Could not save the send result. Check Muse before retrying.\" }",
+        "MsgBlast/Core/MuseWebSession.swift:178-185 mutates the in-memory attempt before throwing filesystem operations; a failed observed-result save enters the outer catch, changes that result to notSent, and the final store can persist the false result if the failure is transient."
+      ],
+      "reviewers": [
+        "adversarial",
+        "correctness",
+        "reliability"
+      ],
+      "independent_reviewers": [
+        "adversarial",
+        "correctness",
+        "reliability"
+      ],
+      "validation_status": "confirmed",
+      "validation_reason": "MuseWebSession.swift:154-168 mutates an observed attempt before the throwing store, then reclassifies any resulting non-notSent error as notSent, while store at lines 177-185 updates in-memory state before filesystem work and WebServices.swift:36-37 allows retry of notSent; the required post-observation storage failure is reachable from the throwing create/write/permission operations, though its incidence was not measured.",
+      "protected_subject": "data-loss"
+    },
+    {
+      "#": 2,
+      "title": "Completing a broadcast erases the next draft",
+      "severity": "P1",
+      "file": "MsgBlast/Windows/WebServicesView.swift",
+      "line": 223,
+      "confidence": 100,
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "pre_existing": false,
+      "suggested_fix": "Capture the exact untrimmed shared draft before starting the send and derive the submitted text from it. Clear the draft on completion only if its current value still equals that snapshot (or its revision is unchanged). Add a delayed-send regression that edits the next draft before completion and verifies those edits survive. Keeping the composer editable avoids adding a new input restriction.",
+      "first_evidence": "MsgBlast/Windows/WebServicesView.swift:223 -- if attempt != nil || id != nil { model.state.draft = \"\"; model.persist() }",
+      "why_it_matters": "The shared NSTextView continues writing to AppState.draft while the two submissions are awaited. Completion then clears and persists its current value, erasing a next message typed during that interval. Muse alone can await five seconds of observation. Clear only the submitted draft snapshot, preserving subsequent edits; no app interaction was performed to measure incidence.",
+      "evidence": [
+        "MsgBlast/Windows/WebServicesView.swift:223 -- if attempt != nil || id != nil { model.state.draft = \"\"; model.persist() }",
+        "Trigger: start a send including Muse, then select the still-visible shared prompt and type the next message while session.send is observing the first outgoing message.",
+        "MsgBlast/Windows/WebServicesView.swift:179 binds MessageInput directly to model.state.draft; :218 awaits both webAttempt and comparisonID before the unconditional clear.",
+        "MsgBlast/Windows/Views.swift:111-114 passes only attachment availability and a guarded send callback into MessageEditor. MsgBlast/Windows/MessageEditor.swift:35-37 writes every text edit to its binding, and :60-64 updates the native text without disabling editing.",
+        "MsgBlast/Core/MuseWebSession.swift:148-150 can suspend for twenty 250 ms observation iterations. The completion path then deletes and persists any intervening editor changes.",
+        "MsgBlast/Windows/Views.swift:110 -- MessageEditor(text: $text, accessibilityName: accessibilityName, attachmentsEnabled: attachmentsEnabled && !unavailable, importAttachment: { selection in",
+        "MsgBlast/Windows/MessageEditor.swift:60-66 -- updateNSView updates text, attachment handling, and size but never sets NSTextView.isEditable from MessageInput's disabled/unavailable state.",
+        "The new shared path sets sending before launching two async submissions and clears only after awaiting both (WebServicesView.swift:212-223), unlike AppModel.start(), which clears the draft before awaiting submit (AppModel.swift:241-245).",
+        "MsgBlast/Windows/WebServicesView.swift:218 -- let (attempt, id) = await (webAttempt, comparisonID)",
+        "MsgBlast/Windows/WebServicesView.swift:179 -- MessageInput(text: Binding(get: { model.state.draft }, set: { model.state.draft = $0; model.persist() }),",
+        "MsgBlast/Windows/MessageEditor.swift:37 -- parent.text = view.string",
+        "MsgBlast/Core/MuseWebSession.swift:148-150 waits for up to twenty 250-millisecond observation intervals; the editor has no isEditable or disabled binding to busy. Existing AppModel.start clears the initial draft before awaiting submit at AppModel.swift:243-245."
+      ],
+      "reviewers": [
+        "adversarial",
+        "correctness",
+        "swift-ios"
+      ],
+      "independent_reviewers": [
+        "adversarial",
+        "correctness",
+        "swift-ios"
+      ],
+      "validation_status": "confirmed",
+      "validation_reason": "WebServicesView.swift:179 keeps the shared editor bound to model.state.draft during the awaits at lines 216-218, MessageEditor.swift:35-37 remains editable, and line 223 unconditionally overwrites any text entered before either nonnil result completes; the required ordering is a user edit during the documented Muse or Messages suspension, whose incidence was not measured.",
+      "protected_subject": "data-loss"
+    },
+    {
+      "#": 4,
+      "title": "Publish the Messages comparison before submissions finish",
+      "severity": "P2",
+      "file": "MsgBlast/App/AppModel.swift",
+      "line": 260,
+      "confidence": 75,
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "pre_existing": false,
+      "suggested_fix": "Split comparison creation from submission: return or publish the ID immediately after `try save()` at line 259, assign `session.state.comparisonID` in the view, then await `model.submit(id, retry: false)` concurrently with `session.send(text)`. Keep the current `sending` guard active until both submissions complete.",
+      "first_evidence": "MsgBlast/App/AppModel.swift:260 -- await submit(comparison.id, retry: false)",
+      "why_it_matters": "After Send & compare, the native recipient panes remain absent until all Messages sends and their history-observation loops finish, even though the comparison was already saved and individual recipient states are being updated. With multiple recipients this can delay visible native progress by several seconds per recipient, so Muse and Messages do not present independent results as promised. Publishing the saved comparison ID before awaiting submission lets the existing observable comparison state render each recipient's progress immediately.",
+      "evidence": [
+        "MsgBlast/App/AppModel.swift:260 -- await submit(comparison.id, retry: false)",
+        "MsgBlast/Windows/WebServicesView.swift:218-220 -- let (attempt, id) = await (webAttempt, comparisonID)\n            session.updateState {\n                $0.comparisonID = id\n            }",
+        "MsgBlast/App/AppModel.swift:313-323 -- for _ in 0..<6 { ... try await Task.sleep(for: .milliseconds(500)) }"
+      ],
+      "reviewers": [
+        "julik-frontend-races"
+      ],
+      "independent_reviewers": [
+        "julik-frontend-races"
+      ],
+      "validation_status": "confirmed",
+      "validation_reason": "AppModel.swift:257-261 saves the comparison but returns its ID only after await submit completes, while WebServicesView.swift:58 and 218-220 cannot render native panes until that returned ID is assigned, and submit can suspend for six 500 ms observations per recipient at lines 313-323; the delay requires at least one native recipient and was not measured in use.",
+      "protected_subject": "concurrency"
+    },
+    {
+      "#": 5,
+      "title": "Partial broadcast outcomes lack coverage",
+      "severity": "P2",
+      "file": "MsgBlast/Windows/WebServicesView.swift",
+      "line": 216,
+      "confidence": 75,
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "pre_existing": false,
+      "suggested_fix": "Add deterministic tests around the production shared-broadcast orchestration using controlled Muse and Messages operations: Muse fails/Messages succeeds, Muse succeeds/Messages fails, and both fail. Assert independent attempt and comparison outcomes, comparison visibility, and the intended shared-draft behavior. Extract only the small seam necessary to invoke the production path; do not duplicate its logic in tests.",
+      "first_evidence": "MsgBlast/Windows/WebServicesView.swift:216 -- async let webAttempt = includeMuse ? session.send(text) : nil\nMsgBlast/Windows/WebServicesView.swift:217 -- async let comparisonID = recipients.isEmpty ? nil : model.startTextComparison(text, recipientIDs: recipients)",
+      "why_it_matters": "A normal partial failure can leave Muse and Messages with different outcomes, but the suite only proves the all-success path. A regression that couples the two operations, loses the successful comparison ID, or clears/retains the shared draft incorrectly would pass while violating the promised independent broadcast behavior. Covering both one-side-fails cases at the orchestration boundary makes that contract observable without performing real sends.",
+      "evidence": [
+        "MsgBlast/Windows/WebServicesView.swift:216 -- async let webAttempt = includeMuse ? session.send(text) : nil\nMsgBlast/Windows/WebServicesView.swift:217 -- async let comparisonID = recipients.isEmpty ? nil : model.startTextComparison(text, recipientIDs: recipients)",
+        "MsgBlastUITests/WebServiceWorkflowTests.swift:28 -- app.buttons[\"Send & compare\"].click()",
+        "MsgBlastUITests/WebServiceWorkflowTests.swift:29 -- XCTAssertTrue(app.staticTexts[\"Appeared in Muse\"].waitForExistence(timeout: 10))",
+        "MsgBlastUITests/WebServiceWorkflowTests.swift:31 -- XCTAssertTrue(app.staticTexts[\"Cedar (Demo)\"].firstMatch.waitForExistence(timeout: 10))"
+      ],
+      "reviewers": [
+        "testing"
+      ],
+      "independent_reviewers": [
+        "testing"
+      ],
+      "validation_status": "confirmed",
+      "validation_reason": "Targeted inspection found WebServiceWorkflowTests.swift:5-41 covers only the shared Muse-plus-Messages success path and the separate WorkflowTests.swift:270-294 failure test covers native Messages recipients only, with no test exercising either one-side-fails outcome or both-fail behavior through WebServicesView.swift:216-223."
+    }
+  ],
+  "actionable_findings": [
+    {
+      "#": 1,
+      "title": "A receipt save failure misreports an observed Muse send as not sent",
+      "severity": "P1",
+      "file": "MsgBlast/Core/MuseWebSession.swift",
+      "line": 168,
+      "confidence": 100,
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "pre_existing": false,
+      "suggested_fix": "Preserve .observed when saving its receipt fails and expose the storage error separately. Retain .uncertain for other ambiguous post-click failures; only known pre-click failures may become .notSent. Add failure injection after a matching outgoing message is observed and assert that both returned and in-memory results never claim notSent.",
+      "first_evidence": "MsgBlast/Core/MuseWebSession.swift:168 -- attempt.status = attempt.status == .attempting ? .uncertain : .notSent",
+      "why_it_matters": "If the first intent saves succeed, Muse is clicked, a matching outgoing message is observed, and the receipt write or permission update then fails, the catch changes observed to notSent. The UI falsely reports that nothing was sent, and a later repeat is permitted. Preserve the known observation and surface the storage error separately. This is a code-established failure path; storage-failure incidence was not measured.",
+      "evidence": [
+        "MsgBlast/Core/MuseWebSession.swift:168 -- attempt.status = attempt.status == .attempting ? .uncertain : .notSent",
+        "MsgBlast/Core/MuseWebSession.swift:154-157 -- attempt.status = .observed; attempt.messageID = matches[0].id; attempt.detail = \"The outgoing message appeared in Muse. This is a page observation, not a server delivery receipt.\"; try store(attempt)",
+        "MsgBlast/Core/WebServices.swift:36-37 -- attempts.contains { $0.text == text && [.attempting, .uncertain].contains($0.status) }",
+        "Trigger: the initial intent and attempting saves succeed, the click runs, and one new matching outgoing message appears; then the filesystem write or permission update for the observed-result save fails.",
+        "MsgBlast/Core/MuseWebSession.swift:154-157 sets attempt.status = .observed before try store(attempt), so the error arrives at :168 with a status other than attempting and becomes notSent.",
+        "MsgBlast/Core/MuseWebSession.swift:177-185 updates in-memory state before saving and has throwing file creation, atomic write, and permission-setting operations. The final :172 store updates memory to notSent even if storage remains unavailable.",
+        "MsgBlast/Core/WebServices.swift:36-37 blocks repeats only for attempting or uncertain; observed-result persistence failure therefore removes the safeguard while WebSendStatus.notSent displays 'Not sent to Muse'.",
+        "MsgBlast/Core/MuseWebSession.swift:154 -- attempt.status = .observed",
+        "MsgBlast/Core/MuseWebSession.swift:157 -- try store(attempt)",
+        "MsgBlast/Core/MuseWebSession.swift:172 -- do { try store(attempt) } catch { self.error = \"Could not save the send result. Check Muse before retrying.\" }",
+        "MsgBlast/Core/MuseWebSession.swift:178-185 mutates the in-memory attempt before throwing filesystem operations; a failed observed-result save enters the outer catch, changes that result to notSent, and the final store can persist the false result if the failure is transient."
+      ],
+      "reviewers": [
+        "adversarial",
+        "correctness",
+        "reliability"
+      ],
+      "independent_reviewers": [
+        "adversarial",
+        "correctness",
+        "reliability"
+      ],
+      "validation_status": "confirmed",
+      "validation_reason": "MuseWebSession.swift:154-168 mutates an observed attempt before the throwing store, then reclassifies any resulting non-notSent error as notSent, while store at lines 177-185 updates in-memory state before filesystem work and WebServices.swift:36-37 allows retry of notSent; the required post-observation storage failure is reachable from the throwing create/write/permission operations, though its incidence was not measured.",
+      "protected_subject": "data-loss"
+    },
+    {
+      "#": 2,
+      "title": "Completing a broadcast erases the next draft",
+      "severity": "P1",
+      "file": "MsgBlast/Windows/WebServicesView.swift",
+      "line": 223,
+      "confidence": 100,
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "pre_existing": false,
+      "suggested_fix": "Capture the exact untrimmed shared draft before starting the send and derive the submitted text from it. Clear the draft on completion only if its current value still equals that snapshot (or its revision is unchanged). Add a delayed-send regression that edits the next draft before completion and verifies those edits survive. Keeping the composer editable avoids adding a new input restriction.",
+      "first_evidence": "MsgBlast/Windows/WebServicesView.swift:223 -- if attempt != nil || id != nil { model.state.draft = \"\"; model.persist() }",
+      "why_it_matters": "The shared NSTextView continues writing to AppState.draft while the two submissions are awaited. Completion then clears and persists its current value, erasing a next message typed during that interval. Muse alone can await five seconds of observation. Clear only the submitted draft snapshot, preserving subsequent edits; no app interaction was performed to measure incidence.",
+      "evidence": [
+        "MsgBlast/Windows/WebServicesView.swift:223 -- if attempt != nil || id != nil { model.state.draft = \"\"; model.persist() }",
+        "Trigger: start a send including Muse, then select the still-visible shared prompt and type the next message while session.send is observing the first outgoing message.",
+        "MsgBlast/Windows/WebServicesView.swift:179 binds MessageInput directly to model.state.draft; :218 awaits both webAttempt and comparisonID before the unconditional clear.",
+        "MsgBlast/Windows/Views.swift:111-114 passes only attachment availability and a guarded send callback into MessageEditor. MsgBlast/Windows/MessageEditor.swift:35-37 writes every text edit to its binding, and :60-64 updates the native text without disabling editing.",
+        "MsgBlast/Core/MuseWebSession.swift:148-150 can suspend for twenty 250 ms observation iterations. The completion path then deletes and persists any intervening editor changes.",
+        "MsgBlast/Windows/Views.swift:110 -- MessageEditor(text: $text, accessibilityName: accessibilityName, attachmentsEnabled: attachmentsEnabled && !unavailable, importAttachment: { selection in",
+        "MsgBlast/Windows/MessageEditor.swift:60-66 -- updateNSView updates text, attachment handling, and size but never sets NSTextView.isEditable from MessageInput's disabled/unavailable state.",
+        "The new shared path sets sending before launching two async submissions and clears only after awaiting both (WebServicesView.swift:212-223), unlike AppModel.start(), which clears the draft before awaiting submit (AppModel.swift:241-245).",
+        "MsgBlast/Windows/WebServicesView.swift:218 -- let (attempt, id) = await (webAttempt, comparisonID)",
+        "MsgBlast/Windows/WebServicesView.swift:179 -- MessageInput(text: Binding(get: { model.state.draft }, set: { model.state.draft = $0; model.persist() }),",
+        "MsgBlast/Windows/MessageEditor.swift:37 -- parent.text = view.string",
+        "MsgBlast/Core/MuseWebSession.swift:148-150 waits for up to twenty 250-millisecond observation intervals; the editor has no isEditable or disabled binding to busy. Existing AppModel.start clears the initial draft before awaiting submit at AppModel.swift:243-245."
+      ],
+      "reviewers": [
+        "adversarial",
+        "correctness",
+        "swift-ios"
+      ],
+      "independent_reviewers": [
+        "adversarial",
+        "correctness",
+        "swift-ios"
+      ],
+      "validation_status": "confirmed",
+      "validation_reason": "WebServicesView.swift:179 keeps the shared editor bound to model.state.draft during the awaits at lines 216-218, MessageEditor.swift:35-37 remains editable, and line 223 unconditionally overwrites any text entered before either nonnil result completes; the required ordering is a user edit during the documented Muse or Messages suspension, whose incidence was not measured.",
+      "protected_subject": "data-loss"
+    },
+    {
+      "#": 4,
+      "title": "Publish the Messages comparison before submissions finish",
+      "severity": "P2",
+      "file": "MsgBlast/App/AppModel.swift",
+      "line": 260,
+      "confidence": 75,
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "pre_existing": false,
+      "suggested_fix": "Split comparison creation from submission: return or publish the ID immediately after `try save()` at line 259, assign `session.state.comparisonID` in the view, then await `model.submit(id, retry: false)` concurrently with `session.send(text)`. Keep the current `sending` guard active until both submissions complete.",
+      "first_evidence": "MsgBlast/App/AppModel.swift:260 -- await submit(comparison.id, retry: false)",
+      "why_it_matters": "After Send & compare, the native recipient panes remain absent until all Messages sends and their history-observation loops finish, even though the comparison was already saved and individual recipient states are being updated. With multiple recipients this can delay visible native progress by several seconds per recipient, so Muse and Messages do not present independent results as promised. Publishing the saved comparison ID before awaiting submission lets the existing observable comparison state render each recipient's progress immediately.",
+      "evidence": [
+        "MsgBlast/App/AppModel.swift:260 -- await submit(comparison.id, retry: false)",
+        "MsgBlast/Windows/WebServicesView.swift:218-220 -- let (attempt, id) = await (webAttempt, comparisonID)\n            session.updateState {\n                $0.comparisonID = id\n            }",
+        "MsgBlast/App/AppModel.swift:313-323 -- for _ in 0..<6 { ... try await Task.sleep(for: .milliseconds(500)) }"
+      ],
+      "reviewers": [
+        "julik-frontend-races"
+      ],
+      "independent_reviewers": [
+        "julik-frontend-races"
+      ],
+      "validation_status": "confirmed",
+      "validation_reason": "AppModel.swift:257-261 saves the comparison but returns its ID only after await submit completes, while WebServicesView.swift:58 and 218-220 cannot render native panes until that returned ID is assigned, and submit can suspend for six 500 ms observations per recipient at lines 313-323; the delay requires at least one native recipient and was not measured in use.",
+      "protected_subject": "concurrency"
+    },
+    {
+      "#": 5,
+      "title": "Partial broadcast outcomes lack coverage",
+      "severity": "P2",
+      "file": "MsgBlast/Windows/WebServicesView.swift",
+      "line": 216,
+      "confidence": 75,
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "pre_existing": false,
+      "suggested_fix": "Add deterministic tests around the production shared-broadcast orchestration using controlled Muse and Messages operations: Muse fails/Messages succeeds, Muse succeeds/Messages fails, and both fail. Assert independent attempt and comparison outcomes, comparison visibility, and the intended shared-draft behavior. Extract only the small seam necessary to invoke the production path; do not duplicate its logic in tests.",
+      "first_evidence": "MsgBlast/Windows/WebServicesView.swift:216 -- async let webAttempt = includeMuse ? session.send(text) : nil\nMsgBlast/Windows/WebServicesView.swift:217 -- async let comparisonID = recipients.isEmpty ? nil : model.startTextComparison(text, recipientIDs: recipients)",
+      "why_it_matters": "A normal partial failure can leave Muse and Messages with different outcomes, but the suite only proves the all-success path. A regression that couples the two operations, loses the successful comparison ID, or clears/retains the shared draft incorrectly would pass while violating the promised independent broadcast behavior. Covering both one-side-fails cases at the orchestration boundary makes that contract observable without performing real sends.",
+      "evidence": [
+        "MsgBlast/Windows/WebServicesView.swift:216 -- async let webAttempt = includeMuse ? session.send(text) : nil\nMsgBlast/Windows/WebServicesView.swift:217 -- async let comparisonID = recipients.isEmpty ? nil : model.startTextComparison(text, recipientIDs: recipients)",
+        "MsgBlastUITests/WebServiceWorkflowTests.swift:28 -- app.buttons[\"Send & compare\"].click()",
+        "MsgBlastUITests/WebServiceWorkflowTests.swift:29 -- XCTAssertTrue(app.staticTexts[\"Appeared in Muse\"].waitForExistence(timeout: 10))",
+        "MsgBlastUITests/WebServiceWorkflowTests.swift:31 -- XCTAssertTrue(app.staticTexts[\"Cedar (Demo)\"].firstMatch.waitForExistence(timeout: 10))"
+      ],
+      "reviewers": [
+        "testing"
+      ],
+      "independent_reviewers": [
+        "testing"
+      ],
+      "validation_status": "confirmed",
+      "validation_reason": "Targeted inspection found WebServiceWorkflowTests.swift:5-41 covers only the shared Muse-plus-Messages success path and the separate WorkflowTests.swift:270-294 failure test covers native Messages recipients only, with no test exercising either one-side-fails outcome or both-fail behavior through WebServicesView.swift:216-223."
+    }
+  ],
+  "triage_groups": [
+    {
+      "title": "Shared broadcast completion and progress",
+      "findings": [
+        2,
+        4,
+        5
+      ],
+      "type": "apply-queue",
+      "context": "The shared view awaits both destinations before clearing its draft and publishing the native comparison ID.",
+      "preferred_resolution": "Fix draft preservation (#2), expose the saved native comparison before awaiting delivery (#4), then cover partial outcomes against that production path (#5).",
+      "why": "These changes share the broadcast orchestration boundary and can use the same controlled-operation test seam."
+    }
+  ],
+  "pre_existing_findings": [],
+  "requirements_completeness": null,
+  "learnings": [],
+  "agent_native_gaps": [],
+  "deployment_notes": [],
+  "residual_risks": [
+    "Live Muse login across app relaunch and compatibility with the deployed frontend remain outside this review. The fixture uses plain DOM listeners; the user supplied a screenshot showing a ready live chat and successful broadcast, but reviewers did not independently reproduce that workflow.",
+    "WebWorkspaceState.draft and messageRecipients are unused by the UI; WebServiceTests.swift:69-78 persists the former while the shared composer binds AppState.draft at WebServicesView.swift:179. This is a small storage/test clarity issue, not a reproduced user-facing failure. Unused-callsite inspection used repository text search; external or dynamic references were not established."
+  ],
+  "testing_gaps": [
+    "Navigation/loading changes between prepare and click and matching chat DOM on another HTTPS origin have no end-to-end WebKit negative test. These cases exercise the new native-to-page boundary (MuseWebSession.swift:127-142); only the URL predicate is tested off-origin.",
+    "Zero or multiple visible Send controls are guarded by MusePageScript.swift:45-47 but not exercised; the existing ambiguous-send test instead suppresses the unique button click handler.",
+    "The recovery test covers attempting -> uncertain but not preparing -> notSent, the pre-click recovery branch in WebServices.swift:46-48.",
+    "The workflow test waits for final content and does not assert native recipient progress while submissions remain pending; targeted coverage belongs with primary finding #4."
+  ],
+  "coverage": {
+    "depth": "full",
+    "mode": "agent report-only",
+    "reviewer_selection": [
+      {
+        "reviewer": "correctness",
+        "tier": "session",
+        "reason": "always-on"
+      },
+      {
+        "reviewer": "project-standards",
+        "tier": "mid",
+        "reason": "AGENTS.md instruction fallback applies to all changed paths"
+      },
+      {
+        "reviewer": "testing",
+        "tier": "mid",
+        "reason": "New tests and synthetic WebKit fixture plus mixed-recipient send behavior"
+      },
+      {
+        "reviewer": "maintainability",
+        "tier": "mid",
+        "reason": "New session/DOM abstraction and >200 new executable lines"
+      },
+      {
+        "reviewer": "security",
+        "tier": "session",
+        "reason": "Embedded login, persistent browser data and DOM input boundary"
+      },
+      {
+        "reviewer": "reliability",
+        "tier": "mid",
+        "reason": "External submissions, persistence failures and uncertain result handling"
+      },
+      {
+        "reviewer": "adversarial",
+        "tier": "session",
+        "reason": "Cross-component send ordering and partial failures; external peer denied before start"
+      },
+      {
+        "reviewer": "julik-frontend-races",
+        "tier": "mid",
+        "reason": "DOM input/click and background inspection timing"
+      },
+      {
+        "reviewer": "swift-ios",
+        "tier": "mid",
+        "reason": "SwiftUI selection and MainActor WebKit lifecycle"
+      }
+    ],
+    "suppressed_by_confidence": {},
+    "malformed_findings": 0,
+    "malformed_returns": 0,
+    "first_evidence_backfilled": 0,
+    "quote_gate_demotions": 0,
+    "mode_aware_demotions": 1,
+    "semantic_duplicates_merged": 4,
+    "rejected_claims": [
+      {
+        "title": "Duplicate Messages submission workflow can drift",
+        "reason": "The duplicated preflight sequence is short and currently enforces the same checks in both intentional caller paths. Future drift alone does not establish a present defect or enough benefit for a required refactor."
+      }
+    ],
+    "settlement_suppression_evaluated": false,
+    "validator": {
+      "outcome": "verdicts",
+      "batch_count": 1,
+      "confirmed": 4,
+      "rejected": 0,
+      "unresolved": 0,
+      "malformed": 0,
+      "failed": 0,
+      "shortcut_skipped": 0,
+      "bound_exceeded": false,
+      "protected_subject_reclassifications": [
+        {
+          "#": 4,
+          "from": null,
+          "to": "concurrency",
+          "reason": "Publishing the comparison only after both asynchronous operations complete is an ordering failure that delays observable native progress."
+        }
+      ],
+      "verdicts": [
+        {
+          "#": 1,
+          "status": "confirmed",
+          "protected_subject": "data-loss",
+          "reason": "MuseWebSession.swift:154-168 mutates an observed attempt before the throwing store, then reclassifies any resulting non-notSent error as notSent, while store at lines 177-185 updates in-memory state before filesystem work and WebServices.swift:36-37 allows retry of notSent; the required post-observation storage failure is reachable from the throwing create/write/permission operations, though its incidence was not measured."
+        },
+        {
+          "#": 2,
+          "status": "confirmed",
+          "protected_subject": "data-loss",
+          "reason": "WebServicesView.swift:179 keeps the shared editor bound to model.state.draft during the awaits at lines 216-218, MessageEditor.swift:35-37 remains editable, and line 223 unconditionally overwrites any text entered before either nonnil result completes; the required ordering is a user edit during the documented Muse or Messages suspension, whose incidence was not measured."
+        },
+        {
+          "#": 4,
+          "status": "confirmed",
+          "protected_subject": null,
+          "reason": "AppModel.swift:257-261 saves the comparison but returns its ID only after await submit completes, while WebServicesView.swift:58 and 218-220 cannot render native panes until that returned ID is assigned, and submit can suspend for six 500 ms observations per recipient at lines 313-323; the delay requires at least one native recipient and was not measured in use."
+        },
+        {
+          "#": 5,
+          "status": "confirmed",
+          "protected_subject": null,
+          "reason": "Targeted inspection found WebServiceWorkflowTests.swift:5-41 covers only the shared Muse-plus-Messages success path and the separate WorkflowTests.swift:270-294 failure test covers native Messages recipients only, with no test exercising either one-side-fails outcome or both-fail behavior through WebServicesView.swift:216-223."
+        }
+      ]
+    },
+    "peer": {
+      "selected": true,
+      "target": "claude",
+      "route": "claude",
+      "preference_source": "default",
+      "outcome": "in-process-fallback",
+      "artifact": null,
+      "coverage": "Cross-model pass not run: automatic approval review denied exporting private source to Claude before the job started. No peer content was sent. The adversarial lens ran through the local in-process fallback."
+    },
+    "compound_packs": {
+      "roots": [],
+      "errors": [],
+      "warnings": []
+    },
+    "failed_reviewers": [],
+    "bound_exceeded": [],
+    "unassessed_specialist_outputs": [
+      "learnings",
+      "agent-native gaps",
+      "deployment verification"
+    ],
+    "notes": [
+      "Full depth chosen for persistent authentication/data and external-send boundaries.",
+      "The scope helper counted the six tracked files only (117 changed lines, 72 executable non-test lines); caller explicitly included seven untracked feature sources/tests/script in full.diff and every reviewer scope.",
+      "Project standards assessed through root AGENTS.md instruction-file fallback; no CODING_STANDARDS.md found.",
+      "No explicit or inferred plan document found.",
+      "Parent reports latest isolated build compiled and all 48 core tests passed; all 10 UI tests were blocked by macOS runner authorization/helper connection failures, not assertion failures. Review agents did not run UI tests or interact with user apps.",
+      "User-provided live Muse screenshot is evidence supplied by the user, not independently reproduced live end-to-end validation.",
+      "No PR was created or updated in this report-only review.",
+      "Reviewed repository root: /Users/contains/.codex/worktrees/webkit-services/msgblast. All nine launched reviewers completed and wrote valid artifacts; no peer job was created.",
+      "Latest parent UI retry failed before any test executed: runner timed out enabling automation mode. UI validation remains environment-blocked.",
+      "PRE-FIX REVIEW: this receipt describes the captured full.diff and reviewed working-tree snapshot at validator completion. The parent began applying fixes afterwards; those edits are not assessed by this receipt.",
+      "Cross-model pass not run: automatic approval review denied exporting private source to Claude before the job started. No peer content was sent. The adversarial lens ran through the local in-process fallback.",
+      "All four selected findings were confirmed in one validator batch; verdicts landed before the bound. No shortcuts, rejected or unresolved findings, malformed verdicts, or infrastructure failures.",
+      "Same-model reviewer agreement caused no confidence promotion. The preserved independent_reviewers lists do not establish cross-model independence.",
+      "Settlement suppression was not evaluated because no plan was discovered. Stage 5c was skipped because apply_local is false.",
+      "No source edits, UI tests, or app interactions were performed by the report leaf."
+    ]
+  },
+  "artifact_path": "/tmp/compound-engineering-501/ce-code-review/20261002-124557-f1c8e4e5",
+  "run_id": "20261002-124557-f1c8e4e5"
+}

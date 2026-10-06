@@ -1,0 +1,334 @@
+{
+  "status": "complete",
+  "verdict": "Ready with fixes",
+  "verdict_reason": "Two confirmed P2 defects can use old messages as outgoing receipts and clear the unresolved-send retry guard. Fix message identity (#1), then bind first-send receipts to the submitting conversation (#3), and verify the three recorded regressions. Authenticated provider compatibility remains unverified.",
+  "fix_order": [
+    1,
+    3
+  ],
+  "scope": {
+    "base": "e8f3e93413fd0dbe4d6d4047fe6a0c9efb55a568",
+    "branch": "codex/webkit-services",
+    "head_sha": "e8f3e93413fd0dbe4d6d4047fe6a0c9efb55a568",
+    "pr_url": null,
+    "files_changed": 11,
+    "mode": "standalone",
+    "code_root": "/Users/contains/.codex/worktrees/webkit-services/msgblast",
+    "reviewed_diff": "/tmp/compound-engineering-501/ce-code-review/20261005-144837-1c9ee885/full.diff",
+    "description": "Frozen staged and unstaged 11-path diff against the base. Post-snapshot README edits are excluded; appended regression tests are reproduction evidence only."
+  },
+  "intent": "Extend Muse's embedded WKWebView workflow to selectable native ChatGPT, Claude (claude.com redirects to claude.ai), and Grok agents, each with persistent independent login, concurrent shared text submission, and embedded responses. Preserve Muse's avatar/session/state, safe draft and no-duplicate behavior, and native Messages flow.",
+  "intent_confidence": "explicit",
+  "reviewers": [
+    "correctness",
+    "project-standards",
+    "testing",
+    "maintainability",
+    "security",
+    "reliability",
+    "adversarial",
+    "julik-frontend-races",
+    "swift-ios"
+  ],
+  "findings": [
+    {
+      "#": 1,
+      "autofix_class": "manual",
+      "confidence": 100,
+      "evidence": [
+        "MsgBlast/Core/WebPageScript.swift:67 -- const messageIDs=messages().map(m=>m.id),input=editor();",
+        "MsgBlast/Core/WebPageScript.swift:31 -- const all = selector => [...document.querySelectorAll(selector)].filter(visible);",
+        "MsgBlast/Core/WebPageScript.swift:38 -- const messages = () => all(config.messages).filter(e => !e.parentElement?.closest(config.messages)).map((e,index) => {",
+        "Post-snapshot reproduction added by the implementer, not part of the frozen review diff: MultiWebAgentTests.swift:103 inserts a hidden matching user article with data-message-id='earlier-message' before preparation. Line 104 intercepts Send in capture phase, stops the normal fixture handler, reveals the historical node, and clears the composer; it creates no new message and does not change the URL.",
+        "MsgBlast/Core/WebAgentSession.swift:181 -- let matches = snapshot.messages.filter { !before.contains($0.id) && $0.role == \"user\" && Self.normalized($0.text) == normalizedText }. The old hidden ID was absent from before, so it is accepted after being revealed and lines 182-187 persist observed.",
+        "Read existing build/webkit-validation/Logs/Test/Test-MsgBlast-2026.10.05_14-55-31--0700.xcresult with xcrun xcresulttool get test-results tests; testRevealingAnOlderMatchingMessageIsNotANewSendReceipt failed: XCTAssertEqual failed Optional(MsgBlastCore.WebSendStatus.observed) != Optional(MsgBlastCore.WebSendStatus.uncertain). Its XCTAssertNil also failed because the identical retry returned a second WebSendAttempt rather than being blocked. No build or test was rerun during this follow-up review.",
+        "MsgBlast/Core/WebPageScript.swift:43 -- return {id:e.getAttribute('data-message-id') || e.closest('[data-message-id]')?.getAttribute('data-message-id') || `${role}-${index}`,role:role||'unknown',text:normalized(copy.textContent||'')};",
+        "Post-snapshot MultiWebAgentTests.swift:112-122, testPrependingHistoryDoesNotChangeAnOlderMessageIntoAReceipt: the existing Claude user article has no data-message-id; Send is intercepted to prepend only assistant history and clear the composer. The original node identity changes from user-0 to user-1, so receipt polling calls it observed despite no new outgoing node.",
+        "Merge inspected xcrun xcresulttool get test-results tests for build/webkit-validation/Logs/Test/Test-MsgBlast-2026.10.05_14-59-22--0700.xcresult: the history-prepend regression failed with observed != uncertain on macOS 27.2 build 26B5091g, arm64, Test Scheme Action. Also inspected 14-55-31 xcresult: visibility regression failed observed != uncertain and allowed identical retry. Both use local provider fixtures with intercepted Send, not authenticated provider pages; production source matches frozen full.diff."
+      ],
+      "file": "/Users/contains/.codex/worktrees/webkit-services/msgblast/MsgBlast/Core/WebPageScript.swift",
+      "first_evidence": "MsgBlast/Core/WebPageScript.swift:67 -- const messageIDs=messages().map(m=>m.id),input=editor();",
+      "independent_reviewers": [
+        "adversarial"
+      ],
+      "line": 67,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "adversarial"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Make the pre-send message identity set independent of visibility and transcript position: include existing hidden message nodes and use stable provider IDs or stable observed node identities instead of role-plus-index IDs. Treat history replacement or ambiguous newness as uncertain. Keep both post-snapshot regressions: revealing an old stable-ID node and prepending assistant history before an old Claude user node must remain uncertain, and an identical unresolved retry must be blocked.",
+      "title": "Old messages can falsely confirm a new send",
+      "why_it_matters": "Existing messages can be recorded as receipts for a submission that created no new message, clearing the unresolved-send retry guard. The baseline excludes hidden nodes and uses role-plus-index IDs when a provider lacks message IDs, so revealing an old node or prepending earlier history makes the same message look new. Two post-snapshot WebKit fixture regressions reproduce false observed results; the visibility regression also shows an identical retry is then allowed.",
+      "validation_status": "confirmed",
+      "validation_reason": "When an existing matching user message becomes visible or preceding history changes its fallback index after preparation, the new WebPageScript.swift:31-43,67 omits or renames it and WebAgentSession.swift:181-187 falsely records observed; the inspected MultiWebAgentTests.swift:98-121 reproductions and 14-55-31/14-59-22 xcresults show observed instead of uncertain on macOS 27.2 (26B5091g), arm64, Test Scheme Action, with the visibility case also allowing an identical retry, production blobs matching full.diff, and authenticated-provider incidence unmeasured.",
+      "protected_subject": null
+    },
+    {
+      "#": 3,
+      "autofix_class": "manual",
+      "confidence": 75,
+      "evidence": [
+        "MsgBlast/Core/WebProvider.swift:35 -- return original.path == homeURL.path && current.path != homeURL.path",
+        "MsgBlast/Core/WebAgentSession.swift:181 -- let matches = snapshot.messages.filter { !before.contains($0.id) && $0.role == \"user\" && Self.normalized($0.text) == normalizedText }",
+        "Begin on a fresh ChatGPT/Claude/Grok home page, so the preparation's messageIDs set is empty (WebPageScript.swift:67). Click Send, then switch through the embedded site's sidebar to an existing conversation containing one user message with the submitted text before the next successful receipt observation.",
+        "WebAgentSession.swift:177 waits 250 milliseconds before each receipt refresh; its only generation change for ordinary navigation is didStartProvisionalNavigation at lines 225-228. A same-document history transition does not start provisional navigation, the route mechanism explicitly supported by WebProvider.swift:30 and demonstrated by WebPageScript.swift:115.",
+        "WebServicesView.swift:212 -- EmbeddedServicePage(webView: session.webView). The embedded page remains interactive during sending; only the app's Home/Reload buttons at lines 193-194 are disabled by busy.",
+        "With an empty before set, the old conversation's one matching user message passes the filter. WebAgentSession.swift:182-187 stores and returns observed, whereas WebServices.swift:55-56 only blocks subsequent identical text for attempting or uncertain attempts. The actual first submission can still have succeeded without having been observed.",
+        "Validator inspected post-snapshot MultiWebAgentTests.swift:124-136 and build/webkit-validation/Logs/Test/Test-MsgBlast-2026.10.05_15-01-23--0700.xcresult. The local Claude fixture intercepts Send, edits the composer through document.execCommand, changes to /chat/older-conversation using history.replaceState, and inserts only an old matching message. Expected uncertain; actual observed. Runtime: macOS 27.2 (26B5091g), arm64, Test Scheme Action. Production blobs match full.diff; authenticated-provider incidence remains unmeasured."
+      ],
+      "file": "/Users/contains/.codex/worktrees/webkit-services/msgblast/MsgBlast/Core/WebProvider.swift",
+      "first_evidence": "MsgBlast/Core/WebProvider.swift:35 -- return original.path == homeURL.path && current.path != homeURL.path",
+      "independent_reviewers": [
+        "adversarial"
+      ],
+      "line": 35,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "adversarial"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Bind first-send receipt collection to the submission transaction instead of allowing any home-to-conversation snapshot. As a safe default, keep the attempt uncertain if the only matching message appears after a conversation transition that cannot be attributed to this submission; collect and pin the outgoing message ID and conversation URL as part of the page send/observation operation, and prevent user chat-navigation input while that operation is pending. Add a regression where a home-page send is followed by same-document navigation to an existing chat containing the same text, and require uncertain rather than observed.",
+      "title": "Switching chats can falsely confirm a first send",
+      "why_it_matters": "A first submission can be reported as observed using an old message from a different conversation. Start from a provider's empty home chat, submit text used in an existing conversation, and open that conversation through its SPA sidebar before the receipt poll sees the actual submission; the new URL rule accepts the unrelated conversation and its matching message was absent from the original empty ID set. This produces a false success and removes the unresolved-send protection even though the actual submission remains unconfirmed.",
+      "validation_status": "confirmed",
+      "validation_reason": "When a home-page submission is followed by same-document navigation to an older conversation with one matching user message before receipt polling, newly added WebProvider.swift:32-35 accepts that unrelated route and WebAgentSession.swift:177-187 records observed without transaction attribution while WebServicesView.swift:212 leaves the page interactive; the inspected MultiWebAgentTests.swift:124-136 simulation and 15-01-23 xcresult reproduce observed instead of uncertain after history.replaceState without outgoing-message creation on macOS 27.2 (26B5091g), arm64, Test Scheme Action, with production blobs matching full.diff and authenticated-provider incidence unmeasured.",
+      "protected_subject": "concurrency"
+    }
+  ],
+  "actionable_findings": [
+    {
+      "#": 1,
+      "autofix_class": "manual",
+      "confidence": 100,
+      "evidence": [
+        "MsgBlast/Core/WebPageScript.swift:67 -- const messageIDs=messages().map(m=>m.id),input=editor();",
+        "MsgBlast/Core/WebPageScript.swift:31 -- const all = selector => [...document.querySelectorAll(selector)].filter(visible);",
+        "MsgBlast/Core/WebPageScript.swift:38 -- const messages = () => all(config.messages).filter(e => !e.parentElement?.closest(config.messages)).map((e,index) => {",
+        "Post-snapshot reproduction added by the implementer, not part of the frozen review diff: MultiWebAgentTests.swift:103 inserts a hidden matching user article with data-message-id='earlier-message' before preparation. Line 104 intercepts Send in capture phase, stops the normal fixture handler, reveals the historical node, and clears the composer; it creates no new message and does not change the URL.",
+        "MsgBlast/Core/WebAgentSession.swift:181 -- let matches = snapshot.messages.filter { !before.contains($0.id) && $0.role == \"user\" && Self.normalized($0.text) == normalizedText }. The old hidden ID was absent from before, so it is accepted after being revealed and lines 182-187 persist observed.",
+        "Read existing build/webkit-validation/Logs/Test/Test-MsgBlast-2026.10.05_14-55-31--0700.xcresult with xcrun xcresulttool get test-results tests; testRevealingAnOlderMatchingMessageIsNotANewSendReceipt failed: XCTAssertEqual failed Optional(MsgBlastCore.WebSendStatus.observed) != Optional(MsgBlastCore.WebSendStatus.uncertain). Its XCTAssertNil also failed because the identical retry returned a second WebSendAttempt rather than being blocked. No build or test was rerun during this follow-up review.",
+        "MsgBlast/Core/WebPageScript.swift:43 -- return {id:e.getAttribute('data-message-id') || e.closest('[data-message-id]')?.getAttribute('data-message-id') || `${role}-${index}`,role:role||'unknown',text:normalized(copy.textContent||'')};",
+        "Post-snapshot MultiWebAgentTests.swift:112-122, testPrependingHistoryDoesNotChangeAnOlderMessageIntoAReceipt: the existing Claude user article has no data-message-id; Send is intercepted to prepend only assistant history and clear the composer. The original node identity changes from user-0 to user-1, so receipt polling calls it observed despite no new outgoing node.",
+        "Merge inspected xcrun xcresulttool get test-results tests for build/webkit-validation/Logs/Test/Test-MsgBlast-2026.10.05_14-59-22--0700.xcresult: the history-prepend regression failed with observed != uncertain on macOS 27.2 build 26B5091g, arm64, Test Scheme Action. Also inspected 14-55-31 xcresult: visibility regression failed observed != uncertain and allowed identical retry. Both use local provider fixtures with intercepted Send, not authenticated provider pages; production source matches frozen full.diff."
+      ],
+      "file": "/Users/contains/.codex/worktrees/webkit-services/msgblast/MsgBlast/Core/WebPageScript.swift",
+      "first_evidence": "MsgBlast/Core/WebPageScript.swift:67 -- const messageIDs=messages().map(m=>m.id),input=editor();",
+      "independent_reviewers": [
+        "adversarial"
+      ],
+      "line": 67,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "adversarial"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Make the pre-send message identity set independent of visibility and transcript position: include existing hidden message nodes and use stable provider IDs or stable observed node identities instead of role-plus-index IDs. Treat history replacement or ambiguous newness as uncertain. Keep both post-snapshot regressions: revealing an old stable-ID node and prepending assistant history before an old Claude user node must remain uncertain, and an identical unresolved retry must be blocked.",
+      "title": "Old messages can falsely confirm a new send",
+      "why_it_matters": "Existing messages can be recorded as receipts for a submission that created no new message, clearing the unresolved-send retry guard. The baseline excludes hidden nodes and uses role-plus-index IDs when a provider lacks message IDs, so revealing an old node or prepending earlier history makes the same message look new. Two post-snapshot WebKit fixture regressions reproduce false observed results; the visibility regression also shows an identical retry is then allowed.",
+      "validation_status": "confirmed",
+      "validation_reason": "When an existing matching user message becomes visible or preceding history changes its fallback index after preparation, the new WebPageScript.swift:31-43,67 omits or renames it and WebAgentSession.swift:181-187 falsely records observed; the inspected MultiWebAgentTests.swift:98-121 reproductions and 14-55-31/14-59-22 xcresults show observed instead of uncertain on macOS 27.2 (26B5091g), arm64, Test Scheme Action, with the visibility case also allowing an identical retry, production blobs matching full.diff, and authenticated-provider incidence unmeasured.",
+      "protected_subject": null
+    },
+    {
+      "#": 3,
+      "autofix_class": "manual",
+      "confidence": 75,
+      "evidence": [
+        "MsgBlast/Core/WebProvider.swift:35 -- return original.path == homeURL.path && current.path != homeURL.path",
+        "MsgBlast/Core/WebAgentSession.swift:181 -- let matches = snapshot.messages.filter { !before.contains($0.id) && $0.role == \"user\" && Self.normalized($0.text) == normalizedText }",
+        "Begin on a fresh ChatGPT/Claude/Grok home page, so the preparation's messageIDs set is empty (WebPageScript.swift:67). Click Send, then switch through the embedded site's sidebar to an existing conversation containing one user message with the submitted text before the next successful receipt observation.",
+        "WebAgentSession.swift:177 waits 250 milliseconds before each receipt refresh; its only generation change for ordinary navigation is didStartProvisionalNavigation at lines 225-228. A same-document history transition does not start provisional navigation, the route mechanism explicitly supported by WebProvider.swift:30 and demonstrated by WebPageScript.swift:115.",
+        "WebServicesView.swift:212 -- EmbeddedServicePage(webView: session.webView). The embedded page remains interactive during sending; only the app's Home/Reload buttons at lines 193-194 are disabled by busy.",
+        "With an empty before set, the old conversation's one matching user message passes the filter. WebAgentSession.swift:182-187 stores and returns observed, whereas WebServices.swift:55-56 only blocks subsequent identical text for attempting or uncertain attempts. The actual first submission can still have succeeded without having been observed.",
+        "Validator inspected post-snapshot MultiWebAgentTests.swift:124-136 and build/webkit-validation/Logs/Test/Test-MsgBlast-2026.10.05_15-01-23--0700.xcresult. The local Claude fixture intercepts Send, edits the composer through document.execCommand, changes to /chat/older-conversation using history.replaceState, and inserts only an old matching message. Expected uncertain; actual observed. Runtime: macOS 27.2 (26B5091g), arm64, Test Scheme Action. Production blobs match full.diff; authenticated-provider incidence remains unmeasured."
+      ],
+      "file": "/Users/contains/.codex/worktrees/webkit-services/msgblast/MsgBlast/Core/WebProvider.swift",
+      "first_evidence": "MsgBlast/Core/WebProvider.swift:35 -- return original.path == homeURL.path && current.path != homeURL.path",
+      "independent_reviewers": [
+        "adversarial"
+      ],
+      "line": 35,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "adversarial"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Bind first-send receipt collection to the submission transaction instead of allowing any home-to-conversation snapshot. As a safe default, keep the attempt uncertain if the only matching message appears after a conversation transition that cannot be attributed to this submission; collect and pin the outgoing message ID and conversation URL as part of the page send/observation operation, and prevent user chat-navigation input while that operation is pending. Add a regression where a home-page send is followed by same-document navigation to an existing chat containing the same text, and require uncertain rather than observed.",
+      "title": "Switching chats can falsely confirm a first send",
+      "why_it_matters": "A first submission can be reported as observed using an old message from a different conversation. Start from a provider's empty home chat, submit text used in an existing conversation, and open that conversation through its SPA sidebar before the receipt poll sees the actual submission; the new URL rule accepts the unrelated conversation and its matching message was absent from the original empty ID set. This produces a false success and removes the unresolved-send protection even though the actual submission remains unconfirmed.",
+      "validation_status": "confirmed",
+      "validation_reason": "When a home-page submission is followed by same-document navigation to an older conversation with one matching user message before receipt polling, newly added WebProvider.swift:32-35 accepts that unrelated route and WebAgentSession.swift:177-187 records observed without transaction attribution while WebServicesView.swift:212 leaves the page interactive; the inspected MultiWebAgentTests.swift:124-136 simulation and 15-01-23 xcresult reproduce observed instead of uncertain after history.replaceState without outgoing-message creation on macOS 27.2 (26B5091g), arm64, Test Scheme Action, with production blobs matching full.diff and authenticated-provider incidence unmeasured.",
+      "protected_subject": "concurrency"
+    }
+  ],
+  "triage_groups": [],
+  "pre_existing_findings": [],
+  "requirements_completeness": null,
+  "learnings": [],
+  "agent_native_gaps": [],
+  "deployment_notes": [],
+  "residual_risks": [
+    "Authenticated ChatGPT, Claude, and Grok compatibility remains unverified. WebPageScript.swift:12-25 assumes editor, account, send, role, and message selectors, while its local fixtures at :95-116 supply those shapes. The reported fixture success and signed-out page rendering do not prove that current authenticated provider workflows work; no live selector defect is asserted."
+  ],
+  "testing_gaps": [
+    "Verify authenticated ChatGPT, Claude, and Grok sign-in/popup completion, persistent separate sessions after restart, editor/send behavior, first-conversation navigation, and exactly one outgoing receipt. MultiWebAgentTests.swift validates store IDs and local simulated pages; real login and live provider DOM compatibility remain untested.",
+    "Exercise outgoing receipt text extraction with multiline/block message markup: WebPageScript.swift:42-43 reads clone.textContent, while its fixtures append single text nodes. Verify equivalent rendered multiline text still matches the submitted text after normalization. History-index and old-message newness cases are covered by primary finding #1 and its reproduction evidence."
+  ],
+  "coverage": {
+    "depth": "full",
+    "reviewer_roster": [
+      {
+        "reviewer": "correctness",
+        "tier": "session",
+        "reason": "Always-on behavioral correctness"
+      },
+      {
+        "reviewer": "project-standards",
+        "tier": "mid-tier",
+        "reason": "AGENTS.md instruction-file criteria fallback applies to all changed paths"
+      },
+      {
+        "reviewer": "testing",
+        "tier": "mid-tier",
+        "reason": "New multi-provider WebKit fixtures and changed broadcast tests"
+      },
+      {
+        "reviewer": "maintainability",
+        "tier": "mid-tier",
+        "reason": "Structural Muse generalization; 532 executable non-test changed lines"
+      },
+      {
+        "reviewer": "security",
+        "tier": "session",
+        "reason": "Persistent provider authentication, navigation, and DOM-submission boundaries"
+      },
+      {
+        "reviewer": "reliability",
+        "tier": "mid-tier",
+        "reason": "Durable send state, receipt observation, asynchronous failure handling"
+      },
+      {
+        "reviewer": "adversarial",
+        "tier": "session",
+        "reason": "External sends, concurrency, no-duplicate guarantees; local fallback"
+      },
+      {
+        "reviewer": "julik-frontend-races",
+        "tier": "mid-tier",
+        "reason": "Reactive DOM editing, first-send URL transition, polling and async UI"
+      },
+      {
+        "reviewer": "swift-ios",
+        "tier": "mid-tier",
+        "reason": "SwiftUI observable state, multiple WKWebView lifecycles, Swift concurrency"
+      }
+    ],
+    "project_standards": {
+      "criteria": [
+        {
+          "path": "AGENTS.md",
+          "governs": [
+            "MsgBlast.xcodeproj/project.pbxproj",
+            "MsgBlast/App/AppModel.swift",
+            "MsgBlast/Core/WebAgentSession.swift",
+            "MsgBlast/Core/WebAgents.swift",
+            "MsgBlast/Core/WebPageScript.swift",
+            "MsgBlast/Core/WebProvider.swift",
+            "MsgBlast/Core/WebServices.swift",
+            "MsgBlast/Windows/Views.swift",
+            "MsgBlast/Windows/WebServicesView.swift",
+            "MsgBlastTests/MultiWebAgentTests.swift",
+            "MsgBlastTests/WebServiceTests.swift"
+          ]
+        }
+      ],
+      "fallback_named": true,
+      "not_run_reason": null
+    },
+    "compound_packs": {
+      "roots": [],
+      "errors": [],
+      "warnings": []
+    },
+    "cross_model": "Cross-model pass: not run. Automatic approval previously rejected exporting private repository code to external Claude review; parent explicitly prohibited reattempt without external authorization. No peer job was started, no code was exported, and the in-process adversarial reviewer covered the lens. Cross-model independence is not claimed.",
+    "cross_model_outcome": "in-process-fallback",
+    "validator": {
+      "outcome": "verdicts",
+      "batches": 1,
+      "selected_numbers": [
+        1,
+        3
+      ],
+      "confirmed": 2,
+      "rejected": 0,
+      "unresolved": 0,
+      "malformed": 0,
+      "failed": 0,
+      "shortcut_skipped": 0,
+      "bound_exceeded": false,
+      "shortcut_evidence_basis": "No independently verified adversarial-provider peer; same-model reviewers cannot use the shortcut.",
+      "protected_subjects": {
+        "1": null,
+        "3": "concurrency"
+      },
+      "protected_subject_reclassifications": [],
+      "validation_degraded_blockers": []
+    },
+    "suppressed_by_confidence": {},
+    "malformed_findings": 0,
+    "malformed_returns": 0,
+    "first_evidence_backfilled": 0,
+    "first_evidence_demoted": 0,
+    "mode_aware_demotion_count": 0,
+    "admission_rejections": [
+      {
+        "#": 2,
+        "title": "Exercise login-banner detection for new providers",
+        "reviewers": [
+          "testing"
+        ],
+        "reason": "The cited tests do cover fail-closed signed-out behavior through missing account/editor state. This claim asks to isolate one defensive condition by retaining an account control on a login state, without evidence that providers expose that state or that the implemented login guard is defective. Branch coverage alone does not establish a material primary finding. This claim is omitted rather than recycled into a soft bucket; the separately evidenced authenticated-workflow validation boundary remains."
+      }
+    ],
+    "settlement_suppression": {
+      "evaluated": false,
+      "count": 0,
+      "reason": "No discovered plan"
+    },
+    "failed_reviewers": [],
+    "timed_out_reviewers": [],
+    "notes": [
+      "Full review required by deterministic scope floor: 532 executable non-test changed lines, 681 changed lines, large size band; 18 unclassified .pbxproj lines.",
+      "Scope: current codex/webkit-services staged and unstaged tree against e8f3e93413fd0dbe4d6d4047fe6a0c9efb55a568, frozen in full.diff; 11 changed paths.",
+      "Project standards: AGENTS.md is the instruction-file fallback for every changed path; no CODING_STANDARDS.md found.",
+      "No matching docs/plans plan; formal requirements completeness is not assessed.",
+      "Agent-native, learnings, public API contract, migration, deployment, performance, and prior-PR-comment lenses not selected: their explicit surfaces were absent; no Compound Packs declared.",
+      "Existing reported validation: 60 core tests passed, zero failed/skipped, with real WKWebView local fixtures. Parent verified a shared prompt to ChatGPT+Claude+Grok displaying three replies and observed states; signing out fixture Claude changed it to Needs attention, disabled Send, and retained a new draft.",
+      "Live signed-out ChatGPT page renders; authenticated ChatGPT, Claude, Grok login/persistence/DOM submission remain unverified. Fixtures are local simulations, not proof of authenticated provider compatibility.",
+      "Post-snapshot regression testRevealingAnOlderMatchingMessageIsNotANewSendReceipt reproduced an old hidden stable-ID message being falsely marked observed and failing to block same-text retry; adversarial reviewer inspected failing xcresult build/webkit-validation/Logs/Test/Test-MsgBlast-2026.10.05_14-55-31--0700.xcresult. Production code unchanged.",
+      "README and the appended reproduction test changed after the frozen diff; README is not reviewed here, test is evidence only. No PR was created or updated by this review; no Screenshots/Video publication or PR evidence verification occurred.",
+      "Additional post-snapshot reproduction reported by implementer: MultiWebAgentTests.testPrependingHistoryDoesNotChangeAnOlderMessageIntoAReceipt creates an existing Claude user-message matching text, intercepts Send to prepend only assistant history and clear composer, then observes incorrect .observed instead of .uncertain. This changes fallback ID user-0 to user-1 with no outgoing user creation. xcresult build/webkit-validation/Logs/Test/Test-MsgBlast-2026.10.05_14-59-22--0700.xcresult. Production remains unchanged; inspect test/result if needed as further evidence for preexisting-message receipt ambiguity, not an authenticated DOM incidence claim.",
+      "Cross-model pass: not run. Automatic approval previously rejected exporting private repository code to external Claude review; parent explicitly prohibited reattempt without external authorization. No peer job was started, no code was exported, and the in-process adversarial reviewer covered the lens. Cross-model independence is not claimed.",
+      "Settlement suppression was not evaluated because no plan was discovered.",
+      "Confidence suppression: 0; malformed findings: 0; malformed reviewer returns: 0; missing-first-evidence demotions: 0; first_evidence_backfilled: 0.",
+      "Admission rejected 1 branch-coverage-only testing claim without an established material defect; 0 findings were demoted to soft buckets. Retained 2 distinct receipt-safety findings with different triggers and fix paths.",
+      "Same-model reviewer identities do not establish cross-model independence. Validator shortcut-skipped: 0; both remaining actionable P2 findings are selected for one batch, ordered by severity and stable number.",
+      "Triage groups omitted under grouping:auto because both remaining findings concern false outgoing receipts; the separate conversation-attribution and message-identity fixes remain distinct findings.",
+      "Merge read both failing post-snapshot xcresults without rerunning builds: hidden stable-ID visibility and prepended assistant history each produced observed instead of uncertain. These are local simulated provider fixtures on macOS 27.2 build 26B5091g, not authenticated provider incidence measurements.",
+      "Additional post-snapshot regression reported by implementer: testEditingThePageDuringSubmissionCannotConfirmAnotherConversation intercepts Send, edits composer with document.execCommand insertText (browser-generated trusted input), history.replaceState to /chat/older-conversation and appends an old matching user-message without generating an outgoing message. Expected uncertain, actual observed. Existing xcresult build/webkit-validation/Logs/Test/Test-MsgBlast-2026.10.05_15-01-23--0700.xcresult. Source remains unchanged; this further exercises candidate #3 under local fixture simulation.",
+      "One validator batch completed within the collection bound: findings #1 and #3 confirmed; 0 rejected, unresolved, malformed, failed, or shortcut-skipped. Both confirmations retain the authenticated-provider incidence limitation. Finding #3 is classified as concurrency; no rejection was reclassified and no validation-degraded blocker remains.",
+      "Report-only: no source edits, builds, commits, PR updates, external messages, or code export were performed by this review. The report leaf checked cited source lines and surrounding receipt and retry guards; it did not rerun tests."
+    ]
+  },
+  "artifact_path": "/tmp/compound-engineering-501/ce-code-review/20261005-144837-1c9ee885",
+  "run_id": "20261005-144837-1c9ee885"
+}
