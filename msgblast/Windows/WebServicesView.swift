@@ -449,20 +449,22 @@ private struct WebAgentPane: View {
     private func nativeConversation(_ provider: PersonalAgentProvider) -> some View {
         VStack(spacing: 12) {
             let connected = [.subscription, .apiKey, .other].contains(session.accountStatus)
-            HStack {
-                Label(session.fixture ? "Simulated local account · no provider requests" : session.accountStatus.label,
-                      systemImage: connected ? "checkmark.circle.fill" : "person.crop.circle")
-                    .font(.caption).foregroundStyle(connected ? Color.green : Color.secondary)
-                Spacer()
-                if account.installed.contains(where: { $0.provider == provider }) {
-                    Button(connected ? "Switch account" : session.provider == .chatgpt ? "Sign in with ChatGPT" : "Sign in with Claude") { account.signIn(provider) }
-                        .disabled(session.fixture || busy)
-                } else {
-                    Link("Install \(provider.name)", destination: URL(string: provider == .codex
-                         ? "https://developers.openai.com/codex/cli" : "https://code.claude.com/docs/en/setup")!)
+            if !connected {
+                HStack {
+                    Label(session.fixture ? "Simulated local account · no provider requests" : session.accountStatus.label,
+                          systemImage: "person.crop.circle")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    if account.installed.contains(where: { $0.provider == provider }) {
+                        Button(session.provider == .chatgpt ? "Sign in with ChatGPT" : "Sign in with Claude") { account.signIn(provider) }
+                            .disabled(session.fixture || busy)
+                    } else {
+                        Link("Install \(provider.name)", destination: URL(string: provider == .codex
+                             ? "https://developers.openai.com/codex/cli" : "https://code.claude.com/docs/en/setup")!)
+                    }
                 }
+                if let error = account.accountError { Text(error).font(.caption).foregroundStyle(.orange) }
             }
-            if let error = account.accountError { Text(error).font(.caption).foregroundStyle(.orange) }
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 16) {

@@ -191,18 +191,27 @@ struct PinnedAgentTile: View {
 
 struct MainView: View {
     @ObservedObject var model: AppModel
+    @ObservedObject private var web: WebAgents
     @State private var setup = false
     private enum DetailSelection { case agents, discover }
     @State private var selection = DetailSelection.agents
     @State private var showingComparison = false
+    private var showingAgents: Bool { selection == .agents && !showingComparison }
+    private var selectedComparisonID: UUID? { selection == .agents && showingComparison ? web.comparisonID : nil }
+
+    init(model: AppModel) {
+        self.model = model
+        self.web = model.webAgents
+    }
+
     var body: some View {
         NavigationSplitView {
             List {
                 Section {
                     Button { selection = .agents; showingComparison = false } label: {
-                        Label("My agents", systemImage: "person.2.fill").foregroundStyle(selection == .agents ? Color.accentColor : Color.primary)
-                    }.buttonStyle(.plain).accessibilityLabel("My agents")
-                        .accessibilityValue(selection == .agents ? "Selected" : "Not selected")
+                        Label("Agents", systemImage: "person.2.fill").foregroundStyle(showingAgents ? Color.accentColor : Color.primary)
+                    }.buttonStyle(.plain).accessibilityLabel("Agents")
+                        .accessibilityValue(showingAgents ? "Selected" : "Not selected")
                     Button { selection = .discover } label: {
                         Label("Discover", systemImage: "safari").foregroundStyle(selection == .discover ? Color.accentColor : Color.primary)
                     }.buttonStyle(.plain).accessibilityLabel("Discover")
@@ -219,6 +228,9 @@ struct MainView: View {
                             }
                         }.padding(.vertical, 5).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
                     }.buttonStyle(.plain)
+                        .foregroundStyle(selectedComparisonID == comparison.id ? Color.accentColor : Color.primary)
+                        .listRowBackground(selectedComparisonID == comparison.id ? Color.accentColor.opacity(0.16) : Color.clear)
+                        .accessibilityValue(selectedComparisonID == comparison.id ? "Selected" : "Not selected")
                 }
                     if model.state.comparisons.isEmpty { Text("No comparisons").foregroundStyle(.secondary) }
                 }
