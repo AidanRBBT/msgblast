@@ -58,6 +58,37 @@ struct ComparisonReportView: View {
                 Spacer(minLength: 12)
                 Button("Refresh agents") { Task { await agent.discover() } }.disabled(agent.discovering || running)
             }
+            VStack(alignment: .leading, spacing: 10) {
+                Text(agent.demo ? "Your local accounts (simulated)" : "Your local accounts").font(.headline)
+                ForEach([PersonalAgentProvider.codex, .claude]) { provider in
+                    let isInstalled = agent.installed.contains { $0.provider == provider }
+                    HStack {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(provider == .codex ? "ChatGPT · Codex" : "Claude · Claude Code")
+                            Text(isInstalled
+                                 ? (agent.accounts[provider]?.label ?? "Sign-in not checked") : "CLI not installed")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        if isInstalled {
+                            Button(provider == .codex ? "Sign in with ChatGPT" : "Sign in with Claude") { agent.signIn(provider) }
+                                .disabled(agent.demo || running || agent.checkingAccounts)
+                        } else {
+                            Link("Install \(provider.name)", destination: URL(string: provider == .codex
+                                ? "https://developers.openai.com/codex/cli" : "https://code.claude.com/docs/en/setup")!)
+                        }
+                    }
+                }
+                HStack {
+                    Text(agent.demo ? "Simulated account states. Demo sign-in is disabled; no local account is accessed." : "Uses the account saved by your CLI. Sign-in opens Terminal and your browser. Return here after signing in.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Refresh accounts") { Task { await agent.refreshAccounts() } }
+                        .disabled(agent.demo || agent.checkingAccounts || running)
+                }
+                if agent.checkingAccounts { ProgressView("Checking local sign-in…").controlSize(.small) }
+                if let error = agent.accountError { Text(error).font(.caption).foregroundStyle(.orange) }
+            }
             if let selected, !agent.demo {
                 Text(selected.unavailabilityReason ?? "Sign in or troubleshoot in Terminal: \(selected.setup)")
                     .font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
@@ -117,7 +148,10 @@ struct ComparisonReportView: View {
             }
         }
         .padding(24).frame(minWidth: 620, minHeight: 560)
-        .task { refreshSnapshot() }
+        .task { refreshSnapshot(); await agent.refreshAccounts() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            Task { await agent.refreshAccounts() }
+        }
         .onChange(of: summary?.report?.comparison, initial: true) { _, text in
             let text = text ?? ""
             formattedComparison = (try? AttributedString(markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(text)

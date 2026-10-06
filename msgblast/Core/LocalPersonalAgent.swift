@@ -111,7 +111,80 @@ public enum PersonalAgentError: LocalizedError {
     }
 }
 
+public enum PersonalAgentAccountStatus: String, Sendable {
+    case subscription, apiKey, other, signedOut, unknown
+    public var label: String {
+        switch self {
+        case .subscription: "Subscription account connected"
+        case .apiKey: "API key connected · usage billed separately"
+        case .other: "CLI account connected · check provider billing"
+        case .signedOut: "Not signed in"
+        case .unknown: "Could not verify sign-in · check CLI in Terminal"
+        }
+    }
+}
+
 public enum LocalPersonalAgent {
+    public static func accountStatus(using agent: InstalledPersonalAgent) async -> PersonalAgentAccountStatus {
+        guard agent.provider == .codex || agent.provider == .claude else { return .unknown }
+        return await Task.detached(priority: .utility) {
+            var environment = ProcessInfo.processInfo.environment
+            environment["PATH"] = agent.path
+            environment["NO_COLOR"] = "1"
+            environment.removeValue(forKey: "CLAUDECODE")
+            let arguments = agent.provider == .codex ? ["login", "status"] : ["auth", "status"]
+            guard let result = try? AgentProcess.run(executable: agent.executableURL, arguments: arguments,
+                input: "", environment: environment, timeout: 10, cancellation: AgentCancellation()) else { return .unknown }
+            if agent.provider == .claude {
+                guard let data = result.stdout.data(using: .utf8),
+                      let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      let loggedIn = object["loggedIn"] as? Bool else { return .unknown }
+                if !loggedIn && result.status == 1 { return .signedOut }
+                guard loggedIn, result.status == 0 else { return .unknown }
+                switch object["authMethod"] as? String {
+                case "claude.ai", "oauth_token": return .subscription
+                case "api_key", "api_key_helper": return .apiKey
+                default: return .other
+                }
+            }
+            let output = (result.stdout + "\n" + result.stderr).lowercased()
+            if result.status == 1 && output.contains("not logged in") { return .signedOut }
+            guard result.status == 0 else { return .unknown }
+            if output.contains("logged in using chatgpt") { return .subscription }
+            if output.contains("logged in using an api key") { return .apiKey }
+            return .other
+        }.value
+    }
+
+    // Hand authentication to the official CLI in an interactive Terminal. No tokens
+    // are imported, logged or persisted by msgblast. Quote every shell data value.
+    public static func loginScript(using agent: InstalledPersonalAgent,
+                                   environment: [String: String] = ProcessInfo.processInfo.environment) throws -> String {
+        guard agent.provider == .codex || agent.provider == .claude else {
+            throw PersonalAgentError.unavailable(agent.provider.name)
+        }
+        func quote(_ value: String) -> String { "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'" }
+        // Terminal may inherit a different profile from its login shell. Match the
+        // app's nonsecret configuration paths without writing tokens into the script.
+        let configuration = ["HOME", "CODEX_HOME", "CLAUDE_CONFIG_DIR", "XDG_CONFIG_HOME", "ANTHROPIC_CONFIG_DIR", "ANTHROPIC_PROFILE"].map { key in
+            if let value = environment[key] { return "export \(key)=\(quote(value))" }
+            return key == "HOME" ? "export HOME=\(quote(FileManager.default.homeDirectoryForCurrentUser.path))" : "unset \(key)"
+        }.joined(separator: "\n")
+        let arguments = agent.provider == .codex ? "login" : "auth login"
+        return """
+        #!/bin/zsh
+        trap '/bin/rm -f -- "$0"' EXIT
+        export PATH=\(quote(agent.path))
+        \(configuration)
+        unset CLAUDECODE OPENAI_API_KEY CODEX_API_KEY CODEX_ACCESS_TOKEN ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN CLAUDE_CODE_OAUTH_TOKEN
+        cd /private/tmp || exit 1
+        \(quote(agent.executableURL.path)) \(arguments)
+        result=$?
+        printf '\\nReturn to msgblast and refresh accounts to check sign-in.\\n'
+        exit "$result"
+        """
+    }
+
     public static func discover() async -> [InstalledPersonalAgent] {
         await Task.detached(priority: .utility) {
             let environment = ProcessInfo.processInfo.environment
@@ -171,7 +244,7 @@ final class AgentCancellation: @unchecked Sendable {
 }
 
 enum AgentProcess {
-    struct Result { let status: Int32; let stdout: String }
+    struct Result { let status: Int32; let stdout: String; var stderr: String = "" }
     static func readOutput(_ url: URL) throws -> String {
         let file = try FileHandle(forReadingFrom: url)
         defer { try? file.close() }
@@ -241,6 +314,6 @@ enum AgentProcess {
         if let provider, process.terminationStatus == 0 {
             return Result(status: 0, stdout: try provider.answer(stdout: output, directory: directory))
         }
-        return Result(status: process.terminationStatus, stdout: output)
+        return Result(status: process.terminationStatus, stdout: output, stderr: try readOutput(stderrURL))
     }
 }

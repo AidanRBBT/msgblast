@@ -2,6 +2,60 @@ import XCTest
 @testable import msgblastCore
 
 final class PersonalAgentTests: XCTestCase {
+    @MainActor
+    func testAccountStatusUsesProviderStatusCommandsWithoutInference() async throws {
+        let directory = try fixtureDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        for (provider, script, expected) in [
+            (PersonalAgentProvider.codex, "test \"$*\" = 'login status' || exit 9\nprintf 'Logged in using ChatGPT' >&2", PersonalAgentAccountStatus.subscription),
+            (.codex, "printf 'Logged in using an API key' >&2", .apiKey),
+            (.codex, "printf 'Not logged in' >&2\nexit 1", .signedOut),
+            (.codex, "printf 'Unknown failure' >&2\nexit 2", .unknown),
+            (.claude, "test \"$*\" = 'auth status' || exit 9\nprintf '%s' '{\"loggedIn\":true,\"authMethod\":\"claude.ai\"}'", .subscription),
+            (.claude, "printf '%s' '{\"loggedIn\":true,\"authMethod\":\"api_key\"}'", .apiKey),
+            (.claude, "printf '%s' '{\"loggedIn\":false,\"authMethod\":\"none\"}'\nexit 1", .signedOut),
+            (.claude, "printf 'invalid JSON'", .unknown),
+            (.claude, "printf '%s' '{\"loggedIn\":true,\"authMethod\":\"third_party\"}'", .other)
+        ] {
+            try executable(provider.executable, script: script, in: directory)
+            let agent = InstalledPersonalAgent(provider: provider, executableURL: directory.appendingPathComponent(provider.executable), path: "/usr/bin:/bin")
+            let status = await LocalPersonalAgent.accountStatus(using: agent)
+            XCTAssertEqual(status, expected)
+        }
+    }
+
+    func testLoginScriptQuotesExecutableAndPathWithoutExecutingShellInput() throws {
+        let directory = try fixtureDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let marker = directory.appendingPathComponent("INJECTED")
+        let name = "codex ' $(touch INJECTED)"
+        try executable(name, script: "test \"$*\" = 'login' || exit 9\nprintf 'login invoked'", in: directory)
+        let agent = InstalledPersonalAgent(provider: .codex, executableURL: directory.appendingPathComponent(name), path: "/usr/bin:/bin:$(touch \(marker.path))" )
+        let script = directory.appendingPathComponent("login.command")
+        try Data(try LocalPersonalAgent.loginScript(using: agent).utf8).write(to: script)
+        let result = try AgentProcess.run(executable: URL(fileURLWithPath: "/bin/zsh"), arguments: [script.path], input: "", environment: [:], timeout: 5, cancellation: AgentCancellation())
+        XCTAssertEqual(result.status, 0)
+        XCTAssertTrue(result.stdout.contains("login invoked"))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: marker.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: script.path), "Login handoff removes its temporary script")
+        XCTAssertThrowsError(try LocalPersonalAgent.loginScript(using: InstalledPersonalAgent(provider: .pi, executableURL: script, path: "")))
+    }
+
+    func testLoginUsesAppConfigurationInsteadOfTerminalProfileWithoutCopyingTokens() throws {
+        let directory = try fixtureDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try executable("codex", script: "printf '%s' \"$CODEX_HOME|${CLAUDE_CONFIG_DIR-unset}|${OPENAI_API_KEY-unset}\"", in: directory)
+        let agent = InstalledPersonalAgent(provider: .codex, executableURL: directory.appendingPathComponent("codex"), path: "/usr/bin:/bin")
+        let script = directory.appendingPathComponent("login.command")
+        let source = try LocalPersonalAgent.loginScript(using: agent, environment: ["CODEX_HOME": "app profile ' with spaces", "OPENAI_API_KEY": "fixture-secret"])
+        XCTAssertFalse(source.contains("fixture-secret"))
+        try Data(source.utf8).write(to: script)
+        let result = try AgentProcess.run(executable: URL(fileURLWithPath: "/bin/zsh"), arguments: [script.path], input: "",
+            environment: ["CODEX_HOME": "terminal profile", "CLAUDE_CONFIG_DIR": "terminal claude profile", "OPENAI_API_KEY": "terminal-key"], timeout: 5, cancellation: AgentCancellation())
+        XCTAssertEqual(result.status, 0)
+        XCTAssertTrue(result.stdout.hasPrefix("app profile ' with spaces|unset|unset"))
+    }
+
     func testReportRequiresActionAndRationaleAndPreservesLegacySummary() throws {
         let response = #"{"bestNextAction":"Run a small trial","rationale":"The replies disagree on cost","comparison":"Cedar favors clarity; Lumen favors a trial.","uncertainties":["Actual cost is unknown"]}"#
         let report = try XCTUnwrap(ComparisonReport(response: response))
