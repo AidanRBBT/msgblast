@@ -1,7 +1,7 @@
 import SwiftUI
 import AppKit
 import PhotosUI
-import QuickLookThumbnailing
+@preconcurrency import QuickLookThumbnailing
 import QuickLookUI
 import UniformTypeIdentifiers
 import msgblastCore
@@ -117,7 +117,7 @@ struct AttachmentComposer: View {
         }
         .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden)
         .frame(width: 32, height: 32).foregroundStyle(.primary)
-        .glassEffect(.regular.interactive(), in: Circle())
+        .background(.regularMaterial, in: Circle())
         .accessibilityLabel("Add photo or file").help("Add photo or file").disabled(disabled)
         .fileImporter(isPresented: $filesPresented, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
             switch result {
@@ -160,7 +160,7 @@ struct AttachmentDraftStrip: View {
                         .overlay(alignment: .topTrailing) {
                             Button { remove(file.id) } label: {
                                 Image(systemName: "xmark").font(.system(size: 9, weight: .bold)).frame(width: 19, height: 19)
-                            }.buttonStyle(.plain).glassEffect(.regular.interactive(), in: Circle())
+                            }.buttonStyle(.plain).background(.regularMaterial, in: Circle())
                                 .offset(x: 5, y: -5).disabled(disabled).accessibilityLabel("Remove \(file.filename)")
                         }
                 }
