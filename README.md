@@ -15,16 +15,16 @@ Planning a weekend, researching a purchase, or testing an idea? Write your quest
 
 ## Use the assistants you already text
 
-The current download works with AI assistants in **Messages**, including [Instinct](https://instinct.com/), [Fo](https://wajo.ai/), and [Szn](https://theszn.ai/). Start an iMessage conversation with each assistant you want to use, then add it to msgblast. Each assistant’s own account and access requirements apply.
+msgblast works with AI assistants in **Messages**, including [Instinct](https://instinct.com/), [Fo](https://wajo.ai/), and [Szn](https://theszn.ai/). Start an iMessage conversation with each assistant you want to use, then add it to msgblast. Each assistant’s own account and access requirements apply.
 
 You can also send photos and files to your Messages assistants.
 
 ## Get started
 
 1. [Download msgblast](https://updates.msgblast.app/latest.zip), unzip the file, and drag **msgblast.app** into **Applications**. Open the app.
-2. Click **Open Settings** in msgblast and allow it to read Messages history. Quit and reopen the app afterward. The permission steps are below.
-3. Click **Add Agent**, find your assistant by name, email, or phone number, and add it. Allow Contacts when asked. **Agent** means an AI assistant in msgblast.
-4. Select the assistants you want, type a question, and press the send arrow. Allow msgblast to control **Messages** when asked. Their replies appear together for comparison.
+2. For Messages assistants, click **Open Settings** in msgblast and allow it to read Messages history. Quit and reopen the app afterward. Then click **Add Agent**, find your assistant by name, email, or phone number, and allow Contacts when asked. The permission steps are below.
+3. For Muse, ChatGPT, Claude, or Grok, select their existing agent icons. Account setup appears when needed; connection details are below. **Agent** means an AI assistant in msgblast.
+4. Type a question and press the send arrow. If account setup opens, finish signing in, then send again; your question stays ready. Allow msgblast to control **Messages** when sending there. Replies appear together for comparison.
 
 <details>
 <summary>Help opening the app and allowing Messages access</summary>
@@ -41,13 +41,18 @@ You can also send photos and files to your Messages assistants.
 
 Check for updates from **msgblast → Check for Updates**.
 
-## More assistants, in development
+## Muse, ChatGPT, Claude, and Grok
 
-Muse, ChatGPT, Claude, and Grok are being brought into msgblast alongside your Messages assistants. The screen below previews the next version; these direct connections are not in the current download.
+Select these agents alongside your Messages assistants. Each Blast gets its own conversations, and follow-ups continue in the saved chats.
 
-<img src="docs/images/readme/choose-agents.jpg" alt="Next-version preview showing Muse, ChatGPT, Claude, Grok, Instinct, Fo, and Szn with their icons" width="1100">
+- **Muse and Grok:** sign in inside msgblast's embedded chat panes. Muse uses a side chat. Existing Safari, Chrome, and desktop-app sessions do not carry over.
+- **ChatGPT and Claude:** native chat panes use your installed Codex and Claude Code accounts. Use the sign-in action in the agent pane or local account settings, finish the official flow in Terminal, then return to msgblast. A website login alone does not connect these agents.
 
-*Preview captured from the current source with sample Messages profiles. No messages were sent.*
+Shared requests involving these four agents are text-only. Messages-only requests can include attachments. Model and thinking settings are not controlled by a shared selector.
+
+<img src="docs/images/readme/choose-agents.jpg" alt="Agent selection showing Muse, ChatGPT, Claude, Grok, Instinct, Fo, and Szn with their icons" width="1100">
+
+*Captured from the app source with sample Messages profiles. No messages were sent.*
 
 For developers: [build from source](docs/build-from-source.md).
 
