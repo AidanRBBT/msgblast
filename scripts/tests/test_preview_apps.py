@@ -6,6 +6,7 @@ import shutil
 import struct
 import tempfile
 import unittest
+from unittest import mock
 import zlib
 
 
@@ -27,6 +28,23 @@ evidence = load("check_pr_evidence")
 class PreviewPlanTests(unittest.TestCase):
     def test_committed_icons_stay_green_and_blue(self):
         preview.assert_committed_icons_unchanged()
+
+    def test_committed_icon_rejects_changed_artwork_with_the_same_background(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            original_root = preview.ROOT
+            for source in (preview.POLISHED, preview.BLUE_GREEN, preview.BLUE,
+                           preview.ROOT / "msgblast/AppIcon.icon",
+                           preview.ROOT / "msgblast/AppIconDemo.icon"):
+                shutil.copytree(source, root / source.relative_to(original_root))
+            artwork = next((root / "msgblast/AppIcon.icon/Assets").iterdir())
+            artwork.write_bytes(artwork.read_bytes() + b"changed artwork")
+            with mock.patch.object(preview, "ROOT", root), \
+                 mock.patch.object(preview, "POLISHED", root / preview.POLISHED.relative_to(original_root)), \
+                 mock.patch.object(preview, "BLUE_GREEN", root / preview.BLUE_GREEN.relative_to(original_root)), \
+                 mock.patch.object(preview, "BLUE", root / preview.BLUE.relative_to(original_root)):
+                with self.assertRaisesRegex(RuntimeError, "production artwork"):
+                    preview.assert_committed_icons_unchanged()
 
     def test_development_artwork_is_applied_only_in_an_isolated_workspace(self):
         before = preview.icon_fill(preview.ROOT / "msgblast/AppIcon.icon")

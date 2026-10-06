@@ -50,17 +50,17 @@ class ReleaseTests(unittest.TestCase):
         return args + ["--signing-mode", "ad-hoc"]
 
     def test_release_rejects_development_artwork_before_building(self):
-        saved = self.root / "output/icon-gradients/32-WhiteToClearSoftFade-Polished.icon"
+        saved = self.root / "output/app-icons/msgblast.icon"
         resource = self.root / "msgblast/AppIcon.icon"
-        shutil.copytree(release.ROOT / "output/icon-gradients/32-WhiteToClearSoftFade-Polished.icon", saved)
-        shutil.copytree(release.ROOT / "output/icon-gradients/32-WhiteToClearSoftFadeBlueGreen.icon", resource)
-        with self.assertRaisesRegex(release.ReleaseError, "green polished"):
+        shutil.copytree(release.ROOT / "output/app-icons/msgblast.icon", saved)
+        shutil.copytree(release.ROOT / "output/app-icons/msgblast-dev.icon", resource)
+        with self.assertRaisesRegex(release.ReleaseError, "green production"):
             release.validate_production_icon(self.root)
         shutil.rmtree(resource)
         shutil.copytree(saved, resource)
         release.validate_production_icon(self.root)
-        (resource / "Assets/thick-glass-stack.png").write_bytes(b"wrong artwork")
-        with self.assertRaisesRegex(release.ReleaseError, "green polished"):
+        next((resource / "Assets").iterdir()).write_bytes(b"wrong artwork")
+        with self.assertRaisesRegex(release.ReleaseError, "green production"):
             release.validate_production_icon(self.root)
 
     def test_adhoc_dry_run_needs_no_apple_credentials_or_key_file_access(self):

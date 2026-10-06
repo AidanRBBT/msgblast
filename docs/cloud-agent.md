@@ -4,6 +4,31 @@ Hosted Cursor Cloud Agents run on Ubuntu. This runbook is the durable source for
 
 Do not commit `.cursor/environment.json` to switch this repo onto a repository-managed environment. A committed environment file overrides the saved Cloud Agent environment. Keep the saved install equivalent to `scripts/cloud-agent-install.sh`, and change it only after that command has been run successfully.
 
+## Starting revision and fresh source
+
+Cursor personal defaults are `mgalpert/msgblast` and base branch `main`. The saved
+msgblast environment has **Update Stale Builds** enabled and **Staleness Threshold**
+set to `0`, so default-branch runs pull fresh source at startup. Select a different
+pushed branch explicitly in the launch picker when the task needs it. API launches
+must specify `repos[].startingRef` (branch or exact commit SHA); `prUrl` overrides
+that ref. Keep `workOnCurrentBranch` false for a new task.
+
+Before editing, fetch the intended base and record its resolved SHA and `HEAD`.
+Confirm that the resolved base is an ancestor of the working branch. If it is not,
+stop and report the stale/wrong base; do not reset a branch with existing work.
+Include `Base-SHA:` and `Evidence-SHA:` in the PR description. An environment
+snapshot supplies dependencies; it is not proof that source or instructions are
+current. Local-only files and archived worktrees are unavailable to Cloud Agents:
+commit and push required artwork, scripts, and instructions to the selected branch.
+
+Canonical icon bundles are in `output/app-icons/`. Preview and release checks compare
+the entire bundle, including image bytes and layer settings. Historical
+`output/icon-gradients/` bundles must not be selected for new builds.
+
+References: [Cursor settings](https://cursor.com/docs/cloud-agent/settings),
+[Build freshness](https://cursor.com/docs/cloud-agent/builds), and
+[explicit API starting refs](https://cursor.com/docs/cloud-agent/api/endpoints).
+
 ## What Ubuntu can and cannot do
 
 Ubuntu agents can install the pinned disk-image libraries, test the release scripts, and test the download worker. They cannot build or run the native app, exercise Contacts, Messages, or Full Disk Access, generate real DMG Finder aliases (`mac_alias.Alias.for_file` is unimplemented), inspect a compiled icon, or capture native UI.
@@ -68,8 +93,8 @@ Confirm `headSha` is the revision under review. On a pull request, `github.sha` 
 
 | Variant | App | Bundle ID | Icon | Fixture | Saved state |
 | --- | --- | --- | --- | --- | --- |
-| Development | `msgblast Dev.app` | `com.msgblast.development` | saved `32-WhiteToClearSoftFadeBlueGreen.icon`, compiled as `AppIcon` | no | `~/Library/Application Support/msgblast-Dev` |
-| Demo | `msgblast Demo.app` | `com.msgblast.demo` | saved `32-WhiteToClearSoftFadeBlue.icon` via `AppIconDemo` | yes, `msgblastDemo` true | `~/Library/Application Support/msgblast-Demo` |
+| Development | `msgblast Dev.app` | `com.msgblast.development` | saved `msgblast-dev.icon`, compiled as `AppIcon` | no | `~/Library/Application Support/msgblast-Dev` |
+| Demo | `msgblast Demo.app` | `com.msgblast.demo` | saved `msgblast-demo.icon` via `AppIconDemo` | yes, `msgblastDemo` true | `~/Library/Application Support/msgblast-Demo` |
 
 The demo app calls the existing simulated Cedar, Lumen, and Orbit setup because `msgblastDemo` is true. Selecting the blue icon does not do that by itself. The development app is the functional branch build and can read real Messages. Both apps clear the Sparkle feed and public key, set `msgblastDisableUpdates`, and turn automatic checks off. `AppUpdater` does not start Sparkle unless updates are enabled, and only `com.msgblast.mac` without demo mode can enable the production feed. Neither preview is named `msgblast.app`, so moving one to `/Applications` does not replace the installed production app.
 
@@ -154,4 +179,4 @@ Follow [AGENTS.md](../AGENTS.md) and [automated-releases.md](automated-releases.
 4. Verify the run SHA and success, then the feed and `releases/VERSION-BUILD.json`. With User-Agent `msgblast-release-verifier`, confirm `latest.zip` is a no-store 302 to the manifest ZIP. Download through that URL, compare SHA-256, and inspect `Info.plist` (`msgblast`, `com.msgblast.mac`, the allocated version and build) and the compiled green icon.
 5. Do not edit the README or redeploy the worker for an app release. Ad-hoc signing is unnotarized. A failed final public check can happen after the feed upload; inspect the feed and manifest before any retry. Rollback is a new higher version and build.
 
-Production artwork is `output/icon-gradients/32-WhiteToClearSoftFade-Polished.icon`, copied to `msgblast/AppIcon.icon`. Development artwork is the blue-green duplicate and is copied onto `AppIcon.icon` only inside the preview build workspace. Demo and updater fixtures use `AppIconDemo`. The preview job samples the compiled `AppIcon.icns` in each ZIP and fails if the development app is not blue-green or the fixture app is not blue.
+Production artwork is `output/app-icons/msgblast.icon`, copied to `msgblast/AppIcon.icon`. Development artwork is the blue-green duplicate and is copied onto `AppIcon.icon` only inside the preview build workspace. Demo and updater fixtures use `AppIconDemo`. The preview job samples the compiled `AppIcon.icns` in each ZIP and fails if the development app is not blue-green or the fixture app is not blue.

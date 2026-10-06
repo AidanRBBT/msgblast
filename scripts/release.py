@@ -67,7 +67,7 @@ def validate_https(url):
 
 def validate_production_icon(root=ROOT):
     """Stop release preparation if the app resource differs from the saved live icon."""
-    saved = root / "output/icon-gradients/32-WhiteToClearSoftFade-Polished.icon"
+    saved = root / "output/app-icons/msgblast.icon"
     resource = root / "msgblast/AppIcon.icon"
 
     def contents(directory):
@@ -78,7 +78,7 @@ def validate_production_icon(root=ROOT):
 
     expected = contents(saved)
     if not expected or expected != contents(resource):
-        raise ReleaseError("Release AppIcon must match the saved green polished production icon; see AGENTS.md")
+        raise ReleaseError("Release AppIcon must match the saved green production icon; see AGENTS.md")
 
 
 def validate_options(options):

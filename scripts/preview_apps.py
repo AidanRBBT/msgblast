@@ -9,9 +9,9 @@ import zlib
 
 
 ROOT = Path(__file__).resolve().parents[1]
-POLISHED = ROOT / "output/icon-gradients/32-WhiteToClearSoftFade-Polished.icon"
-BLUE_GREEN = ROOT / "output/icon-gradients/32-WhiteToClearSoftFadeBlueGreen.icon"
-BLUE = ROOT / "output/icon-gradients/32-WhiteToClearSoftFadeBlue.icon"
+POLISHED = ROOT / "output/app-icons/msgblast.icon"
+BLUE_GREEN = ROOT / "output/app-icons/msgblast-dev.icon"
+BLUE = ROOT / "output/app-icons/msgblast-demo.icon"
 RETENTION_DAYS = 14
 
 VARIANTS = {
@@ -52,10 +52,17 @@ def icon_fill(directory):
     return json.loads((Path(directory) / "icon.json").read_text())["fill"]
 
 
+def icon_contents(directory):
+    """Compare the complete saved artwork, including layers and image assets."""
+    directory = Path(directory)
+    return {str(path.relative_to(directory)): path.read_bytes()
+            for path in directory.rglob("*") if path.is_file() and path.name != ".DS_Store"}
+
+
 def assert_committed_icons_unchanged():
-    if icon_fill(ROOT / "msgblast/AppIcon.icon") != icon_fill(POLISHED):
+    if icon_contents(ROOT / "msgblast/AppIcon.icon") != icon_contents(POLISHED):
         raise RuntimeError("Committed AppIcon.icon must stay the green production artwork")
-    if icon_fill(ROOT / "msgblast/AppIconDemo.icon") != icon_fill(BLUE):
+    if icon_contents(ROOT / "msgblast/AppIconDemo.icon") != icon_contents(BLUE):
         raise RuntimeError("Committed AppIconDemo.icon must stay the saved blue artwork")
     if icon_fill(BLUE_GREEN) == icon_fill(POLISHED) or icon_fill(BLUE) == icon_fill(POLISHED):
         raise RuntimeError("Preview icon fills must differ from production green")
@@ -72,9 +79,9 @@ def stage_icons(workspace):
         raise RuntimeError("Refusing to replace icons in the committed source tree")
     shutil.rmtree(app_icon)
     shutil.copytree(BLUE_GREEN, app_icon)
-    if icon_fill(app_icon) != icon_fill(BLUE_GREEN):
+    if icon_contents(app_icon) != icon_contents(BLUE_GREEN):
         raise RuntimeError("Development workspace did not receive the blue-green icon")
-    if icon_fill(demo_icon) != icon_fill(BLUE):
+    if icon_contents(demo_icon) != icon_contents(BLUE):
         raise RuntimeError("Demo workspace must keep the saved blue AppIconDemo artwork")
     assert_committed_icons_unchanged()
 
