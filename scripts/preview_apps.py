@@ -86,6 +86,7 @@ def configure_info(info, variant, source_revision):
         "CFBundleName": variant["bundle_name"],
         "CFBundleDisplayName": variant["display_name"],
         "CFBundleIconName": variant["icon_name"],
+        "CFBundleIconFile": variant["icon_name"],
         "SUFeedURL": "",
         "SUPublicEDKey": "",
         "SUEnableAutomaticChecks": False,
@@ -128,6 +129,36 @@ def classify_icon_color(red, green, blue):
 
 def expected_icon_color(variant):
     return "blue-green" if variant["id"] == "development" else "blue"
+
+
+def icon_filename(raw):
+    """Return a single Resources file name, adding .icns when the plist omitted it."""
+    if not isinstance(raw, str):
+        raise RuntimeError("Compiled icon name is missing")
+    name = raw.strip()
+    if not name or Path(name).name != name or name in {".", ".."}:
+        raise RuntimeError(f"Compiled icon name must stay inside Resources: {raw!r}")
+    if not name.endswith(".icns"):
+        name += ".icns"
+    if Path(name).name != name:
+        raise RuntimeError(f"Compiled icon name must stay inside Resources: {raw!r}")
+    return name
+
+
+def compiled_icon_path(app, info, icon_name):
+    """Resolve the icns Xcode actually compiled, and reject anything outside Resources."""
+    resources = Path(app) / "Contents/Resources"
+    selected = icon_filename(icon_name)
+    declared = info.get("CFBundleIconFile") or icon_name
+    filename = icon_filename(declared)
+    if filename != selected:
+        raise RuntimeError(f"CFBundleIconFile names {filename}, but this variant selected {selected}")
+    icon = resources / filename
+    if icon.is_symlink() or not icon.is_file():
+        raise RuntimeError(f"bundle has no compiled {filename} inside Resources")
+    if icon.resolve().parent != resources.resolve():
+        raise RuntimeError(f"Compiled icon {filename} escapes Resources")
+    return icon.resolve()
 
 
 def sha256_file(path):

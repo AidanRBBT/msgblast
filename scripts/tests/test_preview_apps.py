@@ -45,8 +45,10 @@ class PreviewPlanTests(unittest.TestCase):
         self.assertEqual(demo["CFBundleIdentifier"], "com.msgblast.demo")
         self.assertEqual(demo["msgblastSupportDirectory"], "msgblast-Demo")
         self.assertEqual(demo["SUFeedURL"], "")
+        self.assertEqual(demo["CFBundleIconFile"], "AppIconDemo")
         self.assertFalse(demo["SUEnableAutomaticChecks"])
         development = preview.configure_info(info, preview.VARIANTS["development"], "b" * 40)
+        self.assertEqual(development["CFBundleIconFile"], "AppIcon")
         self.assertFalse(development["msgblastDemo"])
         self.assertEqual(development["CFBundleIdentifier"], "com.msgblast.development")
         self.assertEqual(development["msgblastSupportDirectory"], "msgblast-Dev")
@@ -68,6 +70,34 @@ class PreviewPlanTests(unittest.TestCase):
         self.assertEqual(preview.classify_icon_color(44, 23, 193), "blue")
         self.assertEqual(preview.expected_icon_color(preview.VARIANTS["development"]), "blue-green")
         self.assertEqual(preview.expected_icon_color(preview.VARIANTS["demo"]), "blue")
+
+    def test_compiled_icon_follows_the_selected_resource_name(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            app = Path(temporary) / "msgblast Demo.app"
+            resources = app / "Contents/Resources"
+            resources.mkdir(parents=True)
+            demo_icon = resources / "AppIconDemo.icns"
+            dev_icon = resources / "AppIcon.icns"
+            demo_icon.write_bytes(b"demo-icon")
+            dev_icon.write_bytes(b"dev-icon")
+            outside = Path(temporary) / "AppIconDemo.icns"
+            outside.write_bytes(b"outside")
+            (resources / "escape.icns").symlink_to(outside)
+            demo = preview.compiled_icon_path(app, {"CFBundleIconFile": "AppIconDemo"}, "AppIconDemo")
+            self.assertEqual(demo, demo_icon.resolve())
+            suffixed = preview.compiled_icon_path(app, {"CFBundleIconFile": "AppIconDemo.icns"}, "AppIconDemo")
+            self.assertEqual(suffixed, demo_icon.resolve())
+            fallback = preview.compiled_icon_path(app, {}, "AppIcon")
+            self.assertEqual(fallback, dev_icon.resolve())
+            self.assertNotEqual(demo.name, fallback.name)
+            with self.assertRaises(RuntimeError):
+                preview.compiled_icon_path(app, {"CFBundleIconFile": "../AppIconDemo"}, "AppIconDemo")
+            with self.assertRaises(RuntimeError):
+                preview.compiled_icon_path(app, {"CFBundleIconFile": "AppIcon"}, "AppIconDemo")
+            with self.assertRaises(RuntimeError):
+                preview.compiled_icon_path(app, {"CFBundleIconFile": "escape"}, "escape")
+            with self.assertRaises(RuntimeError):
+                preview.compiled_icon_path(app, {}, "MissingIcon")
 
     def test_manifest_records_sha_run_and_expiry_without_a_feed(self):
         document = preview.manifest("c" * 40, "https://github.com/mgalpert/msgblast/actions/runs/1", [])

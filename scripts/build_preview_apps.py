@@ -119,15 +119,16 @@ def package_variant(workspace, variant, source_revision, output, swift_source):
     shutil.copytree(built, app, symlinks=True)
     info_path = app / "Contents/Info.plist"
     with info_path.open("rb") as file:
-        info = plistlib.load(file)
-    info = preview.configure_info(info, variant, source_revision)
+        built_info = plistlib.load(file)
+    try:
+        icns = preview.compiled_icon_path(app, built_info, variant["icon_name"])
+    except RuntimeError as error:
+        raise SystemExit(f"{variant['id']} {error}") from error
+    info = preview.configure_info(built_info, variant, source_revision)
     with info_path.open("wb") as file:
         plistlib.dump(info, file)
     with info_path.open("rb") as file:
         preview.verify_configured_info(plistlib.load(file), variant, source_revision)
-    icns = app / "Contents/Resources/AppIcon.icns"
-    if not icns.is_file():
-        raise SystemExit(f"{variant['id']} bundle has no compiled AppIcon.icns")
     red, green, blue = sample_icon(icns, swift_source)
     kind = preview.classify_icon_color(red, green, blue)
     expected = preview.expected_icon_color(variant)
@@ -154,6 +155,7 @@ def package_variant(workspace, variant, source_revision, output, swift_source):
         "support_directory": f"~/Library/Application Support/{variant['support_directory']}",
         "zip": zip_name,
         "sha256": preview.sha256_file(zip_path),
+        "compiled_icon": icns.name,
         "compiled_icon_sha256": preview.sha256_file(icns),
         "compiled_icon_rgb": [round(red, 1), round(green, 1), round(blue, 1)],
         "icon_fill_sha256": preview.sha256_file(variant["icon_source"] / "icon.json"),
@@ -200,6 +202,8 @@ def main():
             records.append(package_variant(workspace, variant, args.sha, output, swift_source))
     if len({record["compiled_icon_sha256"] for record in records}) != len(records):
         raise SystemExit("Compiled preview icons are identical, so artwork selection did not change the app")
+    if len({record["compiled_icon"] for record in records}) != len(records):
+        raise SystemExit("Preview variants resolved the same compiled icon filename")
     preview.assert_committed_icons_unchanged()
     document = preview.manifest(args.sha, args.run_url, records)
     manifest_path = output / "preview-manifest.json"
