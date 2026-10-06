@@ -12,13 +12,14 @@ struct AgentsWorkspaceView: View {
     @ObservedObject var model: AppModel
     @ObservedObject var web: WebAgents
     @Binding var showingComparison: Bool
-    @State private var sending = false
-    private var busy: Bool { sending || model.busy || web.sessions.contains { $0.isSending } }
+    private var busy: Bool { model.busy || model.webBroadcastBusy || web.sessions.contains { $0.isSending } }
     private var nativeRecipients: [Agent] { model.state.agents.filter { model.state.selection.contains($0.id) } }
+    private var attachmentComparisonID: UUID? { showingComparison ? nativeComparison?.id : nil }
+    private var attachments: [MessageAttachment] { model.attachmentDraft(comparisonID: attachmentComparisonID) }
     private var canSend: Bool {
         let text = model.state.draft.trimmingCharacters(in: .whitespacesAndNewlines)
         return !busy && (!web.selected.isEmpty || !nativeRecipients.isEmpty)
-            && (web.selected.isEmpty || (!text.isEmpty && model.attachmentDraft().isEmpty))
+            && (web.selected.isEmpty || (!text.isEmpty && attachments.isEmpty))
             && web.selected.allSatisfy { $0.snapshot.ready && $0.snapshot.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !$0.state.hasUnresolvedSend(text) }
             && (nativeRecipients.isEmpty || (model.databaseAvailable && nativeRecipients.allSatisfy { model.route($0) != nil }))
     }
@@ -27,8 +28,8 @@ struct AgentsWorkspaceView: View {
         VStack(spacing: 0) {
             if showingComparison {
                 HStack {
-                    Button { showingComparison = false } label: { Label("Agents", systemImage: "chevron.left") }
-                        .accessibilityLabel("Back to agents")
+                    Button { showingComparison = false; web.setComparison(nil) } label: { Label("New comparison", systemImage: "plus") }
+                        .accessibilityLabel("New comparison").disabled(busy)
                     Spacer()
                     Text(web.fixture ? "Local fixture · no real sends" : model.demo ? "Live web agents · simulated Messages" : "")
                         .font(.caption).foregroundStyle(.secondary)
@@ -107,7 +108,7 @@ struct AgentsWorkspaceView: View {
                 Text("Send & compare can’t send to \(unavailable.formatted(.list(type: .and))). You can message them directly in their chats.")
                     .font(.caption).foregroundStyle(.secondary)
             }
-            if !web.selected.isEmpty && !model.attachmentDraft().isEmpty {
+            if !web.selected.isEmpty && !attachments.isEmpty {
                 Text("Web agents support text here. Remove the attachments or deselect them to send.")
                     .font(.caption).foregroundStyle(.orange)
             }
@@ -119,14 +120,17 @@ struct AgentsWorkspaceView: View {
                     }
                     ForEach(model.state.agents) { agent in
                         recipient(agent.name, selected: model.state.selection.contains(agent.id)) { toggle(agent.id) }
-                            .disabled(model.route(agent) == nil)
+                            .disabled(model.route(agent) == nil || (nativeComparison?.members.contains { $0.id == agent.id } == false))
                             .help("Messages · \(agent.name)")
                     }
                 }
             }.scrollIndicators(.hidden) }
+            if showingComparison, let comparison = nativeComparison {
+                FollowUpStatus(model: model, comparison: comparison, universal: true).disabled(busy)
+            }
             MessageInput(text: Binding(get: { model.state.draft }, set: { model.state.draft = $0; model.persist() }),
-                         attachments: model.attachmentDraft(), addAttachments: { await model.addAttachments($0) },
-                         removeAttachment: { id in model.setAttachmentDraft(model.attachmentDraft().filter { $0.id != id }) },
+                         attachments: attachments, addAttachments: { await model.addAttachments($0, comparisonID: attachmentComparisonID) },
+                         removeAttachment: { id in model.setAttachmentDraft(attachments.filter { $0.id != id }, comparisonID: attachmentComparisonID) },
                          placeholder: "Message", accessibilityName: "Shared prompt", sendLabel: "Send & compare",
                          disabled: !canSend, attachmentsEnabled: web.selected.isEmpty, send: send)
         }.padding(20)
@@ -150,7 +154,7 @@ struct AgentsWorkspaceView: View {
 
     private func send() {
         guard canSend else { return }
-        if web.selected.isEmpty {
+        if web.selected.isEmpty && nativeComparison?.webProviders == nil {
             Task { await model.start() }
             return
         }
@@ -158,21 +162,39 @@ struct AgentsWorkspaceView: View {
         let recipients = Set(nativeRecipients.map(\.id))
         let model = model
         let sessions = web.selected
-        sending = true
+        let existingID = showingComparison ? nativeComparison?.id : nil
+        model.webBroadcastBusy = true
         showingComparison = true
         Task { @MainActor in
-            defer { sending = false }
-            let result = await AgentBroadcast.send(draft: originalDraft, currentDraft: { model.state.draft }, clearDraft: {
+            defer { model.webBroadcastBusy = false }
+            let comparisonID: UUID
+            if let existingID { comparisonID = existingID }
+            else {
+                guard let id = await model.prepareWebComparison(originalDraft.trimmingCharacters(in: .whitespacesAndNewlines), recipientIDs: recipients, providers: sessions.map(\.provider)) else { return }
+                comparisonID = id
+            }
+            if let i = model.index(comparisonID) {
+                let previous = model.state.comparisons[i].webProviders ?? []
+                model.state.comparisons[i].webProviders = WebProvider.allCases.filter { previous.contains($0) || sessions.map(\.provider).contains($0) }
+                do { try model.save() } catch { model.error = error.localizedDescription; return }
+            }
+            _ = await AgentBroadcast.send(draft: originalDraft, currentDraft: { model.state.draft }, clearDraft: {
                 model.state.draft = ""; model.persist()
             }, web: { text in
-                await WebAgents.send(text, to: sessions)
+                await WebAgents.send(text, to: sessions, comparisonID: comparisonID)
             }, messages: { text in
                 guard !recipients.isEmpty else { return nil }
-                return await model.startTextComparison(text, recipientIDs: recipients) { id in
-                    web.setComparison(id)
+                if existingID != nil {
+                    guard let i = model.index(comparisonID) else { return nil }
+                    let previousCount = model.state.comparisons[i].followUps.count
+                    model.state.comparisons[i].allDraft = text
+                    await model.followUp(comparisonID, recipients: Array(recipients))
+                    return model.comparison(comparisonID)?.followUps.count != previousCount ? comparisonID : nil
                 }
+                await model.submit(comparisonID, retry: false)
+                return comparisonID
             })
-            web.setComparison(result.comparisonID)
+            web.setComparison(comparisonID)
         }
     }
 }
@@ -186,14 +208,14 @@ private struct WebAgentPane: View {
                 AgentAvatar(agent: webAgent(session), name: session.provider.name, size: 38)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(session.provider.name).font(.headline)
-                    Text(session.webView.url?.host ?? session.provider.homeURL.host!).font(.caption).foregroundStyle(.secondary)
+                    Text(session.locationLabel).font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
                 if session.loading { ProgressView().controlSize(.small) }
-                Button { session.openMainChat() } label: { Image(systemName: "house") }.help("Main \(session.provider.name) chat").accessibilityLabel("Main \(session.provider.name) chat").disabled(busy)
+                Button { session.openComparisonChat() } label: { Image(systemName: "house") }.help("\(session.provider.name) comparison chat").accessibilityLabel("\(session.provider.name) comparison chat").disabled(busy)
                 Button { session.reload() } label: { Image(systemName: "arrow.clockwise") }.help("Reload \(session.provider.name)").accessibilityLabel("Reload \(session.provider.name)").disabled(busy)
             }.padding(14).background(.bar)
-            if let latest = session.state.attempts.first {
+            if let latest = session.latestComparisonAttempt {
                 VStack(alignment: .leading, spacing: 3) {
                     Label(latest.status.label(for: session.provider), systemImage: latest.status == .observed ? "checkmark.circle" : "info.circle")
                         .font(.caption.weight(.semibold))

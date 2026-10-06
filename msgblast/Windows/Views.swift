@@ -214,10 +214,10 @@ struct MainView: View {
                         HStack(spacing: 10) {
                             Image(systemName: "bubble.left.and.bubble.right.fill").font(.title3).foregroundStyle(.secondary).frame(width: 32)
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(comparison.members.map(\.name).joined(separator: ", ")).fontWeight(.semibold).lineLimit(1)
+                                Text((comparison.members.map(\.name) + (comparison.webProviders ?? []).map(\.name)).joined(separator: ", ")).fontWeight(.semibold).lineLimit(1)
                                 Text(comparison.prompt).foregroundStyle(.secondary).lineLimit(2)
                             }
-                        }.padding(.vertical, 5)
+                        }.padding(.vertical, 5).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
                     }.buttonStyle(.plain)
                 }
                     if model.state.comparisons.isEmpty { Text("No comparisons").foregroundStyle(.secondary) }
@@ -237,6 +237,7 @@ struct MainView: View {
         }
         .frame(minWidth: 760, minHeight: 560)
         .tint(.blue)
+        .onChange(of: model.webComparisonRequest) { _, _ in selection = .agents; showingComparison = true }
         .sheet(isPresented: $setup) { AgentSetupView(model: model) }
         .alert("msgblast", isPresented: Binding(get: { model.error != nil }, set: { if !$0 { model.error = nil } })) {
             Button("OK") { model.error = nil }

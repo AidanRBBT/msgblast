@@ -23,8 +23,8 @@ public final class WebAgents: ObservableObject {
         if session.state.selected { session.connect() }
     }
     public func connectSelected() { selected.forEach { $0.connect() } }
-    public static func send(_ text: String, to sessions: [WebAgentSession]) async -> [WebProvider: WebSendAttempt] {
-        let tasks = sessions.map { session in Task { @MainActor in (session.provider, await session.send(text)) } }
+    public static func send(_ text: String, to sessions: [WebAgentSession], comparisonID: UUID? = nil) async -> [WebProvider: WebSendAttempt] {
+        let tasks = sessions.map { session in Task { @MainActor in (session.provider, await session.send(text, comparisonID: comparisonID)) } }
         var results: [WebProvider: WebSendAttempt] = [:]
         for task in tasks { let (provider, attempt) = await task.value; results[provider] = attempt }
         return results

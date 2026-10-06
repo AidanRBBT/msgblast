@@ -6,7 +6,7 @@ import WebKit
 final class MultiWebAgentTests: XCTestCase {
     func testProviderDestinationsAndFirstConversationTransition() {
         for provider in WebProvider.allCases {
-            XCTAssertTrue(provider.isChatURL(provider.homeURL))
+            XCTAssertTrue(provider.isChatURL(provider.newChatURL))
             for invalid in ["https://\(provider.homeURL.host!).evil.test/", "http://\(provider.homeURL.host!)/", "https://\(provider.homeURL.host!)/login", "https://\(provider.homeURL.host!)/settings", "https://\(provider.homeURL.host!):444/", "https://user@\(provider.homeURL.host!)/"] {
                 XCTAssertFalse(provider.isChatURL(URL(string: invalid)!), invalid)
             }

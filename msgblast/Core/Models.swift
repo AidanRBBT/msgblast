@@ -160,6 +160,7 @@ public struct Comparison: Codable, Identifiable, Sendable {
     public var privateAttachmentDrafts: [String: [MessageAttachment]]?
     public var recipientSelection: ConversationRecipients?
     public var summary: ComparisonSummary?
+    public var webProviders: [WebProvider]?
     public init(prompt: String, members: [Member]) { self.prompt = prompt; self.members = members }
     public var title: String { String((prompt.isEmpty ? attachments?.map(\.filename).joined(separator: ", ") ?? "Attachment" : prompt).prefix(65)) }
 }

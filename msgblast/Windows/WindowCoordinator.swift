@@ -109,6 +109,11 @@ final class WindowCoordinator: NSObject, NSWindowDelegate, NSToolbarDelegate {
     }
 
     func open(_ id: UUID) {
+        if model.comparison(id)?.webProviders?.isEmpty == false {
+            model.openWebComparison(id)
+            NSApp.activate()
+            return
+        }
         guard let comparison = model.comparison(id) else { return }
         if model.state.effectiveWindowStyle == .connected {
             openConnected(comparison)

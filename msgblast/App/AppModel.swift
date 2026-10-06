@@ -11,6 +11,8 @@ final class AppModel: ObservableObject {
     @Published var databaseAvailable = false
     @Published var error: String?
     @Published var busy = false
+    @Published var webBroadcastBusy = false
+    @Published var webComparisonRequest = UUID()
     @Published var contactResults: [Agent] = []
     @Published var contactQuery = ""
     @Published var demoFailureOnce = false
@@ -256,22 +258,35 @@ final class AppModel: ObservableObject {
             await submit(comparison.id, retry: false)
         } catch { self.error = error.localizedDescription }
     }
-    // Capture recipients before the independent Muse and Messages submissions begin.
-    func startTextComparison(_ text: String, recipientIDs: Set<UUID>, onPrepared: @MainActor (UUID) -> Void) async -> UUID? {
-        guard !busy, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, !recipientIDs.isEmpty else { return nil }
+    func prepareWebComparison(_ text: String, recipientIDs: Set<UUID>, providers: [WebProvider]) async -> UUID? {
+        guard !busy else { return nil }
         do {
-            if !demo, contacts.status == .notDetermined {
-                busy = true
-                defer { busy = false }
-                try await contacts.request()
-            }
-            let comparison = Comparison(prompt: text, members: try validateMembers(prompt: text, selectedIDs: recipientIDs))
+            if !recipientIDs.isEmpty, !demo, contacts.status == .notDetermined { try await contacts.request() }
+            let members = recipientIDs.isEmpty ? [] : try validateMembers(prompt: text, selectedIDs: recipientIDs)
+            var comparison = Comparison(prompt: text, members: members)
+            comparison.webProviders = providers
             state.comparisons.insert(comparison, at: 0)
-            try save()
-            onPrepared(comparison.id)
-            await submit(comparison.id, retry: false)
+            do { try save() }
+            catch { state.comparisons.removeAll { $0.id == comparison.id }; throw error }
+            webAgents.setComparison(comparison.id)
             return comparison.id
         } catch { self.error = error.localizedDescription; return nil }
+    }
+    func openWebComparison(_ id: UUID) {
+        guard !webBroadcastBusy, let comparison = comparison(id) else { return }
+        webAgents.setComparison(id)
+        state.selection = Set(comparison.members.map(\.id))
+        for session in webAgents.sessions {
+            session.updateState { $0.selected = comparison.webProviders?.contains(session.provider) == true }
+        }
+        webAgents.connectSelected()
+        webComparisonRequest = UUID()
+        if comparison.webProviders?.contains(.muse) == true {
+            Task {
+                guard webAgents.comparisonID == id else { return }
+                await webAgents.sessions.first { $0.provider == .muse }?.openMuseComparison(id)
+            }
+        }
     }
     func comparison(_ id: UUID) -> Comparison? { state.comparisons.first { $0.id == id } }
     func index(_ id: UUID) -> Int? { state.comparisons.firstIndex { $0.id == id } }
