@@ -199,7 +199,7 @@ private struct DiscoverAccessView: View {
                         Image(systemName: "person.crop.rectangle").font(.title2).foregroundStyle(.secondary)
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Connect Contacts").font(.headline)
-                            Text("Find people you know and save agents to Contacts.").font(.callout).foregroundStyle(.secondary)
+                            Text("Find the agents already in your contacts.").font(.callout).foregroundStyle(.secondary)
                         }
                         Spacer()
                         Button("Connect Contacts") { Task { await model.connectContacts() } }

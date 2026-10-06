@@ -240,6 +240,7 @@ struct MainView: View {
                     if model.state.comparisons.isEmpty { Text("No comparisons").foregroundStyle(.secondary) }
                 }
             }.listStyle(.sidebar).navigationTitle("msgblast")
+                .safeAreaInset(edge: .bottom, spacing: 0) { WhatsNewSidebar().padding(12) }
                 .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 330)
         } detail: {
             if selection == .discover {

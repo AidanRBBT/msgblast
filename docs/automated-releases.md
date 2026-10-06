@@ -39,6 +39,10 @@ No hosting account/bucket/domain is created by the workflow. Until these variabl
 
 ## Each release
 
+Keep `release-notes/VERSION.md` brief: start with at most three short bullets about changes users will notice. Put setup instructions and technical detail after the highlights. Add a `## Contributors` section with linked GitHub handles and a specific thank-you; verify attribution from the release's commit range or pull requests. The sidebar shows the highlights and credits first, with full notes available on demand. `release-notes/highlights.json` supplies concise summaries for older long-form notes.
+
+`release-notes/unpublished.json` excludes historical updater fixtures and failed release attempts from the app's history. Their original Markdown remains in the repository; the changes from 0.3.0–0.4.2 first shipped in 0.4.3.
+
 1. Commit/review the intended source and write `release-notes/VERSION.md` with user-facing notes. Include the source on the default branch.
 2. Push the release tag. For example:
 
