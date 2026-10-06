@@ -17,6 +17,7 @@ final class AppModel: ObservableObject {
     @Published var contactQuery = ""
     @Published var demoFailureOnce = false
     @Published var contactStatus = ""
+    @Published private(set) var contactsAvailable = false
     let demo: Bool
     let personalAgent: PersonalAgentController
     var permissionGuidePreview: Bool {
@@ -35,6 +36,7 @@ final class AppModel: ObservableObject {
     var timer: Timer?
     var coordinator: WindowCoordinator?
     var demoRow: Int64 = 100
+    private var demoContactsConnected = !ProcessInfo.processInfo.arguments.contains("--contacts-access-preview")
     private var storageLoadFailed = false
     private var lastDataVersion: Int64?
     init() {
@@ -130,6 +132,7 @@ final class AppModel: ObservableObject {
         persist()
     }
     private func refreshIfChanged() {
+        refreshContactAccess()
         guard !busy, !demo else { return }
         do {
             if let database, try database.changeVersion() == lastDataVersion { return }
@@ -138,6 +141,7 @@ final class AppModel: ObservableObject {
     }
     func refresh() {
         guard !busy else { return }
+        refreshContactAccess()
         defer { accessGuide.observeHistory(available: databaseAvailable) }
         if permissionGuidePreview {
             databaseAvailable = false
@@ -168,29 +172,65 @@ final class AppModel: ObservableObject {
             lastDataVersion = version
         } catch { databaseAvailable = false; databaseStatus = error.localizedDescription; database = nil }
     }
-    func searchAgents() async {
-        let query = contactQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-        let manual = Agent.manualAccount(for: query)
+    func refreshContactAccess() {
+        let available = demo ? demoContactsConnected : contacts.status == .authorized
+        if contactsAvailable != available {
+            contactsAvailable = available
+            if available { contactQuery = "" }
+        }
+    }
+    func connectContacts() async {
+        guard databaseAvailable, !busy else { return }
+        if demo {
+            demoContactsConnected = true
+            refreshContactAccess()
+            return
+        }
         do {
-            if demo { contactResults = state.agents.filter { query.isEmpty || $0.name.localizedCaseInsensitiveContains(query) } }
-            else if contacts.status == .authorized { contactResults = try contacts.search(query) }
-            else if manual == nil {
-                if contacts.status == .notDetermined { try await contacts.request() }
-                contactResults = try contacts.search(query)
-            } else { contactResults = [] }
-            if let manual {
-                let normalized = ChatResolver.normalize(query)
-                let hasExactContact = contactResults.contains { $0.handles.contains { ChatResolver.normalize($0) == normalized } }
-                if !hasExactContact { contactResults.append(manual) }
+            if contacts.status == .notDetermined { try await contacts.request() }
+            else if contacts.status != .authorized {
+                if let url = URL(string: "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_Contacts") {
+                    NSWorkspace.shared.open(url)
+                }
             }
-            contactStatus = contactResults.isEmpty ? "No matching contact. Try a name, email, or full phone number." : ""
+            refreshContactAccess()
+        } catch { contactStatus = error.localizedDescription }
+    }
+    func searchDiscoverContacts(knownAgents: [DiscoveredAgent]) async {
+        guard databaseAvailable, contactsAvailable else { contactResults = []; return }
+        let query = contactQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        do {
+            let known = KnownAgentContacts(agents: knownAgents)
+            if demo {
+                let samples = (["Fo", "Szn", "Instinct"] + knownAgents.prefix(1).map(\.name)).map { Agent(contactID: "fixture-known-" + $0.lowercased(), name: $0, handles: [$0.lowercased() + "@example.com"]) }
+                let contacts = samples.filter { sample in !state.agents.contains { $0.contactID == sample.contactID } } + state.agents
+                contactResults = contacts.filter { query.isEmpty ? known.contains(name: $0.name) :
+                    $0.name.localizedCaseInsensitiveContains(query) || $0.handles.contains(where: { $0.localizedCaseInsensitiveContains(query) }) }
+            } else {
+                let searchTask = Task.detached(priority: .userInitiated) {
+                    let search = ContactSearch()
+                    return try query.isEmpty ? search.knownAgents(matching: known) : search.search(query)
+                }
+                let results = try await withTaskCancellationHandler {
+                    try await searchTask.value
+                } onCancel: { searchTask.cancel() }
+                guard !Task.isCancelled, databaseAvailable, contactsAvailable,
+                      contactQuery.trimmingCharacters(in: .whitespacesAndNewlines) == query else { return }
+                contactResults = results
+            }
+            if let manual = Agent.manualAccount(for: query), !contactResults.contains(where: {
+                $0.handles.contains { ChatResolver.normalize($0) == ChatResolver.normalize(query) }
+            }) { contactResults.append(manual) }
+            contactStatus = query.isEmpty || !contactResults.isEmpty ? "" : "No matching contact. Try a name, email, or full phone number."
         } catch {
-            contactResults = manual.map { [$0] } ?? []
-            contactStatus = manual == nil ? error.localizedDescription : ""
+            guard !Task.isCancelled, databaseAvailable, contactsAvailable,
+                  contactQuery.trimmingCharacters(in: .whitespacesAndNewlines) == query else { return }
+            contactResults = []; contactStatus = error.localizedDescription
         }
     }
     func addAgent(_ agent: Agent) async {
         guard !busy else { return }
+        contactStatus = ""
         let normalizedHandles = Set(agent.handles.map(ChatResolver.normalize))
         guard !state.agents.contains(where: { saved in
             if let contactID = agent.contactID { return saved.contactID == contactID }

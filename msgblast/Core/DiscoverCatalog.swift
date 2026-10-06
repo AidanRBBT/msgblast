@@ -47,3 +47,23 @@ public struct DiscoverCatalog: Decodable, Sendable {
         }.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
 }
+
+public struct KnownAgentContacts: Sendable {
+    private let names: Set<String>
+
+    public init(agents: [DiscoveredAgent]) {
+        names = Set((agents.map(\.name) + ["Fo", "Szn", "Instinct"]).map(Self.nameKey))
+    }
+
+    public func contains(name: String) -> Bool {
+        let key = Self.nameKey(name)
+        return names.contains(key) || [" ai", " agent"].contains { suffix in
+            key.hasSuffix(suffix) && names.contains(String(key.dropLast(suffix.count)))
+        }
+    }
+
+    private static func nameKey(_ name: String) -> String {
+        name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
+            .components(separatedBy: CharacterSet.alphanumerics.inverted).filter { !$0.isEmpty }.joined(separator: " ")
+    }
+}

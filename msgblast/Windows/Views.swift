@@ -190,12 +190,14 @@ struct PinnedAgentTile: View {
 }
 
 struct MainView: View {
+    @Environment(\.controlActiveState) private var controlActiveState
     @ObservedObject var model: AppModel
     @ObservedObject private var web: WebAgents
-    @State private var setup = false
     private enum DetailSelection { case agents, discover }
     @State private var selection = DetailSelection.agents
     @State private var showingComparison = false
+    private var sidebarSelectionColor: Color { Color.primary.opacity(controlActiveState == .inactive ? 0.06 : 0.10) }
+    private var sidebarIconColor: Color { controlActiveState == .inactive ? .secondary : .accentColor }
     private var showingAgents: Bool { selection == .agents && !showingComparison }
     private var selectedComparisonID: UUID? { selection == .agents && showingComparison ? web.comparisonID : nil }
 
@@ -209,11 +211,11 @@ struct MainView: View {
             List {
                 Section {
                     Button { selection = .agents; showingComparison = false } label: {
-                        Label("Agents", systemImage: "person.2.fill").foregroundStyle(showingAgents ? Color.accentColor : Color.primary)
+                        sidebarLabel("Agents", systemImage: "person.2.fill", selected: showingAgents)
                     }.buttonStyle(.plain).accessibilityLabel("Agents")
                         .accessibilityValue(showingAgents ? "Selected" : "Not selected")
                     Button { selection = .discover } label: {
-                        Label("Discover", systemImage: "safari").foregroundStyle(selection == .discover ? Color.accentColor : Color.primary)
+                        sidebarLabel("Discover", systemImage: "safari", selected: selection == .discover)
                     }.buttonStyle(.plain).accessibilityLabel("Discover")
                         .accessibilityValue(selection == .discover ? "Selected" : "Not selected")
                 }
@@ -226,10 +228,13 @@ struct MainView: View {
                                 Text((comparison.members.map(\.name) + (comparison.webProviders ?? []).map(\.name)).joined(separator: ", ")).fontWeight(.semibold).lineLimit(1)
                                 Text(comparison.prompt).foregroundStyle(.secondary).lineLimit(2)
                             }
-                        }.padding(.vertical, 5).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+                        }.padding(.horizontal, 10).padding(.vertical, 8)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(selectedComparisonID == comparison.id ? sidebarSelectionColor : Color.clear, in: RoundedRectangle(cornerRadius: 8))
+                            .contentShape(Rectangle())
                     }.buttonStyle(.plain)
-                        .foregroundStyle(selectedComparisonID == comparison.id ? Color.accentColor : Color.primary)
-                        .listRowBackground(selectedComparisonID == comparison.id ? Color.accentColor.opacity(0.16) : Color.clear)
+                        .foregroundStyle(Color.primary)
+                        .listRowBackground(Color.clear)
                         .accessibilityValue(selectedComparisonID == comparison.id ? "Selected" : "Not selected")
                 }
                     if model.state.comparisons.isEmpty { Text("No comparisons").foregroundStyle(.secondary) }
@@ -238,7 +243,7 @@ struct MainView: View {
                 .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 330)
         } detail: {
             if selection == .discover {
-                DiscoverView(model: model).navigationTitle("Discover")
+                DiscoverView(model: model).navigationTitle("")
             } else {
             VStack(spacing: 0) {
                 if model.demo { demoControls }
@@ -250,22 +255,42 @@ struct MainView: View {
         .frame(minWidth: 760, minHeight: 560)
         .tint(.blue)
         .onChange(of: model.webComparisonRequest) { _, _ in selection = .agents; showingComparison = true }
-        .sheet(isPresented: $setup) { AgentSetupView(model: model) }
         .alert("msgblast", isPresented: Binding(get: { model.error != nil }, set: { if !$0 { model.error = nil } })) {
             Button("OK") { model.error = nil }
         } message: { Text(model.error ?? "") }
         .toolbar {
-            ToolbarItem {
-                Button { setup = true } label: {
-                    Label("Add Agent", systemImage: "plus")
-                        .labelStyle(.titleAndIcon)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
+            if selection == .discover {
+                ToolbarItem(placement: .navigation) {
+                    Button {
+                        showingComparison = false
+                        web.setComparison(nil)
+                        selection = .agents
+                    } label: {
+                        Label("New Blast", systemImage: "square.and.pencil")
+                            .labelStyle(.titleAndIcon)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                    }
+                    .help("New Blast").accessibilityLabel("New Blast")
+                    .disabled(model.busy || model.webBroadcastBusy || web.sessions.contains { $0.isSending })
                 }
-                .help("Add agent").accessibilityLabel("Add agent")
             }
         }
     }
+    private func sidebarLabel(_ title: String, systemImage: String, selected: Bool) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: systemImage).foregroundStyle(sidebarIconColor).frame(width: 22)
+            Text(title).foregroundStyle(Color.primary)
+                .opacity(controlActiveState == .inactive ? 0.5 : 1)
+            Spacer(minLength: 0)
+        }
+        .font(.system(size: 14, weight: .semibold))
+        .padding(.horizontal, 10).padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(selected ? sidebarSelectionColor : Color.clear, in: RoundedRectangle(cornerRadius: 8))
+        .contentShape(Rectangle())
+    }
+
     private var demoControls: some View {
         HStack(spacing: 14) {
             Label(model.webAgents.fixture ? "Local fixture · no real sends" : "Live web agents · simulated Messages", systemImage: "testtube.2").foregroundStyle(.orange)
@@ -282,53 +307,11 @@ private struct MessagesAccessBanner: View {
     init(model: AppModel) { self.model = model; guide = model.accessGuide }
     var body: some View {
         if !model.databaseAvailable || guide.flow.isActive || guide.flow.stage == .verified {
-            MessagesAccessRow(guide: guide, check: { model.refresh() }).help(model.databaseStatus)
+            MessagesAccessRow(guide: guide, check: { model.refresh() }).padding(18).help(model.databaseStatus)
             if model.permissionGuidePreview {
                 Text("Permission guide preview · simulated history denial").font(.caption).foregroundStyle(.secondary)
             }
         }
-    }
-}
-
-struct AgentSetupView: View {
-    @ObservedObject var model: AppModel
-    @Environment(\.dismiss) private var dismiss
-    var body: some View {
-        VStack(spacing: 16) {
-            HStack {
-                TextField("Name, email or phone number", text: $model.contactQuery).textFieldStyle(.roundedBorder)
-                    .onSubmit { Task { await model.searchAgents() } }
-                Button("Search") { Task { await model.searchAgents() } }
-            }
-            List {
-                ForEach(model.contactResults) { agent in
-                    HStack {
-                        AgentAvatar(agent: agent, name: agent.name)
-                        Text(agent.name)
-                        Spacer()
-                        Text(model.route(agent)?.handle ?? "No existing chat").foregroundStyle(.secondary)
-                        Button("Add") { Task { await model.addAgent(agent) } }.disabled(model.busy)
-                            .accessibilityLabel("Add \(agent.name)")
-                    }
-                    .accessibilityElement(children: .contain)
-                }
-                Section("Saved") {
-                    ForEach(model.state.agents) { agent in
-                        HStack {
-                            AgentAvatar(agent: agent, name: agent.name)
-                            Text(agent.name)
-                            Spacer()
-                            Button { model.removeAgent(agent) } label: { Image(systemName: "minus.circle") }.help("Remove \(agent.name)")
-                        }
-                    }
-                }
-            }
-            HStack {
-                Text(model.contactStatus).font(.caption).foregroundStyle(.secondary)
-                Spacer()
-                Button("Done") { dismiss() }.keyboardShortcut(.defaultAction)
-            }
-        }.padding(20).frame(width: 660, height: 500).disabled(model.busy)
     }
 }
 

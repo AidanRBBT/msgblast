@@ -1,11 +1,11 @@
 @preconcurrency import Contacts
 import msgblastCore
 
-@MainActor
 final class ContactSearch {
     let store = CNContactStore()
     private let keysToFetch: [CNKeyDescriptor] = [CNContactIdentifierKey, CNContactGivenNameKey, CNContactFamilyNameKey, CNContactPhoneNumbersKey, CNContactEmailAddressesKey, CNContactThumbnailImageDataKey].map { $0 as CNKeyDescriptor }
     var status: CNAuthorizationStatus { CNContactStore.authorizationStatus(for: .contacts) }
+    @MainActor
     func request() async throws { guard try await store.requestAccess(for: .contacts) else { throw AppFailure.blocked("Contacts access denied. Enable Contacts for msgblast in System Settings.") } }
     func search(_ query: String) throws -> [Agent] {
         guard status == .authorized else { throw AppFailure.blocked("Allow Contacts access to search for agents.") }
@@ -15,17 +15,33 @@ final class ContactSearch {
         var contacts: [CNContact] = []
         if query.contains("@") || query.filter(\.isNumber).count >= 5 {
             let request = CNContactFetchRequest(keysToFetch: keys)
-            try store.enumerateContacts(with: request) { contact, _ in
+            try store.enumerateContacts(with: request) { contact, stop in
+                if Task.isCancelled { stop.pointee = true; return }
                 let handles = contact.emailAddresses.map { String($0.value) } + contact.phoneNumbers.map { $0.value.stringValue }
                 if handles.contains(where: { ChatResolver.normalize($0).contains(ChatResolver.normalize(query)) }) { contacts.append(contact) }
             }
         } else { contacts = try store.unifiedContacts(matching: CNContact.predicateForContacts(matchingName: query), keysToFetch: keys) }
-        return contacts.map { contact in
-            let name = [contact.givenName, contact.familyName].filter { !$0.isEmpty }.joined(separator: " ")
-            let handles = contact.phoneNumbers.map { $0.value.stringValue } + contact.emailAddresses.map { String($0.value) }
-            return Agent(contactID: contact.identifier, name: name.isEmpty ? (handles.first ?? "Agent") : name, handles: handles, avatar: contact.thumbnailImageData, colorIndex: abs(contact.identifier.hashValue % 6))
-        }
+        return contacts.map(agent(from:))
     }
+    private func agent(from contact: CNContact) -> Agent {
+        let name = [contact.givenName, contact.familyName].filter { !$0.isEmpty }.joined(separator: " ")
+        let handles = contact.phoneNumbers.map { $0.value.stringValue } + contact.emailAddresses.map { String($0.value) }
+        return Agent(contactID: contact.identifier, name: name.isEmpty ? (handles.first ?? "Agent") : name, handles: handles,
+                     avatar: contact.thumbnailImageData, colorIndex: abs(contact.identifier.hashValue % 6))
+    }
+    func knownAgents(matching known: KnownAgentContacts) throws -> [Agent] {
+        guard status == .authorized else { return [] }
+        var agents: [Agent] = []
+        let request = CNContactFetchRequest(keysToFetch: keysToFetch)
+        request.sortOrder = .userDefault
+        try store.enumerateContacts(with: request) { contact, stop in
+            if Task.isCancelled { stop.pointee = true; return }
+            let agent = self.agent(from: contact)
+            if known.contains(name: agent.name) { agents.append(agent) }
+        }
+        return agents
+    }
+    @MainActor
     func saveManual(_ agent: Agent) async throws -> Agent {
         if status == .notDetermined { try await request() }
         guard status == .authorized else { throw AppFailure.blocked("Contacts access is needed to save this agent. Enable Contacts for msgblast in System Settings.") }
