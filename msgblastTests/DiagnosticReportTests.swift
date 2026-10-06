@@ -61,12 +61,12 @@ final class DiagnosticReportTests: XCTestCase {
         XCTAssertEqual(object?["updatesReason"] as? String, "unavailable")
         XCTAssertEqual(object?["windowStyle"] as? String, "unknown")
         XCTAssertEqual(object?["lastErrorCategory"] as? String, "send")
-        XCTAssertEqual(object?["agentCount"] as? Int, 0)
-        XCTAssertEqual(object?["comparisonCount"] as? Int, 2)
-        XCTAssertEqual(object?["stateFileBytes"] as? Int, 2048)
+        XCTAssertEqual((object?["agentCount"] as? NSNumber)?.intValue, 0)
+        XCTAssertEqual((object?["comparisonCount"] as? NSNumber)?.intValue, 2)
+        XCTAssertEqual((object?["stateFileBytes"] as? NSNumber)?.intValue, 2048)
         let counts = object?["webProviderCounts"] as? [String: Any]
         XCTAssertEqual(counts?.count, 1)
-        XCTAssertEqual(counts?["chatgpt"] as? Int, 2)
+        XCTAssertEqual((counts?["chatgpt"] as? NSNumber)?.intValue, 2)
         let packed = package.archive.utf8String + diagnostics + readme
         for secret in [email, phone, path, prompt, key, "Ada", "secret"] {
             XCTAssertFalse(diagnostics.contains(secret), secret)
