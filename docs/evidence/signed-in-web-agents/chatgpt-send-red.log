@@ -1,0 +1,15 @@
+Test Suite 'Selected tests' started at 2026-10-05 22:27:59.721.
+Test Suite 'msgblastTests.xctest' started at 2026-10-05 22:27:59.722.
+Test Suite 'MultiWebAgentTests' started at 2026-10-05 22:27:59.722.
+Test Case '-[msgblastTests.MultiWebAgentTests testSignedInNarrowLayoutsCanSendWithHiddenAccountControlsAndRichEditors]' started.
+<worktree>/msgblastTests/MultiWebAgentTests.swift:44: error: -[msgblastTests.MultiWebAgentTests testSignedInNarrowLayoutsCanSendWithHiddenAccountControlsAndRichEditors] : XCTAssertEqual failed: ("Optional(msgblastCore.WebSendStatus.notSent)") is not equal to ("Optional(msgblastCore.WebSendStatus.observed)") - ChatGPT
+<worktree>/msgblastTests/MultiWebAgentTests.swift:45: error: -[msgblastTests.MultiWebAgentTests testSignedInNarrowLayoutsCanSendWithHiddenAccountControlsAndRichEditors] : XCTUnwrap failed: expected non-nil value of type "URL"
+<worktree>/msgblastTests/MultiWebAgentTests.swift:45: error: -[msgblastTests.MultiWebAgentTests testSignedInNarrowLayoutsCanSendWithHiddenAccountControlsAndRichEditors] : XCTAssertTrue failed: threw error "UnwrappingOptional(errorCode: 105, errorUserInfo: ["XCTestErrorUserInfoKeyShouldIgnore": true])"
+<worktree>/msgblastTests/MultiWebAgentTests.swift:46: error: -[msgblastTests.MultiWebAgentTests testSignedInNarrowLayoutsCanSendWithHiddenAccountControlsAndRichEditors] : XCTAssertEqual failed: ("[]") is not equal to ("["Narrow layout comparison"]")
+Test Case '-[msgblastTests.MultiWebAgentTests testSignedInNarrowLayoutsCanSendWithHiddenAccountControlsAndRichEditors]' failed (3.044 seconds).
+Test Suite 'MultiWebAgentTests' failed at 2026-10-05 22:28:02.767.
+	 Executed 1 test, with 4 failures (1 unexpected) in 3.044 (3.045) seconds
+Test Suite 'msgblastTests.xctest' failed at 2026-10-05 22:28:02.767.
+	 Executed 1 test, with 4 failures (1 unexpected) in 3.044 (3.045) seconds
+Test Suite 'Selected tests' failed at 2026-10-05 22:28:02.767.
+	 Executed 1 test, with 4 failures (1 unexpected) in 3.044 (3.046) seconds

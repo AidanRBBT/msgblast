@@ -76,11 +76,11 @@ final class AppLifecycle: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     func configure(model: AppModel) {
         guard self.model == nil else { return }
         self.model = model
-        busyObservation = model.$busy.dropFirst().sink { [weak self] _ in
+        busyObservation = model.$busy.combineLatest(model.$webBroadcastBusy).dropFirst().sink { [weak self] _ in
             Task { @MainActor in
                 guard let self, let model = self.model else { return }
-                let decision = self.termination.resume(isBusy: model.busy, persist: { try model.save() })
-                if decision != .cancelled, !model.busy, let install = self.pendingInstall {
+                let decision = self.termination.resume(isBusy: model.busy || model.webBroadcastBusy, persist: { try model.save() })
+                if decision != .cancelled, !model.busy, !model.webBroadcastBusy, let install = self.pendingInstall {
                     self.pendingInstall = nil
                     install()
                 }
@@ -92,7 +92,7 @@ final class AppLifecycle: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         }
     }
     func updater(_ updater: SPUUpdater, shouldPostponeRelaunchForUpdate item: SUAppcastItem, untilInvokingBlock installHandler: @escaping () -> Void) -> Bool {
-        guard model?.busy == true else { return false }
+        guard model?.busy == true || model?.webBroadcastBusy == true else { return false }
         pendingInstall = installHandler
         #if DEBUG
         didPostponeRelaunch?()
@@ -104,7 +104,7 @@ final class AppLifecycle: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         if ProcessInfo.processInfo.arguments.contains("--update-probe") { FileHandle.standardOutput.write(Data("update-probe: safe quit requested\n".utf8)) }
         #endif
         guard let model else { return .terminateNow }
-        switch termination.request(isBusy: model.busy, persist: { try model.save() }) {
+        switch termination.request(isBusy: model.busy || model.webBroadcastBusy, persist: { try model.save() }) {
         case .allowed:
             model.personalAgent.beginShutdown()
             guard !model.personalAgent.running.isEmpty else { return .terminateNow }

@@ -20,6 +20,8 @@ final class InstallationLocationTests: XCTestCase {
         XCTAssertEqual(SupportDirectory.folderName(demo: false, override: "msgblast-Dev"), "msgblast-Dev")
         XCTAssertEqual(SupportDirectory.folderName(demo: false, override: "../msgblast"), "msgblast")
         XCTAssertEqual(SupportDirectory.folderName(demo: true, override: "msgblast"), "msgblast-Demo")
+        XCTAssertEqual(SupportDirectory.folderName(demo: true, override: nil, webPreview: true, bundleIdentifier: "com.msgblast.web-preview"), "MsgBlast-WebPreview")
+        XCTAssertEqual(SupportDirectory.folderName(demo: true, override: "msgblast-Dev", webPreview: true, bundleIdentifier: "com.msgblast.web-preview"), "msgblast-Dev")
         XCTAssertNil(SupportDirectory.sanitized("msgblast"))
     }
     func testDevelopmentBuildsCanStartButUninstalledReleaseCannot() {

@@ -16,8 +16,14 @@ public enum InstallationLocation {
 public enum SupportDirectory {
     /// Production stays `msgblast`. Demo stays `msgblast-Demo`. A preview may set
     /// `msgblastSupportDirectory` to another `msgblast-…` folder; anything else is ignored.
-    public static func folderName(demo: Bool, override: String?) -> String {
+    /// Live web previews keep their existing `MsgBlast-WebPreview` folder unless that override is set.
+    public static func folderName(demo: Bool, override: String?, webPreview: Bool = false, bundleIdentifier: String? = nil) -> String {
         if let override, let safe = sanitized(override) { return safe }
+        if webPreview {
+            return bundleIdentifier == "com.msgblast.web-preview"
+                ? "MsgBlast-WebPreview"
+                : "MsgBlast-WebPreview-" + (bundleIdentifier ?? "local")
+        }
         return demo ? "msgblast-Demo" : "msgblast"
     }
 

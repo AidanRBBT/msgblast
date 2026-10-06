@@ -1,0 +1,16 @@
+{
+  "verdicts": [
+    {
+      "#": 1,
+      "status": "confirmed",
+      "protected_subject": null,
+      "reason": "When an existing matching user message becomes visible or preceding history changes its fallback index after preparation, the new WebPageScript.swift:31–43,67 omits or renames it and WebAgentSession.swift:181–187 falsely records observed; the inspected MultiWebAgentTests.swift:98–121 reproductions and 14-55-31/14-59-22 xcresults show observed instead of uncertain on macOS 27.2 (26B5091g), arm64, Test Scheme Action, with the visibility case also allowing an identical retry, production blobs matching full.diff, and authenticated-provider incidence unmeasured."
+    },
+    {
+      "#": 3,
+      "status": "confirmed",
+      "protected_subject": "concurrency",
+      "reason": "When a home-page submission is followed by same-document navigation to an older conversation with one matching user message before receipt polling, newly added WebProvider.swift:32–35 accepts that unrelated route and WebAgentSession.swift:177–187 records observed without transaction attribution while WebServicesView.swift:212 leaves the page interactive; the inspected MultiWebAgentTests.swift:124–136 simulation and 15-01-23 xcresult reproduce observed instead of uncertain after history.replaceState without outgoing-message creation on macOS 27.2 (26B5091g), arm64, Test Scheme Action, with production blobs matching full.diff and authenticated-provider incidence unmeasured."
+    }
+  ]
+}

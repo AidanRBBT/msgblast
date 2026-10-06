@@ -1,0 +1,12 @@
+PASS: attachment-only and text-plus-attachment native follow-ups submit their comparison drafts; native retry does not resend Muse. Controlled local fixture inputs.
+PASS: actual AppModel + WindowCoordinator restore comparison ID, native recipient, Muse selection and original saved URLs for all four web providers. All sends use local fixtures.
+$REPO/scripts/fixtures/web_broadcast_lifecycle.swift:30:20: warning: 'init(dictionary:)' is deprecated: Properties that depend on the system or application version are not supported when used with this initializer. The designated initializer is available in SUAppcastItem+Private.h. Please first explore other APIs or contact us to describe your use case. [#DeprecatedDeclaration]
+28 |         }
+29 |         let controller = SPUStandardUpdaterController(startingUpdater: false, updaterDelegate: nil, userDriverDelegate: nil)
+30 |         let item = SUAppcastItem(dictionary: ["title":"Local fixture", "enclosure":["url":"https://example.invalid/fixture.zip","sparkle:version":"2"]])!
+   |                    `- warning: 'init(dictionary:)' is deprecated: Properties that depend on the system or application version are not supported when used with this initializer. The designated initializer is available in SUAppcastItem+Private.h. Please first explore other APIs or contact us to describe your use case. [#DeprecatedDeclaration]
+31 |         let model = AppModel(), lifecycle = AppLifecycle()
+32 |         lifecycle.configure(model: model)
+
+[#DeprecatedDeclaration]: <https://docs.swift.org/compiler/documentation/diagnostics/deprecated-declaration>
+PASS: web-only broadcast defers quit; update waits for web and native sends, resumes exactly once. No updater started, downloads, or app termination.

@@ -1,0 +1,48 @@
+{
+  "status": "complete",
+  "verdict": "Ready to merge",
+  "scope": {
+    "base": "c4dd4f84e3f07a6f4cd90cbf547fa25194bcf7f7",
+    "branch": "codex/webkit-services",
+    "head_sha": "c4dd4f84e3f07a6f4cd90cbf547fa25194bcf7f7",
+    "files_changed": 2
+  },
+  "intent": "Hide confirmed-success banners and repeated prompts; preserve active progress, failed/unconfirmed outcomes and independent errors. Update existing UI assertions to inspect replies.",
+  "intent_confidence": "explicit",
+  "reviewers": [
+    "correctness"
+  ],
+  "findings": [],
+  "actionable_findings": [],
+  "triage_groups": [],
+  "pre_existing_findings": [],
+  "requirements_completeness": null,
+  "learnings": [],
+  "agent_native_gaps": [],
+  "deployment_notes": [],
+  "residual_risks": [],
+  "testing_gaps": [
+    "Updated UI tests compile; the previously stalled automated UI suite was not rerun. Native current-app verification confirms all four successful rows disappear on saved-chat reopen."
+  ],
+  "coverage": {
+    "depth": "lite",
+    "criteria": {
+      "AGENTS.md": [
+        "msgblast/Windows/WebServicesView.swift",
+        "msgblastUITests/WebServiceWorkflowTests.swift"
+      ]
+    },
+    "instruction_file_fallback": true,
+    "agents_dispatched": false,
+    "compound_packs_applied": false,
+    "not_assessed": [
+      "learnings",
+      "agent-native gaps",
+      "deployment notes"
+    ],
+    "plan": "No matching plan: explicit local diff scope; webkit/services branch keywords do not match the updates plan.",
+    "correctness": "Only observed presentation is filtered. preparing/attempting/notSent/uncertain still render; errors remain outside the condition. No session, receipt, persistence or retry code changed. Existing pre-login tests now check the absence of a reply; post-send checks wait for the reply and require no success label."
+  },
+  "artifact_path": "/tmp/compound-engineering-501/ce-code-review/20261006-000412-85a473ad",
+  "run_id": "20261006-000412-85a473ad"
+}
