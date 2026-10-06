@@ -101,6 +101,14 @@ Ad-hoc app signing is explicit and unnotarized, with disabled library validation
 
 Signing-key/identity changes require a deliberate migration. Missing R2 hosting or Actions variables/secrets are activation prerequisites; committed workflow code alone does not prove live distribution is configured.
 
+## Cursor Cloud specific instructions
+
+Cloud agents run on Linux. The Mac app needs Xcode on macOS Sequoia, so `xcodebuild`, SwiftUI, AppKit, `hdiutil`, and `mac_alias.Alias.for_file` are not available here. These checks do not produce a signed app.
+
+- Download worker: from the repo root, `npm test --prefix download`. The environment install already runs `npm ci --prefix download`. Import `download/worker.mjs` and call its `fetch` handler with `https://updates.msgblast.app/latest.zip`; a good result is a no-store 302 to `https://updates.msgblast.app/downloads/msgblast-VERSION-BUILD.zip`.
+- Release tooling: `python3 -m unittest discover -s scripts/tests -p 'test_*.py' -v`. The suite stays in Python and does not call Apple tools.
+- `scripts/installer-requirements.txt` (`ds_store`, `mac_alias`) is installed for imports. Creating the DMG still belongs on the macOS release runner.
+
 ## Pull request evidence
 
 - Every PR I create or update must include **Screenshots** and **Video** sections in its description showing the changes in that PR. A screenshot of whatever browser tab happens to be open does not count.
