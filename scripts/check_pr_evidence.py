@@ -4,6 +4,11 @@
 A human still has to confirm that the images and video show the change. This
 script only checks structure: real remote embeds, no local paths or placeholder
 copy, and an Evidence-SHA line for the commit under review.
+
+A written explanation never satisfies the screenshot or video requirement.
+When a change truly cannot be shown, a person reviews that explanation
+separately. This check still fails until the description has a remote image
+and a remote playable video. An empty or local <video> tag is not a video.
 """
 import argparse
 from pathlib import Path
@@ -14,12 +19,15 @@ import sys
 
 HEADING = re.compile(r"^## +(.+?)\s*$", re.MULTILINE)
 IMAGE = re.compile(r"!\[[^\]]*\]\((https://[^)\s]+)\)|<img\b[^>]*\bsrc=[\"'](https://[^\"']+)[\"']", re.IGNORECASE)
-VIDEO = re.compile(r"<video\b|https://\S+\.(?:mp4|webm|mov)(?:\?\S*)?|https://github\.com/user-attachments/\S+", re.IGNORECASE)
+REMOTE_URL = re.compile(r"https://[^\s\"'<>)\]]+", re.IGNORECASE)
+PLAYABLE_VIDEO = re.compile(r"\.(?:mp4|webm|mov)(?:[?#]|$)", re.IGNORECASE)
+USER_ATTACHMENT = "https://github.com/user-attachments/"
 LOCAL = re.compile(r"/opt/cursor|file://|\.\./|src=[\"'][^\"']*(?:/workspace|/tmp/)", re.IGNORECASE)
 PLACEHOLDER = re.compile(r"\b(?:placeholder|todo|lorem ipsum|screenshot of whatever)\b", re.IGNORECASE)
 SHA = re.compile(r"Evidence-SHA:\s*([0-9a-f]{40})\b")
 RUN_URL = re.compile(r"https://github\.com/[^\s)]+/actions/runs/\d+")
-CHECKSUM = re.compile(r"\b[0-9a-f]{64}\b")
+DEV_CHECKSUM = re.compile(r"(?m)^msgblast Dev SHA-256:\s*([0-9a-f]{64})\b")
+DEMO_CHECKSUM = re.compile(r"(?m)^msgblast Demo SHA-256:\s*([0-9a-f]{64})\b")
 
 
 def section(body, title):
@@ -30,6 +38,14 @@ def section(body, title):
         end = matches[index + 1].start() if index + 1 < len(matches) else len(body)
         return body[match.end():end]
     return ""
+
+
+def playable_video(text):
+    for match in REMOTE_URL.finditer(text or ""):
+        url = match.group(0)
+        if url.lower().startswith(USER_ATTACHMENT) or PLAYABLE_VIDEO.search(url):
+            return True
+    return False
 
 
 def problems(body, head_sha, require_preview=False):
@@ -44,8 +60,8 @@ def problems(body, head_sha, require_preview=False):
         errors.append("Screenshots section needs an embedded https image, not only text.")
     if not video.strip():
         errors.append("Missing a Video section.")
-    elif not VIDEO.search(video):
-        errors.append("Video section needs a playable https video embed or link, not only text.")
+    elif not playable_video(video):
+        errors.append("Video section needs a remote playable https video (.mp4, .webm, .mov, or github.com/user-attachments), not an empty or local video tag.")
     for name, text in (("Screenshots", screenshots), ("Video", video)):
         if LOCAL.search(text):
             errors.append(f"{name} section contains a local-only path.")
@@ -63,8 +79,14 @@ def problems(body, head_sha, require_preview=False):
             errors.append("The demo download must be labeled as a fixture.")
         if not RUN_URL.search(body):
             errors.append("Description needs the Actions run URL for the preview artifacts.")
-        if not CHECKSUM.search(body):
-            errors.append("Description needs the preview ZIP SHA-256 checksums.")
+        dev_checksum = DEV_CHECKSUM.search(body)
+        demo_checksum = DEMO_CHECKSUM.search(body)
+        if not dev_checksum:
+            errors.append("Description needs a line 'msgblast Dev SHA-256: <64 hex>'.")
+        if not demo_checksum:
+            errors.append("Description needs a line 'msgblast Demo SHA-256: <64 hex>'.")
+        if dev_checksum and demo_checksum and dev_checksum.group(1) == demo_checksum.group(1):
+            errors.append("msgblast Dev SHA-256 and msgblast Demo SHA-256 must be different.")
         if re.search(r"updates\.msgblast\.app/(?:latest\.zip|downloads/)", body):
             errors.append("Preview downloads must stay on Actions artifacts, not the production update host.")
     return errors

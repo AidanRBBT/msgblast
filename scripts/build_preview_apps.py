@@ -92,17 +92,15 @@ def adhoc_sign(app, entitlements):
     run(["codesign", "--verify", "--deep", "--strict", "--verbose=2", str(app)], app.parent)
 
 
-def sample_icon(icns, swift_source):
-    output = subprocess.run(["swift", swift_source, str(icns)], text=True, capture_output=True)
-    if output.stderr:
-        print(output.stderr, end="" if output.stderr.endswith("\n") else "\n", flush=True)
-    if output.returncode:
-        raise SystemExit(f"Could not sample {icns.name}: {output.stdout}")
-    red, green, blue = [float(value) for value in output.stdout.split()]
-    return red, green, blue
+def retain_icon_diagnostic(output, variant, icns):
+    destination = output / "diagnostics" / f"{variant['id']}-{icns.name}"
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(icns, destination)
+    print(f"retained compiled icon diagnostic {destination}", flush=True)
+    return destination
 
 
-def package_variant(workspace, variant, source_revision, output, swift_source):
+def package_variant(workspace, variant, source_revision, output):
     derived = workspace / "derived" / variant["id"]
     if derived.exists():
         shutil.rmtree(derived)
@@ -133,12 +131,24 @@ def package_variant(workspace, variant, source_revision, output, swift_source):
         plistlib.dump(info, file)
     with info_path.open("rb") as file:
         preview.verify_configured_info(plistlib.load(file), variant, source_revision)
-    red, green, blue = sample_icon(icns, swift_source)
+    try:
+        red, green, blue, representation = preview.sample_icns(icns)
+    except RuntimeError as error:
+        retain_icon_diagnostic(output, variant, icns)
+        raise SystemExit(f"{variant['id']} compiled icon {icns.name} could not be sampled: {error}") from error
     kind = preview.classify_icon_color(red, green, blue)
     expected = preview.expected_icon_color(variant)
-    print(f"{variant['id']} compiled icon {icns.name} RGB {red:.1f} {green:.1f} {blue:.1f} classified {kind}", flush=True)
+    print(
+        f"{variant['id']} compiled icon {icns.name} representation {representation} "
+        f"RGB {red:.1f} {green:.1f} {blue:.1f} classified {kind}",
+        flush=True,
+    )
     if kind != expected:
-        raise SystemExit(f"{variant['id']} compiled icon looks {kind}, expected {expected}")
+        retain_icon_diagnostic(output, variant, icns)
+        raise SystemExit(
+            f"{variant['id']} compiled icon {icns.name} representation {representation} "
+            f"RGB {red:.1f} {green:.1f} {blue:.1f} looks {kind}, expected {expected}"
+        )
     adhoc_sign(app, workspace / "msgblast/msgblastDebug.entitlements")
     short = source_revision[:12]
     zip_name = f"{variant['artifact_prefix']}-{short}.zip"
@@ -160,6 +170,7 @@ def package_variant(workspace, variant, source_revision, output, swift_source):
         "zip": zip_name,
         "sha256": preview.sha256_file(zip_path),
         "compiled_icon": icns.name,
+        "compiled_icon_representation": representation,
         "compiled_icon_sha256": preview.sha256_file(icns),
         "compiled_icon_rgb": [round(red, 1), round(green, 1), round(blue, 1)],
         "icon_fill_sha256": preview.sha256_file(variant["icon_source"] / "icon.json"),
@@ -192,7 +203,7 @@ def main():
     args = parser.parse_args()
     if len(args.sha) < 12 or any(character not in "0123456789abcdef" for character in args.sha):
         parser.error("SHA must be a hex commit id")
-    for tool in ("xcodebuild", "codesign", "ditto", "swift"):
+    for tool in ("xcodebuild", "codesign", "ditto"):
         if shutil.which(tool) is None:
             raise SystemExit(f"Required macOS tool is missing: {tool}")
     preview.assert_committed_icons_unchanged()
@@ -201,9 +212,8 @@ def main():
     records = []
     with tempfile.TemporaryDirectory(prefix="msgblast-preview-") as temporary:
         workspace = preview.copy_workspace(Path(temporary) / "src")
-        swift_source = str(preview.ROOT / "scripts/fixtures/sample_icon_color.swift")
         for variant in preview.VARIANTS.values():
-            records.append(package_variant(workspace, variant, args.sha, output, swift_source))
+            records.append(package_variant(workspace, variant, args.sha, output))
     if len({record["compiled_icon_sha256"] for record in records}) != len(records):
         raise SystemExit("Compiled preview icons are identical, so artwork selection did not change the app")
     if len({record["compiled_icon"] for record in records}) != len(records):

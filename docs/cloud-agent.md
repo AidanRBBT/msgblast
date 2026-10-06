@@ -42,8 +42,10 @@ The native job matches the release runner:
 
 - `runs-on: xcode-27`
 - `DEVELOPER_DIR=/Applications/Xcode_27.0.app/Contents/Developer`
-- `xcodebuild -project msgblast.xcodeproj -scheme msgblast -derivedDataPath build/updater-validation -destination 'platform=macOS,arch=arm64' ASSETCATALOG_COMPILER_APPICON_NAME=AppIconDemo -only-testing:msgblastTests test -quiet`
+- `xcodebuild -project msgblast.xcodeproj -scheme msgblast -derivedDataPath build/updater-validation -destination 'platform=macOS,arch=arm64' -resultBundlePath build/native-tests.xcresult ASSETCATALOG_COMPILER_APPICON_NAME=AppIconDemo -only-testing:msgblastTests test`
 - `python3 scripts/test_updates.py --derived-data build/updater-validation`
+
+The native job checks out the same branch head the preview ZIPs record. On a pull request that is `pull_request.head.sha`, not the temporary merge commit in `github.sha`. The test log and `.xcresult` are uploaded on every run, including failures, as `msgblast-native-tests-<head sha>` for 14 days. The xcodebuild log is not quiet, and `xcresulttool` writes a text summary beside the bundle, so assertion details stay available after the job ends. An `.xcresult` is a test result, not pull request video evidence.
 
 Checkout uses the same pinned `actions/checkout` commit as `.github/workflows/release-adhoc.yml`. The demo icon is intentional for this fixture build. Production release builds keep `AppIcon` and `scripts/release.py` rejects development artwork.
 
@@ -56,7 +58,7 @@ gh run list -R mgalpert/msgblast --workflow validate.yml --limit 5
 gh run view RUN_ID -R mgalpert/msgblast --json status,conclusion,headSha,url,event
 ```
 
-Confirm `headSha` is the revision under review. On a pull request, `github.sha` is the temporary merge commit. Preview builds checkout `pull_request.head.sha` instead and record that branch head in the manifest. Do not dispatch `release-adhoc.yml` as a test.
+Confirm `headSha` is the revision under review. On a pull request, `github.sha` is the temporary merge commit. Both the native test job and the preview job check out `pull_request.head.sha` and record that branch head. Do not dispatch `release-adhoc.yml` as a test.
 
 ## Branch preview apps
 
@@ -85,6 +87,8 @@ The fixture app uses simulated chats and does not need those permissions for its
 
 The job uploads both ZIPs and `preview-manifest.json` as `msgblast-branch-previews-<head sha>` with `retention-days: 14`. GitHub deletes them 14 days after the run. The manifest records the head SHA, variant, fixture flag, run URL, SHA-256, compiled icon sample, and run instructions. Download them from that run's artifacts. They are not published to the update host.
 
+Compiled icon color is read from the ICNS file itself. The sampler decodes the first present PNG representation in this order: `ic10`, `ic14`, `ic09`, `ic13`, `ic08`, `ic07`, `ic12`, `ic11`. It averages the pixels at 12% and 88% of each axis (the horizontal midline and the vertical midline). A transparent pixel walks one pixel at a time toward the center. The same thresholds classify green, blue, and blue-green. A mismatch copies that `.icns` into `msgblast-icon-diagnostics-<head sha>` for 14 days so the compiled artwork can be inspected. The check does not draw the icon through NSImage and does not widen the color thresholds.
+
 ## Pull request evidence
 
 `.github/workflows/pr-evidence.yml` runs on pull request open, synchronize, reopen, and edit. It uses the workflow from the pull request and `contents: read`. It does not use `pull_request_target`.
@@ -92,13 +96,24 @@ The job uploads both ZIPs and `preview-manifest.json` as `msgblast-branch-previe
 `scripts/check_pr_evidence.py` requires:
 
 - a Screenshots section with an embedded `https` image
-- a Video section with a `<video>` embed, a `https` `.mp4`, `.webm`, or `.mov` link, or a `github.com/user-attachments` link
+- a Video section with a remote playable `https` `.mp4`, `.webm`, or `.mov` URL, or a `https://github.com/user-attachments/` URL, including one used as a `<video src>` or `<source src>`
 - no local-only paths and no placeholder wording
 - `Evidence-SHA:` equal to the pull request head SHA
 
-Cursor branches also require both preview names, a fixture label, the Actions run URL, and a SHA-256 checksum, and they reject a production `latest.zip` or `downloads/` URL. An uploaded `.xcresult` or a screenshot-only ZIP does not satisfy the video check.
+An empty `<video>` tag, a local `src`, or a bare `<video` marker does not count. An uploaded `.xcresult` or a screenshot-only ZIP does not satisfy the video check.
 
-The script cannot tell whether the picture shows the change. A human has to do that. Refresh the embeds when the head SHA or the demonstrated behavior changes. For this repository's native UI, capture the branch revision on an authorized isolated Mac. Ubuntu cannot record that UI, and this workflow does not claim that it did. Documentation and other nonvisual changes still need images and a playable video of the relevant terminal, API, or artifact workflow when that workflow can be recorded. State an exception in the sections when it cannot; do not leave the sections empty.
+Cursor branches also require both preview names, a fixture label, the Actions run URL, and two different checksum lines:
+
+```text
+msgblast Dev SHA-256: <64 lowercase hex characters>
+msgblast Demo SHA-256: <64 lowercase hex characters>
+```
+
+One unlabeled hash does not satisfy both lines. The description must not point preview downloads at a production `latest.zip` or `downloads/` URL.
+
+The script cannot tell whether the picture shows the change. A human has to do that. Refresh the embeds when the head SHA or the demonstrated behavior changes. For this repository's native UI, capture the branch revision on an authorized isolated Mac. Ubuntu cannot record that UI, and this workflow does not claim that it did. Documentation and other nonvisual changes still need images and a playable video of the relevant terminal, API, or artifact workflow when that workflow can be recorded.
+
+The checker does not accept a written excuse, a blank embed, or an unrelated image in place of those files. When a change truly cannot be shown, write the reason for a person to review. That review is separate from the check, and it does not make a blank or unrelated description pass. This setup change can be shown: the pull request needs screenshots and a playable video of the terminal, Actions, and artifact workflow.
 
 ## GitHub access observed October 6, 2026
 

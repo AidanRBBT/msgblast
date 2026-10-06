@@ -1,9 +1,12 @@
 """Preview planning stays free of production publishing and preserves committed icons."""
 import importlib.util
 from pathlib import Path
+import binascii
 import shutil
+import struct
 import tempfile
 import unittest
+import zlib
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -71,6 +74,77 @@ class PreviewPlanTests(unittest.TestCase):
         self.assertEqual(preview.expected_icon_color(preview.VARIANTS["development"]), "blue-green")
         self.assertEqual(preview.expected_icon_color(preview.VARIANTS["demo"]), "blue")
 
+    def test_icns_sampling_uses_the_preferred_png_and_stable_points(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "AppIcon.icns"
+            path.write_bytes(icns_file([
+                ("ic08", solid_png(32, (22, 196, 51, 255))),
+                ("ic10", solid_png(64, (64, 140, 143, 255))),
+            ]))
+            red, green, blue, representation = preview.sample_icns(path)
+            self.assertEqual(representation, "ic10")
+            self.assertEqual((round(red), round(green), round(blue)), (64, 140, 143))
+            self.assertEqual(preview.classify_icon_color(red, green, blue), "blue-green")
+            smaller = Path(temporary) / "AppIconDemo.icns"
+            smaller.write_bytes(icns_file([("ic08", solid_png(40, (44, 23, 193, 255)))]))
+            _, _, _, fallback = preview.sample_icns(smaller)
+            self.assertEqual(fallback, "ic08")
+            self.assertEqual(preview.classify_icon_color(*preview.sample_icns(smaller)[:3]), "blue")
+
+    def test_icns_sampling_walks_inward_from_a_transparent_coordinate(self):
+        width = height = 50
+        rows = []
+        for y in range(height):
+            row = bytearray()
+            for x in range(width):
+                opaque = x >= 8
+                row.extend((44, 23, 193, 255 if opaque else 0))
+            rows.append(row)
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "edge.icns"
+            path.write_bytes(icns_file([("ic07", png_rows(rows))]))
+            red, green, blue, representation = preview.sample_icns(path)
+            self.assertEqual(representation, "ic07")
+            self.assertEqual((round(red), round(green), round(blue)), (44, 23, 193))
+
+    def test_icns_sampling_reads_only_the_stable_coordinates(self):
+        side = 100
+        points = {
+            (12, 50): (64, 140, 143, 255),
+            (88, 50): (64, 140, 143, 255),
+            (50, 12): (64, 140, 143, 255),
+            (50, 88): (64, 140, 143, 255),
+        }
+        rows = []
+        for y in range(side):
+            row = bytearray()
+            for x in range(side):
+                row.extend(points.get((x, y), (240, 240, 240, 255)))
+            rows.append(row)
+        filtered = bytearray()
+        channels = 4
+        for row in rows:
+            filtered.append(1)
+            for index, value in enumerate(row):
+                left = row[index - channels] if index >= channels else 0
+                filtered.append((value - left) & 255)
+        raw = zlib.compress(bytes(filtered))
+        header = struct.pack(">IIBBBBB", side, side, 8, 6, 0, 0, 0)
+        png = b"\x89PNG\r\n\x1a\n" + png_chunk(b"IHDR", header) + png_chunk(b"IDAT", raw) + png_chunk(b"IEND", b"")
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "points.icns"
+            path.write_bytes(icns_file([("ic09", png)]))
+            red, green, blue, representation = preview.sample_icns(path)
+            self.assertEqual(representation, "ic09")
+            self.assertEqual((round(red), round(green), round(blue)), (64, 140, 143))
+
+    def test_icns_sampling_rejects_a_file_without_a_png_representation(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "raw.icns"
+            path.write_bytes(icns_file([("ic04", b"not-a-png")]))
+            with self.assertRaises(RuntimeError):
+                preview.sample_icns(path)
+
     def test_compiled_icon_follows_the_selected_resource_name(self):
         with tempfile.TemporaryDirectory() as temporary:
             app = Path(temporary) / "msgblast Demo.app"
@@ -112,6 +186,31 @@ def json_text(document):
     return json.dumps(document)
 
 
+def png_chunk(tag, data):
+    return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", binascii.crc32(tag + data) & 0xFFFFFFFF)
+
+
+def png_rows(rows):
+    raw = b"".join(b"\x00" + bytes(row) for row in rows)
+    height = len(rows)
+    width = len(rows[0]) // 4
+    header = struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0)
+    signature = b"\x89PNG\r\n\x1a\n"
+    return signature + png_chunk(b"IHDR", header) + png_chunk(b"IDAT", zlib.compress(raw)) + png_chunk(b"IEND", b"")
+
+
+def solid_png(side, rgba):
+    pixel = bytes(rgba)
+    return png_rows([pixel * side for _ in range(side)])
+
+
+def icns_file(chunks):
+    body = b""
+    for name, payload in chunks:
+        body += name.encode("ascii") + struct.pack(">I", 8 + len(payload)) + payload
+    return b"icns" + struct.pack(">I", 8 + len(body)) + body
+
+
 class EvidenceGateTests(unittest.TestCase):
     def body(self, sha):
         return f"""## Screenshots
@@ -144,18 +243,44 @@ Evidence-SHA: {sha}
         ready = self.body(sha) + """
 msgblast Dev and msgblast Demo fixture
 https://github.com/mgalpert/msgblast/actions/runs/123
-""" + ("b" * 64) + "\n"
+msgblast Dev SHA-256: """ + ("b" * 64) + """
+msgblast Demo SHA-256: """ + ("c" * 64) + "\n"
         self.assertEqual(evidence.problems(ready, sha, require_preview=True), [])
         missing = self.body(sha)
         self.assertTrue(evidence.problems(missing, sha, require_preview=True))
         published = ready + "https://updates.msgblast.app/latest.zip\n"
         self.assertTrue(any("production update host" in item for item in evidence.problems(published, sha, require_preview=True)))
 
+    def test_empty_local_and_unlabeled_evidence_does_not_pass(self):
+        sha = "a" * 40
+        empty = self.body(sha).replace('<video src="https://example.com/preview.mp4" controls></video>', "<video></video>")
+        self.assertTrue(any("empty or local" in item for item in evidence.problems(empty, sha)))
+        local_src = self.body(sha).replace("https://example.com/preview.mp4", "file:///tmp/preview.mp4")
+        self.assertTrue(evidence.problems(local_src, sha))
+        relative = self.body(sha).replace("https://example.com/preview.mp4", "/tmp/preview.mp4")
+        self.assertTrue(any("empty or local" in item for item in evidence.problems(relative, sha)))
+        attachment = self.body(sha).replace(
+            '<video src="https://example.com/preview.mp4" controls></video>',
+            "https://github.com/user-attachments/assets/1234",
+        )
+        self.assertEqual(evidence.problems(attachment, sha), [])
+        one_hash = self.body(sha) + "msgblast Dev and msgblast Demo fixture\nhttps://github.com/mgalpert/msgblast/actions/runs/9\n" + ("d" * 64) + "\n"
+        unlabeled = evidence.problems(one_hash, sha, require_preview=True)
+        self.assertTrue(any("msgblast Dev SHA-256" in item for item in unlabeled))
+        self.assertTrue(any("msgblast Demo SHA-256" in item for item in unlabeled))
+        same = self.body(sha) + "msgblast Dev fixture and msgblast Demo fixture\nhttps://github.com/mgalpert/msgblast/actions/runs/9\n"
+        same += "msgblast Dev SHA-256: " + ("e" * 64) + "\nmsgblast Demo SHA-256: " + ("e" * 64) + "\n"
+        self.assertTrue(any("must be different" in item for item in evidence.problems(same, sha, require_preview=True)))
+        dev_only = same.replace("msgblast Demo SHA-256: " + ("e" * 64), "msgblast Demo checksum missing")
+        self.assertTrue(any("msgblast Demo SHA-256" in item for item in evidence.problems(dev_only, sha, require_preview=True)))
+
     def test_packaging_script_stays_nonpublishing(self):
         import sys
         sys.path.insert(0, str(ROOT / "scripts"))
         source = (ROOT / "scripts/build_preview_apps.py").read_text()
         self.assertIn("--sequesterRsrc", source)
+        self.assertIn("sample_icns", source)
+        self.assertNotIn("sample_icon_color.swift", source)
         self.assertIn("app.rglob", source)
         self.assertIn("debug.dylib", source)
         self.assertIn("signing_order", source)

@@ -1,8 +1,11 @@
 """Plan non-publishing macOS preview apps. Building still requires Xcode."""
 from pathlib import Path
+import binascii
 import hashlib
 import json
 import shutil
+import struct
+import zlib
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -159,6 +162,149 @@ def compiled_icon_path(app, info, icon_name):
     if icon.resolve().parent != resources.resolve():
         raise RuntimeError(f"Compiled icon {filename} escapes Resources")
     return icon.resolve()
+
+
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+# Largest explicit PNG-backed ICNS types first. Sampling never asks AppKit to resolve appearance.
+PREFERRED_ICNS_TYPES = ("ic10", "ic14", "ic09", "ic13", "ic08", "ic07", "ic12", "ic11")
+# Stable fractions of the selected bitmap: left/right midline, then top/bottom midline.
+SAMPLE_FRACTIONS = ((0.12, 0.50), (0.88, 0.50), (0.50, 0.12), (0.50, 0.88))
+
+
+def parse_icns(data):
+    if len(data) < 8 or data[:4] != b"icns":
+        raise RuntimeError("Compiled icon is not an ICNS file")
+    total = struct.unpack(">I", data[4:8])[0]
+    if total < 8 or total > len(data):
+        raise RuntimeError("ICNS length does not match the file")
+    chunks = {}
+    offset = 8
+    while offset + 8 <= total:
+        ostype = data[offset:offset + 4].decode("ascii", "replace")
+        length = struct.unpack(">I", data[offset + 4:offset + 8])[0]
+        if length < 8 or offset + length > total:
+            raise RuntimeError(f"ICNS chunk {ostype} is truncated")
+        chunks[ostype] = data[offset + 8:offset + length]
+        offset += length
+    return chunks
+
+
+def select_icns_representation(chunks):
+    for name in PREFERRED_ICNS_TYPES:
+        payload = chunks.get(name)
+        if payload and payload.startswith(PNG_SIGNATURE):
+            return name, payload
+    raise RuntimeError("Compiled icon has no PNG representation among " + ", ".join(PREFERRED_ICNS_TYPES))
+
+
+def decode_png(data):
+    """Decode a non-interlaced 8-bit RGB or RGBA PNG. No image library and no color management."""
+    if not data.startswith(PNG_SIGNATURE):
+        raise RuntimeError("Icon representation is not a PNG")
+    offset = 8
+    width = height = color_type = None
+    idat = []
+    while offset + 12 <= len(data):
+        length = struct.unpack(">I", data[offset:offset + 4])[0]
+        if offset + 12 + length > len(data):
+            raise RuntimeError("Icon PNG chunk is truncated")
+        tag = data[offset + 4:offset + 8]
+        chunk = data[offset + 8:offset + 8 + length]
+        expected = struct.unpack(">I", data[offset + 8 + length:offset + 12 + length])[0]
+        if binascii.crc32(tag + chunk) & 0xFFFFFFFF != expected:
+            raise RuntimeError("Icon PNG chunk CRC mismatch")
+        if tag == b"IHDR":
+            width, height, bit_depth, color_type, compression, filter_method, interlace = struct.unpack(">IIBBBBB", chunk)
+            if bit_depth != 8 or color_type not in (2, 6) or compression or filter_method or interlace:
+                raise RuntimeError("Icon PNG must be non-interlaced 8-bit RGB or RGBA")
+        elif tag == b"IDAT":
+            idat.append(chunk)
+        elif tag == b"IEND":
+            break
+        offset += 12 + length
+    if not width or not height or not idat:
+        raise RuntimeError("Icon PNG is missing an image")
+    channels = 4 if color_type == 6 else 3
+    raw = zlib.decompress(b"".join(idat))
+    stride = width * channels
+    rows = []
+    pos = 0
+    for _ in range(height):
+        if pos + 1 + stride > len(raw):
+            raise RuntimeError("Icon PNG is truncated")
+        filter_type = raw[pos]
+        pos += 1
+        row = bytearray(raw[pos:pos + stride])
+        pos += stride
+        previous = rows[-1] if rows else bytearray(stride)
+        if filter_type == 1:
+            for index in range(stride):
+                left = row[index - channels] if index >= channels else 0
+                row[index] = (row[index] + left) & 255
+        elif filter_type == 2:
+            for index in range(stride):
+                row[index] = (row[index] + previous[index]) & 255
+        elif filter_type == 3:
+            for index in range(stride):
+                left = row[index - channels] if index >= channels else 0
+                row[index] = (row[index] + ((left + previous[index]) // 2)) & 255
+        elif filter_type == 4:
+            for index in range(stride):
+                left = row[index - channels] if index >= channels else 0
+                up = previous[index]
+                up_left = previous[index - channels] if index >= channels else 0
+                estimate = left + up - up_left
+                nearest = left
+                if abs(estimate - up) < abs(estimate - nearest):
+                    nearest = up
+                if abs(estimate - up_left) < abs(estimate - nearest):
+                    nearest = up_left
+                row[index] = (row[index] + nearest) & 255
+        elif filter_type != 0:
+            raise RuntimeError(f"Unsupported PNG filter {filter_type}")
+        rows.append(row)
+    return width, height, channels, rows
+
+
+def _pixel(rows, channels, x, y):
+    row = rows[y]
+    index = x * channels
+    alpha = row[index + 3] if channels == 4 else 255
+    return row[index], row[index + 1], row[index + 2], alpha
+
+
+def _sample_point(rows, width, height, channels, x_fraction, y_fraction):
+    x = min(width - 1, max(0, int(x_fraction * width)))
+    y = min(height - 1, max(0, int(y_fraction * height)))
+    center_x = width // 2
+    center_y = height // 2
+    seen = set()
+    while True:
+        red, green, blue, alpha = _pixel(rows, channels, x, y)
+        if alpha >= 128:
+            return red, green, blue
+        if (x, y) in seen:
+            raise RuntimeError("Icon sample stayed transparent")
+        seen.add((x, y))
+        if abs(x - center_x) >= abs(y - center_y) and x != center_x:
+            x += 1 if x < center_x else -1
+        elif y != center_y:
+            y += 1 if y < center_y else -1
+        else:
+            raise RuntimeError("Icon sample stayed transparent")
+
+
+def sample_icns(path):
+    """Return mean RGB and the OSType of one explicitly chosen ICNS bitmap."""
+    chunks = parse_icns(Path(path).read_bytes())
+    representation, payload = select_icns_representation(chunks)
+    width, height, channels, rows = decode_png(payload)
+    samples = [_sample_point(rows, width, height, channels, x_fraction, y_fraction) for x_fraction, y_fraction in SAMPLE_FRACTIONS]
+    count = len(samples)
+    red = sum(sample[0] for sample in samples) / count
+    green = sum(sample[1] for sample in samples) / count
+    blue = sum(sample[2] for sample in samples) / count
+    return red, green, blue, representation
 
 
 def sha256_file(path):
