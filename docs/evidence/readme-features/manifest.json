@@ -1,0 +1,14 @@
+{
+  "source_base": "406cc705fd5036f9f04fb36e158917612900e3cf",
+  "readme_sha256": "dc19415e8b8919c717c96882cf435934a07a2c72352c243f2240e7b90d2c7db0",
+  "rendering": "GitHub Markdown API output with local preview styling",
+  "captures": [
+    "01-overview.png",
+    "02-features.png",
+    "03-web-cli.png",
+    "04-reports.png"
+  ],
+  "video": "walkthrough.mp4",
+  "timing": "edited five-second holds",
+  "live_provider_calls": false
+}
