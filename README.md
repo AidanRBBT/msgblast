@@ -67,11 +67,11 @@ You can also open **msgblast.xcodeproj** in Xcode, select the **msgblast** schem
 
 ## Embedded web agents
 
-Select **Muse, ChatGPT, Claude, or Grok** beside your Messages agents in **My agents**. Use each selected agent's **Open** button to open its real page inside msgblast. Claude's `claude.com` site currently redirects to `claude.ai`; the agent opens `https://claude.ai/new`. Grok is the `grok.com` service, separate from the Grok Bot desktop app.
+Select **Muse, ChatGPT, Claude, or Grok** beside your Messages agents in **My agents**. All four web agents start selected; their checkmarks control who receives the prompt, and your changes are saved. Right-click a selected agent and choose **Open chat** to sign in. After a sent message, **My agents** also shows **Open** buttons for returning to the chats. Claude's `claude.com` site currently redirects to `claude.ai`; the agent opens `https://claude.ai/new`. Grok is the `grok.com` service, separate from the Grok Bot desktop app.
 
 Each selected service creates a **dedicated chat for each new comparison** (a side chat in Muse), then keeps follow-ups in that same chat. Reopen a comparison from the sidebar to return to the saved conversations for Muse, ChatGPT, Claude, and Grok; choose **New comparison** for separate conversations. The app saves each service’s conversation URL, while the website retains its history. If a service does not assign a saved-chat URL, the send stays unconfirmed and the app does not automatically retry or create another chat.
 
-Each agent has a separate persistent WebKit data store. Sign in inside msgblast once; Safari, Chrome, and desktop-app logins are separate and their cookies are not imported. The existing Muse file, session identifier, selection, and pending sends migrate in place. New providers start unselected. HTTPS sign-in popups stay in an app sheet with their URL visible.
+Each agent has a separate persistent WebKit data store. Sign in inside msgblast once; Safari, Chrome, and desktop-app logins are separate and their cookies are not imported. The existing Muse file, session identifier, selection, and pending sends migrate in place. New providers start selected. HTTPS sign-in popups stay in an app sheet with their URL visible.
 
 The shared composer submits text concurrently to selected web agents and independently to selected Messages agents. Each web pane displays its own submission result and the service's actual conversation, replies, links, and approval controls. Selecting an agent does not start a new conversation on every send. The home control returns to the comparison’s saved conversation, or its new-chat page before the first send. Conversation URLs are saved with the comparison; transcripts remain on each service.
 

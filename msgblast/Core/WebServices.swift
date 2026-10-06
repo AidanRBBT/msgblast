@@ -30,7 +30,7 @@ public struct WebSendAttempt: Codable, Identifiable, Sendable {
 public struct WebWorkspaceState: Codable, Sendable {
     public var sessionID = UUID()
     public var draft = ""
-    public var selected = false
+    public var selected = true
     public var messageRecipients: Set<UUID> = []
     public var comparisonID: UUID?
     public var attempts: [WebSendAttempt] = []
@@ -41,7 +41,7 @@ public struct WebWorkspaceState: Codable, Sendable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         sessionID = try c.decode(UUID.self, forKey: .sessionID)
         draft = try c.decodeIfPresent(String.self, forKey: .draft) ?? ""
-        selected = try c.decodeIfPresent(Bool.self, forKey: .selected) ?? c.decodeIfPresent(Bool.self, forKey: .includeMuse) ?? false
+        selected = try c.decodeIfPresent(Bool.self, forKey: .selected) ?? c.decodeIfPresent(Bool.self, forKey: .includeMuse) ?? true
         messageRecipients = try c.decodeIfPresent(Set<UUID>.self, forKey: .messageRecipients) ?? []
         comparisonID = try c.decodeIfPresent(UUID.self, forKey: .comparisonID)
         conversationURLs = try c.decodeIfPresent([String: URL].self, forKey: .conversationURLs)

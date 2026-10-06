@@ -126,6 +126,17 @@ final class MultiWebAgentTests: XCTestCase {
         }
     }
 
+    func testNewAgentsStartSelectedAndRememberDeselectionAfterRelaunch() {
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let web = WebAgents(directory: directory, fixture: true)
+        XCTAssertEqual(web.selected.map(\.provider), WebProvider.allCases)
+        web.toggle(web.sessions[3])
+        let restored = WebAgents(directory: directory, fixture: true)
+        XCTAssertEqual(restored.selected.map(\.provider), [.muse, .chatgpt, .claude])
+        XCTAssertEqual(restored.sessions.map { $0.state.sessionID }, web.sessions.map { $0.state.sessionID })
+    }
+
     func testLegacyMuseSessionSelectionAndPendingReceiptSurviveUpgrade() throws {
         let directory = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -136,7 +147,7 @@ final class MultiWebAgentTests: XCTestCase {
         """
         try Data(json.utf8).write(to: directory.appendingPathComponent("web-services.json"))
         let web = WebAgents(directory: directory, fixture: false)
-        XCTAssertEqual(web.selected.map(\.provider), [.muse])
+        XCTAssertEqual(web.selected.map(\.provider), WebProvider.allCases)
         XCTAssertEqual(web.sessions[0].state.sessionID, id)
         XCTAssertEqual(web.sessions[0].state.draft, "Legacy draft")
         XCTAssertEqual(web.comparisonID, comparison)
@@ -144,13 +155,13 @@ final class MultiWebAgentTests: XCTestCase {
         for session in web.sessions { XCTAssertEqual(session.webView.configuration.websiteDataStore.identifier, session.state.sessionID) }
         web.toggle(web.sessions[2])
         let reopened = WebAgents(directory: directory, fixture: false)
-        XCTAssertEqual(reopened.selected.map(\.provider), [.muse, .claude])
+        XCTAssertEqual(reopened.selected.map(\.provider), [.muse, .chatgpt, .grok])
         XCTAssertEqual(reopened.sessions.map { $0.state.sessionID }, web.sessions.map { $0.state.sessionID })
     }
 
     func testAllProvidersBroadcastAndObserveRepliesWithoutAnAttachedWindow() async throws {
         let web = WebAgents(directory: temporaryDirectory(), fixture: true)
-        for session in web.sessions { web.toggle(session) }
+        web.connectSelected()
         try await waitFor { web.sessions.allSatisfy { $0.snapshot.ready } }
         let results = await WebAgents.send("Compare a morning walk with an afternoon walk.", to: web.selected)
         XCTAssertEqual(results.count, 4)

@@ -9,11 +9,14 @@ final class WebServiceWorkflowTests: XCTestCase {
         defer { app.terminate() }
         for name in ["Lumen", "Orbit", "Maple", "Echo", "Flint"] { app.buttons[name].click() }
         app.checkBoxes["Simulate one failure"].click()
-        app.buttons["Muse"].click()
-        XCTAssertTrue(app.buttons["Open Muse"].waitForExistence(timeout: 10))
+        for name in ["ChatGPT", "Claude", "Grok"] { app.buttons[name].click() }
+        XCTAssertFalse(app.buttons["Open Muse"].exists)
         let editor = app.textViews["Shared prompt"]
         editor.click(); editor.typeKey("a", modifierFlags: .command); editor.typeText("Mixed failure fixture")
-        app.buttons["Send & compare"].click()
+        let send = app.buttons["Send & compare"]
+        XCTAssertTrue(send.waitForExistence(timeout: 10))
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: send)], timeout: 10), .completed)
+        send.click()
         XCTAssertTrue(app.staticTexts["Appeared in Muse"].waitForExistence(timeout: 10))
         let retry = app.buttons["Retry only failed recipients"]
         XCTAssertTrue(retry.waitForExistence(timeout: 10))
@@ -31,24 +34,25 @@ final class WebServiceWorkflowTests: XCTestCase {
         app.launch()
         defer { app.terminate() }
         XCTAssertTrue(app.buttons["Muse"].waitForExistence(timeout: 5))
-        XCTAssertEqual(app.buttons["Muse"].value as? String, "Not selected")
+        for name in ["Muse", "ChatGPT", "Claude", "Grok"] {
+            XCTAssertEqual(app.buttons[name].value as? String, "Selected")
+            XCTAssertFalse(app.buttons["Open " + name].exists)
+        }
         XCTAssertFalse(app.staticTexts["Web services"].exists)
         XCTAssertFalse(app.staticTexts["Grok Bot · unavailable"].exists)
         for name in ["Lumen", "Orbit", "Maple", "Echo", "Flint"] { app.buttons[name].click() }
-        app.buttons["Muse"].click()
+        for name in ["ChatGPT", "Claude", "Grok"] { app.buttons[name].click() }
         XCTAssertEqual(app.buttons["Muse"].value as? String, "Selected")
         capture(app, name: "Muse selected beside Messages agents — local fixture")
-        XCTAssertTrue(app.buttons["Open Muse"].waitForExistence(timeout: 10))
-        app.buttons["Open Muse"].click()
-        XCTAssertTrue(app.staticTexts["Chat ready"].waitForExistence(timeout: 10))
-        capture(app, name: "Muse connected — local fixture")
-        XCTAssertEqual(app.buttons["Recipient Cedar"].value as? String, "Selected")
         let editor = app.textViews["Shared prompt"]
         editor.click()
         editor.typeKey("a", modifierFlags: .command)
         editor.typeText("Compare a morning walk with an afternoon walk.")
         capture(app, name: "Shared prompt ready — synthetic content")
-        app.buttons["Send & compare"].click()
+        let send = app.buttons["Send & compare"]
+        XCTAssertTrue(send.waitForExistence(timeout: 10))
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: send)], timeout: 10), .completed)
+        send.click()
         XCTAssertTrue(app.staticTexts["Appeared in Muse"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "value CONTAINS %@", "Fixture reply: Compare a morning walk")).firstMatch.waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["Cedar (Demo)"].firstMatch.waitForExistence(timeout: 10))

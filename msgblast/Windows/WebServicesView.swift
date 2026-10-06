@@ -13,6 +13,12 @@ struct AgentsWorkspaceView: View {
     @ObservedObject var web: WebAgents
     @Binding var showingComparison: Bool
     private var busy: Bool { model.busy || model.webBroadcastBusy || web.sessions.contains { $0.isSending } }
+    private var hasSentMessage: Bool {
+        guard let comparisonID = web.comparisonID else { return false }
+        return web.sessions.contains { session in
+            session.state.attempts.contains { $0.comparisonID == comparisonID && $0.status == .observed }
+        }
+    }
     private var nativeRecipients: [Agent] { model.state.agents.filter { model.state.selection.contains($0.id) } }
     private var attachmentComparisonID: UUID? { showingComparison ? nativeComparison?.id : nil }
     private var attachments: [MessageAttachment] { model.attachmentDraft(comparisonID: attachmentComparisonID) }
@@ -55,6 +61,11 @@ struct AgentsWorkspaceView: View {
                         PinnedAgentTile(agent: webAgent(session), selected: session.state.selected, size: tileSize(geometry)) {
                             web.toggle(session)
                         }.disabled(busy).help("\(session.provider.name) · \(session.provider.homeURL.host!)")
+                            .contextMenu {
+                                Button("Open chat") {
+                                    session.connect(); showingComparison = true
+                                }.disabled(busy || !session.state.selected)
+                            }
                     }
                     ForEach(model.state.agents) { agent in
                         PinnedAgentTile(agent: agent, selected: model.state.selection.contains(agent.id), size: tileSize(geometry)) {
@@ -93,7 +104,7 @@ struct AgentsWorkspaceView: View {
 
     private var composer: some View {
         VStack(alignment: .leading, spacing: 10) {
-            if !showingComparison {
+            if !showingComparison && hasSentMessage {
                 ForEach(web.selected, id: \.provider) { session in
                     HStack {
                         Button("Open \(session.provider.name)") {
