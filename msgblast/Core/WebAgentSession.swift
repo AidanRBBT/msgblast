@@ -84,8 +84,8 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
     }
 
     private var comparisonURL: URL {
-        if provider == .muse, let id = state.comparisonID,
-           let url = state.museConversations[id.uuidString], provider.isSavedMuseChat(url) { return url }
+        if let id = state.comparisonID,
+           let url = state.conversationURLs[id.uuidString], provider.isSavedConversation(url) { return url }
         return provider.newChatURL
     }
     private func loadComparisonChat() {
@@ -94,8 +94,8 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
     }
 
     public var latestComparisonAttempt: WebSendAttempt? {
-        guard provider != .muse || state.comparisonID != nil else { return nil }
-        return state.attempts.first { provider != .muse || $0.comparisonID == state.comparisonID }
+        guard state.comparisonID != nil else { return nil }
+        return state.attempts.first { $0.comparisonID == state.comparisonID }
     }
 
     public var locationLabel: String {
@@ -103,18 +103,18 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
         return provider == .muse && webView.url.map(provider.isChatURL) == true ? "\(host) · Side chat" : host
     }
 
-    public func openMuseComparison(_ id: UUID?) async {
-        guard provider == .muse, !isSending else { return }
-        updateState { $0.comparisonID = id }
+    public func openComparison(_ id: UUID?) async {
+        guard !isSending else { return }
+        if state.comparisonID != id { updateState { $0.comparisonID = id } }
         connect()
-        do { try await prepareMuseConversation(); self.error = nil }
+        do { try await prepareConversation(); self.error = nil }
         catch is CancellationError { }
         catch { self.error = error.localizedDescription }
     }
 
-    private func prepareMuseConversation() async throws {
-        if let id = state.comparisonID, let saved = state.museConversations[id.uuidString], !provider.isSavedMuseChat(saved) {
-            throw WebSessionFailure.notSent("This comparison’s saved Muse side chat is invalid. Nothing was sent; its saved address has been preserved.")
+    private func prepareConversation() async throws {
+        if let id = state.comparisonID, let saved = state.conversationURLs[id.uuidString], !provider.isSavedConversation(saved) {
+            throw WebSessionFailure.notSent("This comparison’s saved \(provider.name) chat is invalid. Nothing was sent; its saved address has been preserved.")
         }
         let target = comparisonURL
         let request = comparisonGeneration
@@ -127,19 +127,19 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
         if !loading, let url = webView.url, provider.isChatURL(url) {
             let result = try await webView.callAsyncJavaScript(script.inspect, arguments: [:], in: nil, contentWorld: .defaultClient)
             try checkCurrent()
-            guard let result else { throw WebSessionFailure.notSent("Muse’s page could not be checked before switching side chats.") }
+            guard let result else { throw WebSessionFailure.notSent("\(provider.name)’s page could not be checked before switching chats.") }
             snapshot = try JSONDecoder().decode(WebPageSnapshot.self, from: JSONSerialization.data(withJSONObject: result))
         }
         try checkCurrent()
         guard snapshot.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            throw WebSessionFailure.notSent("Muse has a draft. Send or clear it before switching side chats.")
+            throw WebSessionFailure.notSent("\(provider.name) has a draft. Send or clear it before switching chats.")
         }
         if !loading, snapshot.url == target.absoluteString, !snapshot.ready {
             throw WebSessionFailure.notSent(snapshot.reason)
         }
         if target == provider.newChatURL, snapshot.url == target.absoluteString,
            snapshot.messages.contains(where: { $0.role == "user" }) {
-            throw WebSessionFailure.notSent("Muse has an unfinished side-chat submission. Check its page before starting another comparison.")
+            throw WebSessionFailure.notSent("\(provider.name) has an unfinished conversation submission. Check its page before starting another comparison.")
         }
         if !loading, snapshot.ready, snapshot.url == target.absoluteString, webView.url == target { return }
         if webView.url != target {
@@ -154,7 +154,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
             try checkCurrent()
             if !loading, snapshot.ready, snapshot.url == target.absoluteString { return }
         }
-        throw WebSessionFailure.notSent("Muse’s side chat could not open. Open it in this pane and sign in if needed. Nothing was sent to the main chat.")
+        throw WebSessionFailure.notSent("\(provider.name)’s comparison chat could not open. Open it in this pane and sign in if needed. Nothing was sent.")
     }
 
     public func closePopup() { popup = nil; popupURL = ""; Task { await refresh() } }
@@ -217,23 +217,20 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
         isSending = true
         defer { isSending = false }
         var attempt = WebSendAttempt(text: text)
-        if provider == .muse {
-            attempt.comparisonID = comparisonID ?? state.comparisonID ?? UUID()
-        }
+        let id = comparisonID ?? state.comparisonID ?? UUID()
+        attempt.comparisonID = id
         var submissionWasPossible = false
         state.attempts.insert(attempt, at: 0)
         do {
             try save()
-            if provider == .muse, let id = attempt.comparisonID {
-                guard !state.attempts.contains(where: { $0.comparisonID == id && [.attempting, .uncertain].contains($0.status) }) else {
-                    throw WebSessionFailure.notSent("This comparison has an unconfirmed Muse send. Check the side chat before continuing; no new chat or resend was attempted.")
-                }
-                if state.comparisonID != id { comparisonGeneration += 1 }
-                state.comparisonID = id
-                try save()
-                connect()
-                try await prepareMuseConversation()
+            guard !state.attempts.contains(where: { $0.comparisonID == id && [.attempting, .uncertain].contains($0.status) }) else {
+                throw WebSessionFailure.notSent("This comparison has an unconfirmed \(provider.name) send. Check its chat before continuing; no new chat or resend was attempted.")
             }
+            if state.comparisonID != id { comparisonGeneration += 1 }
+            state.comparisonID = id
+            try save()
+            connect()
+            try await prepareConversation()
             await refresh()
             guard let url = webView.url, provider.isChatURL(url), snapshot.ready, !loading else {
                 throw WebSessionFailure.notSent(snapshot.reason)
@@ -267,8 +264,8 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
                 try await Task.sleep(for: .milliseconds(250))
                 await refresh()
                 guard generation == navigationGeneration, let currentURL = URL(string: snapshot.url) else { break }
-                // Draft routes are optimistic: wait for Muse to assign the real side-chat ID.
-                if provider == .muse, url == provider.newChatURL, currentURL == url {
+                // Draft routes are optimistic: require an assigned conversation URL before saving.
+                if url == provider.newChatURL, currentURL == url {
                     if snapshot.submissionInterrupted == true { break }
                     continue
                 }
@@ -276,16 +273,14 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
                 // A user edit/navigation or changed history makes attribution ambiguous.
                 // First sends may create a URL, but cannot reuse an already linked chat.
                 guard snapshot.submissionInterrupted != true,
-                      currentURL.path == url.path || !existingPaths.contains(currentURL.path),
+                      currentURL.path == url.path || (!existingPaths.contains(currentURL.path) && !state.conversationURLs.values.contains(currentURL)),
                       snapshot.messages.starts(with: baseline) else { break }
                 let matches = snapshot.messages.filter { !before.contains($0.id) && $0.role == "user" && Self.normalized($0.text) == normalizedText }
                 if matches.count == 1 {
                     attempt.status = .observed
                     attempt.messageID = matches[0].id
                     attempt.conversationURL = currentURL
-                    if provider == .muse, let id = attempt.comparisonID {
-                        state.museConversations[id.uuidString] = currentURL
-                    }
+                    state.conversationURLs[id.uuidString] = currentURL
                     attempt.detail = "The outgoing message appeared in \(provider.name). This is a page observation, not a server delivery receipt."
                     try store(attempt)
                     return attempt

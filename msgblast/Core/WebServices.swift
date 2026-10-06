@@ -34,9 +34,9 @@ public struct WebWorkspaceState: Codable, Sendable {
     public var messageRecipients: Set<UUID> = []
     public var comparisonID: UUID?
     public var attempts: [WebSendAttempt] = []
-    public var museConversations: [String: URL] = [:]
+    public var conversationURLs: [String: URL] = [:]
     public init() {}
-    private enum CodingKeys: String, CodingKey { case sessionID, draft, selected, includeMuse, messageRecipients, comparisonID, attempts, museConversations }
+    private enum CodingKeys: String, CodingKey { case sessionID, draft, selected, includeMuse, messageRecipients, comparisonID, attempts, conversationURLs, museConversations }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         sessionID = try c.decode(UUID.self, forKey: .sessionID)
@@ -44,7 +44,8 @@ public struct WebWorkspaceState: Codable, Sendable {
         selected = try c.decodeIfPresent(Bool.self, forKey: .selected) ?? c.decodeIfPresent(Bool.self, forKey: .includeMuse) ?? false
         messageRecipients = try c.decodeIfPresent(Set<UUID>.self, forKey: .messageRecipients) ?? []
         comparisonID = try c.decodeIfPresent(UUID.self, forKey: .comparisonID)
-        museConversations = try c.decodeIfPresent([String: URL].self, forKey: .museConversations) ?? [:]
+        conversationURLs = try c.decodeIfPresent([String: URL].self, forKey: .conversationURLs)
+            ?? c.decodeIfPresent([String: URL].self, forKey: .museConversations) ?? [:]
         attempts = try c.decodeIfPresent([WebSendAttempt].self, forKey: .attempts) ?? []
     }
     public func encode(to encoder: Encoder) throws {
@@ -55,7 +56,7 @@ public struct WebWorkspaceState: Codable, Sendable {
         try c.encode(messageRecipients, forKey: .messageRecipients)
         try c.encodeIfPresent(comparisonID, forKey: .comparisonID)
         try c.encode(attempts, forKey: .attempts)
-        try c.encode(museConversations, forKey: .museConversations)
+        try c.encode(conversationURLs, forKey: .conversationURLs)
     }
     public func hasUnresolvedSend(_ text: String) -> Bool {
         attempts.contains { $0.text == text && [.attempting, .uncertain].contains($0.status) }

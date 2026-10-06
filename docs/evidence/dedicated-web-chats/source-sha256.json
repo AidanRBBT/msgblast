@@ -1,0 +1,14 @@
+{
+  "README.md": "d803c233b32893d0a48cebd273de24e0adfb62550007ccafc33865a841203208",
+  "msgblast/App/AppModel.swift": "cc5d6be7501c02881a0bc35dfacdef9be9c7cee4653a9ab90ba94228ba7765db",
+  "msgblast/Core/WebAgentSession.swift": "e8151dd79ec0f9477cbc7fd4c30c0d83094a4ee2df3cc1c6faaefd755529e56a",
+  "msgblast/Core/WebAgents.swift": "107370abc530723c8c0983e137f3e357d0d51d08bc9a994b8652528fbb321548",
+  "msgblast/Core/WebPageScript.swift": "e9f62b8b233fa5ef6ab745f89b8b40f5292f5fd2c0bbddee6de1f606d67fc618",
+  "msgblast/Core/WebProvider.swift": "5e8c08a60c4b2d3ebee452e50ecfb92244c8d095d02d222f0bff0c946821fa98",
+  "msgblast/Core/WebServices.swift": "a47ced2c59566dd45dc68e7d21c8a2104737d17aacc79f0b8628f5f54ef012c6",
+  "msgblast/Windows/DiscoverView.swift": "faa9303c31ef5ee534fa4de3081b9e4790e9ffc8653c89cda4786e596e3535d9",
+  "msgblastTests/MultiWebAgentTests.swift": "fd4971fb77edba4332a333c5d42889269cd2e5db77ab8b1be1eb618e6f8db9af",
+  "msgblastTests/WebServiceTests.swift": "9ed8b538480f60ef03b3d8e308f04b7232c06fbad6475b8b940467d77f553f17",
+  "scripts/fixtures/web_comparison_model.swift": "ec1720c59b3cd7ee944d16ae72e34d725ccdc60fd295e508ee6eeb61b76f1b4b",
+  "LICENSE": "fb981668c18a279e285fc4d83fba1e836cc84dd4daa73c9697d3cfd2d8aca6e0"
+}

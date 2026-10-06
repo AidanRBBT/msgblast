@@ -15,8 +15,8 @@ public enum WebProvider: String, CaseIterable, Codable, Identifiable, Sendable {
         }
     }
     public var newChatURL: URL { self == .muse ? URL(string: "https://muse.ai/thread/new")! : homeURL }
-    public func isSavedMuseChat(_ url: URL) -> Bool {
-        self == .muse && isChatURL(url) && url.path != "/thread/new"
+    public func isSavedConversation(_ url: URL) -> Bool {
+        isChatURL(url) && url.query == nil && url.fragment == nil && !url.path.isEmpty && url.path != "/" && url.path != newChatURL.path
     }
     // Keep Muse's original file and WebKit data-store identifier through the upgrade.
     public var storageFilename: String { self == .muse ? "web-services.json" : "web-\(rawValue).json" }
@@ -36,11 +36,6 @@ public enum WebProvider: String, CaseIterable, Codable, Identifiable, Sendable {
     // A first send can assign a conversation URL using history.replaceState.
     // Existing conversations must stay on exactly the same URL.
     public func acceptsReceipt(from original: URL, at current: URL) -> Bool {
-        guard isChatURL(original), isChatURL(current) else { return false }
-        if self == .muse {
-            return isSavedMuseChat(current) && (original == current || original == newChatURL)
-        }
-        if original == current { return true }
-        return original.path == homeURL.path && current.path != homeURL.path
+        isChatURL(original) && isSavedConversation(current) && (original == current || original == newChatURL)
     }
 }

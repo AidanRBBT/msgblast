@@ -281,10 +281,10 @@ final class AppModel: ObservableObject {
         }
         webAgents.connectSelected()
         webComparisonRequest = UUID()
-        if comparison.webProviders?.contains(.muse) == true {
+        for session in webAgents.selected {
             Task {
                 guard webAgents.comparisonID == id else { return }
-                await webAgents.sessions.first { $0.provider == .muse }?.openMuseComparison(id)
+                await session.openComparison(id)
             }
         }
     }

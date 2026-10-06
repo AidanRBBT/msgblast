@@ -20,7 +20,7 @@ final class WebServiceTests: XCTestCase {
         let first = await session.send("First comparison", comparisonID: firstID)
         let second = await session.send("Second comparison", comparisonID: secondID)
         XCTAssertNotEqual(first?.conversationURL, second?.conversationURL)
-        await session.openMuseComparison(firstID)
+        await session.openComparison(firstID)
         XCTAssertEqual(session.latestComparisonAttempt?.id, first?.id)
         XCTAssertEqual(session.locationLabel, "muse.ai · Side chat")
         session.updateState { $0.comparisonID = nil }
@@ -34,16 +34,16 @@ final class WebServiceTests: XCTestCase {
         let firstID = UUID(), secondID = UUID()
         let first = await session.send("First comparison", comparisonID: firstID)
         let second = await session.send("Second comparison", comparisonID: secondID)
-        let older = Task { await session.openMuseComparison(firstID) }
+        let older = Task { await session.openComparison(firstID) }
         try await waitFor { session.state.comparisonID == firstID }
-        await session.openMuseComparison(secondID)
+        await session.openComparison(secondID)
         await older.value
         XCTAssertEqual(session.state.comparisonID, secondID)
         XCTAssertEqual(session.webView.url, second?.conversationURL)
         XCTAssertNotEqual(session.webView.url, first?.conversationURL)
         XCTAssertNil(session.error)
 
-        let pending = Task { await session.openMuseComparison(firstID) }
+        let pending = Task { await session.openComparison(firstID) }
         try await waitFor { session.state.comparisonID == firstID }
         session.updateState { $0.comparisonID = nil }
         await pending.value
@@ -57,7 +57,7 @@ final class WebServiceTests: XCTestCase {
         try await waitFor { session.snapshot.ready }
         let first = await session.send("First comparison", comparisonID: UUID())
         _ = try await session.webView.callAsyncJavaScript("document.querySelector('textarea').value = 'Keep this draft'", arguments: [:], in: nil, contentWorld: .page)
-        await session.openMuseComparison(UUID())
+        await session.openComparison(UUID())
         XCTAssertEqual(session.webView.url, first?.conversationURL)
         XCTAssertEqual(session.snapshot.draft, "Keep this draft")
         XCTAssertNotNil(session.error)
@@ -68,11 +68,11 @@ final class WebServiceTests: XCTestCase {
         session.connect()
         try await waitFor { session.snapshot.ready }
         let id = UUID()
-        session.updateState { $0.museConversations[id.uuidString] = URL(string: "https://muse.ai/thread/main")! }
+        session.updateState { $0.conversationURLs[id.uuidString] = URL(string: "https://muse.ai/thread/main")! }
         let attempt = await session.send("Do not send", comparisonID: id)
         XCTAssertEqual(attempt?.status, .notSent)
         XCTAssertFalse(session.snapshot.messages.contains { $0.role == "user" })
-        XCTAssertEqual(session.state.museConversations[id.uuidString]?.path, "/thread/main")
+        XCTAssertEqual(session.state.conversationURLs[id.uuidString]?.path, "/thread/main")
     }
 
     func testInterruptedClickRemainsUncertainAcrossReload() throws {
@@ -263,7 +263,7 @@ final class WebServiceTests: XCTestCase {
         let first = await session.send("First comparison", comparisonID: firstID)
         XCTAssertEqual(first?.status, .observed)
         let firstURL = try XCTUnwrap(first?.conversationURL)
-        XCTAssertTrue(WebProvider.muse.isSavedMuseChat(firstURL))
+        XCTAssertTrue(WebProvider.muse.isSavedConversation(firstURL))
         let followUp = await session.send("Follow-up", comparisonID: firstID)
         XCTAssertEqual(followUp?.conversationURL, firstURL)
         XCTAssertEqual(session.snapshot.messages.filter { $0.role == "user" }.count, 2)
@@ -273,12 +273,12 @@ final class WebServiceTests: XCTestCase {
         XCTAssertNotEqual(second?.conversationURL, firstURL)
         XCTAssertEqual(session.snapshot.messages.filter { $0.role == "user" }.map(\.text), ["Second comparison"])
         try await waitFor { session.snapshot.messages.contains { $0.text == "Fixture reply: Second comparison" } }
-        await session.openMuseComparison(firstID)
+        await session.openComparison(firstID)
         XCTAssertEqual(session.webView.url, firstURL)
         XCTAssertEqual(session.snapshot.messages.filter { $0.role == "user" }.map(\.text), ["First comparison", "Follow-up"])
         let reopened = WebAgentSession(provider: .muse, storageURL: storage, fixture: true)
         XCTAssertEqual(reopened.state.sessionID, session.state.sessionID)
-        XCTAssertEqual(reopened.state.museConversations[firstID.uuidString], firstURL)
+        XCTAssertEqual(reopened.state.conversationURLs[firstID.uuidString], firstURL)
         reopened.connect()
         try await waitFor { reopened.snapshot.ready }
         XCTAssertEqual(reopened.webView.url, firstURL)
@@ -292,7 +292,7 @@ final class WebServiceTests: XCTestCase {
         let id = UUID()
         let attempt = await session.send("Unconfirmed creation", comparisonID: id)
         XCTAssertEqual(attempt?.status, .uncertain)
-        XCTAssertNil(session.state.museConversations[id.uuidString])
+        XCTAssertNil(session.state.conversationURLs[id.uuidString])
         let next = await session.send("Different follow-up", comparisonID: id)
         XCTAssertEqual(next?.status, .notSent)
         XCTAssertEqual(session.snapshot.messages.filter { $0.role == "user" }.count, 1)
@@ -308,7 +308,7 @@ final class WebServiceTests: XCTestCase {
         XCTAssertEqual(attempt?.status, .notSent)
         let draft = try await session.webView.callAsyncJavaScript("return document.querySelector('textarea').value", arguments: [:], in: nil, contentWorld: .page) as? String
         XCTAssertEqual(draft, "")
-        XCTAssertTrue(session.state.museConversations.isEmpty)
+        XCTAssertTrue(session.state.conversationURLs.isEmpty)
     }
 
     func testChangedSideChatCannotBeAttributedToTheComparison() async throws {
@@ -321,7 +321,7 @@ final class WebServiceTests: XCTestCase {
         _ = try await session.webView.callAsyncJavaScript("document.querySelector('[aria-label=Send]').addEventListener('click', () => history.replaceState({}, '', '/thread/'+crypto.randomUUID()))", arguments: [:], in: nil, contentWorld: .page)
         let second = await session.send("Ambiguous follow-up", comparisonID: id)
         XCTAssertEqual(second?.status, .uncertain)
-        XCTAssertEqual(session.state.museConversations[id.uuidString], savedURL)
+        XCTAssertEqual(session.state.conversationURLs[id.uuidString], savedURL)
     }
 
     func testMuseReceiptRequiresSavedThreadAndRejectsMainAliases() {

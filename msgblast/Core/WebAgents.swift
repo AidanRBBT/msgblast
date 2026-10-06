@@ -16,11 +16,21 @@ public final class WebAgents: ObservableObject {
         for session in sessions {
             session.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }.store(in: &subscriptions)
         }
+        setComparison(workspaceSession.state.comparisonID)
     }
-    public func setComparison(_ id: UUID?) { workspaceSession.updateState { $0.comparisonID = id } }
+    public func setComparison(_ id: UUID?) {
+        for session in sessions where session.state.comparisonID != id { session.updateState { $0.comparisonID = id } }
+    }
     public func toggle(_ session: WebAgentSession) {
         session.updateState { $0.selected.toggle() }
-        if session.state.selected { session.connect() }
+        if session.state.selected {
+            let id = comparisonID
+            session.connect()
+            Task {
+                guard self.comparisonID == id, session.state.selected else { return }
+                await session.openComparison(id)
+            }
+        }
     }
     public func connectSelected() { selected.forEach { $0.connect() } }
     public static func send(_ text: String, to sessions: [WebAgentSession], comparisonID: UUID? = nil) async -> [WebProvider: WebSendAttempt] {

@@ -12,21 +12,22 @@ import msgblastCore
         precondition(model.demo && model.local.url.path.contains("UIFixture"))
         model.coordinator = WindowCoordinator(model: model)
         let recipient = model.state.agents[0]
-        let first = await model.prepareWebComparison("First comparison", recipientIDs: [recipient.id], providers: [.muse])!
+        let first = await model.prepareWebComparison("First comparison", recipientIDs: [recipient.id], providers: WebProvider.allCases)!
         let muse = model.webAgents.sessions.first { $0.provider == .muse }!
         precondition(muse.fixture)
-        muse.connect()
-        try await waitUntil { muse.snapshot.ready }
-        let a = await muse.send("First comparison", comparisonID: first)
-        precondition(a?.status == .observed)
+        model.webAgents.sessions.forEach { $0.connect() }
+        try await waitUntil { model.webAgents.sessions.allSatisfy { $0.snapshot.ready } }
+        let firstResults = await WebAgents.send("First comparison", to: model.webAgents.sessions, comparisonID: first)
+        precondition(firstResults.values.allSatisfy { $0.status == .observed })
         await model.submit(first, retry: false)
-        let second = await model.prepareWebComparison("Second comparison", recipientIDs: [], providers: [.muse])!
-        let b = await muse.send("Second comparison", comparisonID: second)
-        precondition(b?.status == .observed && a?.conversationURL != b?.conversationURL)
+        let second = await model.prepareWebComparison("Second comparison", recipientIDs: [], providers: WebProvider.allCases)!
+        let secondResults = await WebAgents.send("Second comparison", to: model.webAgents.sessions, comparisonID: second)
+        precondition(secondResults.values.allSatisfy { $0.status == .observed })
+        for provider in WebProvider.allCases { precondition(firstResults[provider]?.conversationURL != secondResults[provider]?.conversationURL) }
         model.coordinator?.open(first)
-        try await waitUntil { muse.webView.url == a?.conversationURL }
+        try await waitUntil { model.webAgents.sessions.allSatisfy { $0.webView.url == firstResults[$0.provider]?.conversationURL } }
         precondition(model.state.selection == [recipient.id])
-        precondition(model.webAgents.selected.map(\.provider) == [.muse])
+        precondition(model.webAgents.selected.map(\.provider) == WebProvider.allCases)
         precondition(model.webAgents.comparisonID == first)
         precondition(model.comparison(first)?.members.first?.submission == .submitted)
         let attachment = try model.local.stage(Data("fixture attachment".utf8), filename: "sidechat-followup.txt")
@@ -48,6 +49,6 @@ import msgblastCore
         precondition(model.comparison(first)?.followUps.last?.states[recipient.id.uuidString] == .submitted)
         precondition(muse.state.attempts.count == beforeRetry)
         print("PASS: attachment-only and text-plus-attachment native follow-ups submit their comparison drafts; native retry does not resend Muse. Controlled local fixture inputs.")
-        print("PASS: actual AppModel + WindowCoordinator restore comparison ID, native recipient, Muse selection and original side-chat URL. All sends use local fixtures.")
+        print("PASS: actual AppModel + WindowCoordinator restore comparison ID, native recipient, Muse selection and original saved URLs for all four web providers. All sends use local fixtures.")
     }
 }

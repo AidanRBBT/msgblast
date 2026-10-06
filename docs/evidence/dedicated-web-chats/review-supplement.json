@@ -1,0 +1,22 @@
+{
+  "reviewed_at": "2026-10-06T03:01:53.272651+00:00",
+  "base": "5d467de0343f09ef65805672daf1c70eba0ae933",
+  "scope": "Final working tree source hashes in source-sha256.json; supplement to the initial focused review.",
+  "reviewers": [
+    "primary correctness review",
+    "dedicated_adversarial independent context"
+  ],
+  "changes": [
+    "Restore contenteditable selection before inserting a follow-up after native composer focus",
+    "Remove requested Discover footer only",
+    "Correct README saved-conversation behavior",
+    "Add unmodified GPL-3.0-only license and consistent project notice"
+  ],
+  "findings": [],
+  "validation": "102 XCTest cases passed after the selection fix; controller checks passed; both previews rebuilt after Discover removal. Native fixture confirmed all-four follow-ups, separate new chats, reopening, and footer removal.",
+  "limitations": [
+    "Same-model-family review, not cross-model",
+    "License notice consistency reviewed, not legal advice",
+    "Authenticated provider behavior and background operation remain unverified"
+  ]
+}

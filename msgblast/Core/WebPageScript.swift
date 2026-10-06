@@ -83,6 +83,11 @@ struct WebPageScript {
         } else {
             // Let contenteditable/ProseMirror process a browser editing operation.
             input.focus();
+            // Cocoa's shared composer can clear WebKit's selection while the DOM
+            // still reports this editor as focused. Restore its empty insertion point.
+            const selection=window.getSelection(),range=document.createRange();
+            range.selectNodeContents(input);range.collapse(false);
+            selection.removeAllRanges();selection.addRange(range);
             if (!document.execCommand('insertText',false,text)) return {ok:false,reason:'The page did not accept text. Use its composer directly.'};
         }
         return {ok:true,messageIDs:baseline.map(m=>m.id),messages:baseline,existingConversationPaths};
@@ -110,11 +115,20 @@ struct WebPageScript {
         return """
         <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>
         :root{color-scheme:light dark;font:15px -apple-system,sans-serif}body{margin:0;padding:22px;background:Canvas;color:CanvasText}header{display:flex;gap:12px;align-items:center;border-bottom:1px solid #8884;padding-bottom:16px}small{color:#888}#transcript{min-height:150px;padding:20px 0}article{background:#8882;border-radius:16px;margin:12px 0;padding:14px}textarea,[contenteditable]{box-sizing:border-box;width:100%;min-height:70px;padding:12px;font:inherit;border:1px solid #8885;border-radius:14px}button{font:inherit;margin:8px 0;padding:8px 14px;border-radius:10px;border:1px solid #8885}[hidden]{display:none!important}
-        </style></head><body><header><strong>\(provider.name)</strong><small>Local fixture · no real sends</small></header>
+        </style></head><body><header><strong id="thread-title">New \(provider.name) chat</strong><small>Local fixture · no real sends</small></header>
         <div id="login" hidden><p>Sign in to continue.</p><button onclick="chat.hidden=false;login.hidden=true">Sign in to fixture</button></div>
         <main id="chat"><button \(account)>Fixture account</button><div id="transcript"></div>\(input)<button \(send) disabled>Send</button><button onclick="chat.hidden=true;login.hidden=false">Sign out of fixture</button></main>
         <script>
         const provider='\(provider.rawValue)',input=document.querySelector('textarea,[contenteditable]'),send=document.querySelector('button[aria-label]');
+        const fixtureThreads = {},newPath='\(provider.newChatURL.path)';
+        function updateFixtureTitle(){document.getElementById('thread-title').textContent=location.pathname===newPath?'New \(provider.name) chat':'\(provider.name) chat · '+location.pathname.slice(-6);}
+        function navigateFixtureThread(url){
+          fixtureThreads[location.pathname]=document.getElementById('transcript').innerHTML;
+          history.replaceState({},'',url);
+          document.getElementById('transcript').innerHTML=location.pathname===newPath?'':(fixtureThreads[location.pathname]||'');
+          updateFixtureTitle();
+        }
+        updateFixtureTitle();
         const value=()=>input.tagName==='TEXTAREA'?input.value:input.innerText;
         input.addEventListener('input',()=>send.disabled=!value().trim());
         send.addEventListener('click',()=>{const text=value();if(!text.trim())return;
@@ -124,7 +138,7 @@ struct WebPageScript {
         if(provider==='grok'){a.dataset.messageRole=role;a.dataset.messageId=crypto.randomUUID();a.className='message-bubble';}
         a.textContent=text;document.getElementById('transcript').append(a);a.scrollIntoView({block:'nearest'});}
         add('user',text);if(input.tagName==='TEXTAREA')input.value='';else input.textContent='';send.disabled=true;
-        history.replaceState(null,'',provider==='claude'?'/chat/fixture-conversation':'/c/fixture-conversation');
+        if(location.pathname===newPath){history.replaceState(null,'',(provider==='claude'?'/chat/':'/c/')+crypto.randomUUID());updateFixtureTitle();}
         setTimeout(()=>add('assistant','\(provider.name) fixture reply: '+text),350);});
         </script></body></html>
         """

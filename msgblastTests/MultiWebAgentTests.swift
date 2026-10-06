@@ -4,9 +4,115 @@ import WebKit
 
 @MainActor
 final class MultiWebAgentTests: XCTestCase {
+    func testNewProvidersAttachReceiptsToTheirComparison() async throws {
+        for provider in [WebProvider.chatgpt, .claude, .grok] {
+            let session = WebAgentSession(provider: provider, storageURL: temporaryDirectory().appendingPathComponent("state.json"), fixture: true)
+            session.connect()
+            try await waitFor { session.snapshot.ready }
+            let id = UUID()
+            let attempt = await session.send("A dedicated conversation", comparisonID: id)
+            XCTAssertEqual(attempt?.status, .observed, provider.name)
+            XCTAssertEqual(attempt?.comparisonID, id, provider.name)
+            XCTAssertEqual(session.state.comparisonID, id, provider.name)
+        }
+    }
+
+    func testEachProviderKeepsSeparateSavedChatsAcrossComparisonsAndReopening() async throws {
+        for provider in WebProvider.allCases {
+            let directory = temporaryDirectory(), firstID = UUID(), secondID = UUID()
+            let storage = directory.appendingPathComponent("state.json")
+            let session = WebAgentSession(provider: provider, storageURL: storage, fixture: true)
+            session.connect()
+            try await waitFor { session.snapshot.ready }
+            let first = await session.send("First question", comparisonID: firstID)
+            XCTAssertEqual(first?.status, .observed, provider.name)
+            let firstURL = try XCTUnwrap(first?.conversationURL)
+            XCTAssertTrue(provider.isSavedConversation(firstURL))
+            try await waitFor { session.snapshot.messages.contains { $0.role == "assistant" } }
+            let second = await session.send("Second question", comparisonID: secondID)
+            XCTAssertEqual(second?.status, .observed, provider.name)
+            XCTAssertNotEqual(second?.conversationURL, firstURL, provider.name)
+            XCTAssertEqual(session.snapshot.messages.filter { $0.role == "user" }.map(\.text), ["Second question"])
+            try await waitFor { session.snapshot.messages.contains { $0.role == "assistant" } }
+            await session.openComparison(firstID)
+            XCTAssertEqual(session.webView.url, firstURL)
+            XCTAssertEqual(session.latestComparisonAttempt?.id, first?.id)
+            let followup = await session.send("Follow up", comparisonID: firstID)
+            XCTAssertEqual(followup?.status, .observed)
+            XCTAssertEqual(followup?.conversationURL, firstURL)
+            XCTAssertEqual(session.snapshot.messages.filter { $0.role == "user" }.map(\.text), ["First question", "Follow up"])
+            let restored = WebAgentSession(provider: provider, storageURL: storage, fixture: true)
+            XCTAssertEqual(restored.state.sessionID, session.state.sessionID)
+            XCTAssertEqual(restored.state.conversationURLs[firstID.uuidString], firstURL)
+            XCTAssertEqual(restored.state.conversationURLs[secondID.uuidString], second?.conversationURL)
+            restored.connect()
+            try await waitFor { restored.snapshot.ready }
+            XCTAssertEqual(restored.webView.url, firstURL, "The saved destination must survive a new session instance")
+        }
+    }
+
+    func testContenteditableFollowUpRestoresTheEditingSelection() async throws {
+        let session = WebAgentSession(provider: .claude, storageURL: temporaryDirectory().appendingPathComponent("state.json"), fixture: true)
+        let id = UUID()
+        session.connect()
+        try await waitFor { session.snapshot.ready }
+        let first = await session.send("First question", comparisonID: id)
+        XCTAssertEqual(first?.status, .observed)
+        try await waitFor { session.snapshot.messages.contains { $0.role == "assistant" } }
+        _ = try await session.webView.callAsyncJavaScript("document.querySelector('[contenteditable]').focus(); window.getSelection().removeAllRanges()", arguments: [:], in: nil, contentWorld: .page)
+        let followup = await session.send("Follow-up after composing elsewhere", comparisonID: id)
+        XCTAssertEqual(followup?.status, .observed)
+        XCTAssertEqual(followup?.conversationURL, first?.conversationURL)
+        XCTAssertEqual(session.snapshot.messages.filter { $0.role == "user" }.map(\.text), ["First question", "Follow-up after composing elsewhere"])
+    }
+
+    func testLegacyMuseSavedChatMigratesWithoutChangingTheLoginStore() throws {
+        let sessionID = UUID(), comparisonID = UUID()
+        let url = "https://muse.ai/thread/11111111-2222-3333-4444-555555555555"
+        let json = """
+        {"sessionID":"\(sessionID)","includeMuse":true,"comparisonID":"\(comparisonID)","museConversations":{"\(comparisonID.uuidString)":"\(url)"}}
+        """
+        let migrated = try JSONDecoder().decode(WebWorkspaceState.self, from: Data(json.utf8))
+        XCTAssertEqual(migrated.sessionID, sessionID)
+        XCTAssertTrue(migrated.selected)
+        XCTAssertEqual(migrated.conversationURLs[comparisonID.uuidString]?.absoluteString, url)
+        let roundTrip = try JSONDecoder().decode(WebWorkspaceState.self, from: JSONEncoder().encode(migrated))
+        XCTAssertEqual(roundTrip.conversationURLs, migrated.conversationURLs)
+    }
+
+    func testEveryProviderRequiresSavedURLAndBlocksUnconfirmedFollowUps() async throws {
+        for provider in [WebProvider.chatgpt, .claude, .grok] {
+            let session = WebAgentSession(provider: provider, storageURL: temporaryDirectory().appendingPathComponent("state.json"), fixture: true)
+            session.connect()
+            try await waitFor { session.snapshot.ready }
+            _ = try await session.webView.callAsyncJavaScript("history.replaceState = () => {}", arguments: [:], in: nil, contentWorld: .page)
+            let id = UUID()
+            let first = await session.send("No saved conversation yet", comparisonID: id)
+            XCTAssertEqual(first?.status, .uncertain, provider.name)
+            XCTAssertNil(session.state.conversationURLs[id.uuidString])
+            let followup = await session.send("Different follow-up", comparisonID: id)
+            XCTAssertEqual(followup?.status, .notSent)
+            XCTAssertEqual(session.snapshot.messages.filter { $0.role == "user" }.count, 1)
+            XCTAssertFalse(provider.acceptsReceipt(from: provider.newChatURL, at: provider.newChatURL))
+        }
+    }
+
+    func testComparisonSelectionSynchronizesEveryProviderIncludingDeselectedOnes() {
+        let directory = temporaryDirectory()
+        let web = WebAgents(directory: directory, fixture: true), id = UUID()
+        web.setComparison(id)
+        XCTAssertTrue(web.sessions.allSatisfy { $0.state.comparisonID == id })
+        let restored = WebAgents(directory: directory, fixture: true)
+        XCTAssertTrue(restored.sessions.allSatisfy { $0.state.comparisonID == id })
+        restored.setComparison(nil)
+        XCTAssertTrue(restored.sessions.allSatisfy { $0.state.comparisonID == nil && $0.latestComparisonAttempt == nil })
+    }
+
     func testProviderDestinationsAndFirstConversationTransition() {
         for provider in WebProvider.allCases {
             XCTAssertTrue(provider.isChatURL(provider.newChatURL))
+            XCTAssertFalse(provider.isSavedConversation(provider.newChatURL))
+            XCTAssertFalse(provider.isSavedConversation(URL(string: "https://\(provider.homeURL.host!)")!))
             for invalid in ["https://\(provider.homeURL.host!).evil.test/", "http://\(provider.homeURL.host!)/", "https://\(provider.homeURL.host!)/login", "https://\(provider.homeURL.host!)/settings", "https://\(provider.homeURL.host!):444/", "https://user@\(provider.homeURL.host!)/"] {
                 XCTAssertFalse(provider.isChatURL(URL(string: invalid)!), invalid)
             }
@@ -99,6 +205,7 @@ final class MultiWebAgentTests: XCTestCase {
         let session = WebAgentSession(provider: .chatgpt, storageURL: temporaryDirectory().appendingPathComponent("state.json"), fixture: true)
         session.connect()
         try await waitFor { session.snapshot.ready }
+        try await bindExistingFixtureChat(session)
         _ = try await session.webView.callAsyncJavaScript("""
         const old=document.createElement('article');old.hidden=true;old.dataset.messageAuthorRole='user';old.dataset.messageId='earlier-message';old.textContent='Repeated question';document.getElementById('transcript').append(old);
         document.querySelector('button[aria-label]').addEventListener('click',e=>{e.stopImmediatePropagation();old.hidden=false;document.querySelector('textarea').value='';},true);
@@ -113,6 +220,7 @@ final class MultiWebAgentTests: XCTestCase {
         let session = WebAgentSession(provider: .claude, storageURL: temporaryDirectory().appendingPathComponent("state.json"), fixture: true)
         session.connect()
         try await waitFor { session.snapshot.ready }
+        try await bindExistingFixtureChat(session)
         _ = try await session.webView.callAsyncJavaScript("""
         const old=document.createElement('article');old.dataset.testid='user-message';old.textContent='Repeated question';document.getElementById('transcript').append(old);
         document.querySelector('button[aria-label]').addEventListener('click',e=>{e.stopImmediatePropagation();const history=document.createElement('article');history.dataset.testid='assistant-message';history.textContent='Earlier history loaded';old.before(history);document.querySelector('[contenteditable]').textContent='';},true);
@@ -164,6 +272,13 @@ final class MultiWebAgentTests: XCTestCase {
             let attempt = await session.send("First line\nSecond line\nThird line")
             XCTAssertEqual(attempt?.status, .observed, provider.name)
         }
+    }
+
+    private func bindExistingFixtureChat(_ session: WebAgentSession) async throws {
+        let id = UUID(), path = session.provider == .claude ? "/chat/existing-fixture" : "/c/existing-fixture"
+        let url = URL(string: path, relativeTo: session.provider.homeURL)!.absoluteURL
+        _ = try await session.webView.callAsyncJavaScript("history.replaceState({},'',url)", arguments: ["url":url.absoluteString], in: nil, contentWorld: .page)
+        session.updateState { $0.comparisonID = id; $0.conversationURLs[id.uuidString] = url }
     }
 
     private func temporaryDirectory() -> URL { FileManager.default.temporaryDirectory.appendingPathComponent("MsgBlast-MultiWeb-\(UUID())") }
