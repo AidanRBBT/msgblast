@@ -22,6 +22,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
     private var navigationGeneration = 0
     private var comparisonGeneration = 0
     private var avatarKey: String?
+    private var navigationError: String?
     public let provider: WebProvider
     private var script: WebPageScript { WebPageScript(provider: provider) }
 
@@ -337,7 +338,12 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
         }
     }
     public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        if webView === self.webView { loading = false; Task { await refresh() } }
+        if webView === self.webView {
+            loading = false
+            if let navigationError, error == navigationError { error = nil }
+            navigationError = nil
+            Task { await refresh() }
+        }
         else { popupURL = webView.url?.absoluteString ?? "" }
     }
     public func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { failedNavigation(webView, error: error) }
@@ -345,7 +351,10 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
     private func failedNavigation(_ view: WKWebView, error: Error) {
         guard view === webView else { return }
         loading = false
-        if (error as NSError).code != NSURLErrorCancelled { self.error = "\(provider.name) could not load: \(error.localizedDescription)" }
+        if (error as NSError).code != NSURLErrorCancelled, !storageFailed {
+            navigationError = "\(provider.name) could not load: \(error.localizedDescription)"
+            self.error = navigationError
+        }
     }
     public func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
         if webView === self.webView {
@@ -355,15 +364,22 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
     }
     public func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction) async -> WKNavigationActionPolicy {
         guard let url = navigationAction.request.url else { return .cancel }
-        let allowed = fixture ? (url.absoluteString == "about:blank" || provider.isChatURL(url)) : url.scheme == "https"
-        if !allowed {
-            error = "This link cannot open inside MsgBlast. Stay on \(provider.name)’s website to continue."
+        let mainFrame = navigationAction.targetFrame?.isMainFrame ?? true
+        let blankPage = url.scheme == "about" && ["blank", "srcdoc"].contains(url.path)
+        // WebKit and sign-in pages use empty windows and inline child frames.
+        // These load inside the browser; they never open another app or read local files.
+        let allowed = fixture ? (url.absoluteString == "about:blank" || provider.isChatURL(url))
+            : url.scheme == "https" || blankPage || (!mainFrame && ["blob", "data"].contains(url.scheme ?? ""))
+        if !allowed, mainFrame, navigationAction.navigationType == .linkActivated, !storageFailed {
+            navigationError = "This link cannot open inside MsgBlast. Stay on \(provider.name)’s website to continue."
+            error = navigationError
         }
         if webView === popup { popupURL = url.absoluteString }
         return allowed ? .allow : .cancel
     }
     public func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
-        guard !fixture, navigationAction.targetFrame == nil, navigationAction.request.url?.scheme == "https", popup == nil else { return nil }
+        guard !fixture, navigationAction.targetFrame == nil, let url = navigationAction.request.url,
+              url.scheme == "https" || url.absoluteString == "about:blank", popup == nil else { return nil }
         let view = WKWebView(frame: .zero, configuration: configuration)
         view.navigationDelegate = self; view.uiDelegate = self
         popupURL = navigationAction.request.url?.absoluteString ?? ""

@@ -255,7 +255,6 @@ private struct WebAgentPane: View {
                 }
                 Spacer()
                 if session.loading { ProgressView().controlSize(.small) }
-                Button { session.openComparisonChat() } label: { Image(systemName: "house") }.help("\(session.provider.name) comparison chat").accessibilityLabel("\(session.provider.name) comparison chat").disabled(busy)
                 Button { session.reload() } label: { Image(systemName: "arrow.clockwise") }.help("Reload \(session.provider.name)").accessibilityLabel("Reload \(session.provider.name)").disabled(busy)
             }.padding(14).background(.bar)
             if let latest = session.latestComparisonAttempt {

@@ -4,6 +4,81 @@ import WebKit
 
 @MainActor
 final class MultiWebAgentTests: XCTestCase {
+    func testLiveBrowserSupportsInternalFramesWithoutNavigationWarnings() async throws {
+        for provider in [WebProvider.claude, .grok] {
+            let session = WebAgentSession(provider: provider, storageURL: temporaryDirectory().appendingPathComponent("state.json"), fixture: false)
+            session.webView.loadHTMLString("""
+            <body data-test="navigation"><iframe id="blank" src="about:blank"></iframe>
+            <script>
+            window.frameReady = [];
+            window.addEventListener('message', event => {
+                if (['data-frame', 'blob-frame'].includes(event.data)) window.frameReady.push(event.data);
+            });
+            for (const kind of ['data', 'blob']) {
+                const payload = '<script>parent.postMessage("' + kind + '-frame", "*")<' + '/script>';
+                const frame = document.createElement('iframe');
+                frame.src = kind === 'data' ? 'data:text/html,' + encodeURIComponent(payload)
+                    : URL.createObjectURL(new Blob([payload], {type: 'text/html'}));
+                document.body.append(frame);
+            }
+            </script></body>
+            """, baseURL: provider.homeURL)
+            try await waitFor { session.error != nil || (!session.webView.isLoading && session.webView.url != nil) }
+            XCTAssertNil(session.error, provider.name)
+            guard session.error == nil else { continue }
+            let result = try await session.webView.callAsyncJavaScript("""
+            for (let i = 0; i < 40 && window.frameReady.length < 2; i++)
+                await new Promise(resolve => setTimeout(resolve, 50));
+            return {blank: document.querySelector('#blank').contentDocument.URL, ready: window.frameReady.sort()};
+            """, arguments: [:], in: nil, contentWorld: .page) as? [String: Any]
+            XCTAssertEqual(result?["blank"] as? String, "about:blank")
+            XCTAssertEqual(result?["ready"] as? [String], ["blob-frame", "data-frame"])
+            XCTAssertNil(session.error)
+        }
+    }
+
+    func testBlockedAutomaticFrameDoesNotInterruptTheParentPage() async throws {
+        let session = WebAgentSession(provider: .grok, storageURL: temporaryDirectory().appendingPathComponent("state.json"), fixture: false)
+        session.webView.loadHTMLString("<body>Parent stays usable<iframe src='msgblast-test-blocked://child'></iframe></body>", baseURL: WebProvider.grok.homeURL)
+        try await waitFor { !session.webView.isLoading && session.webView.url != nil }
+        XCTAssertNil(session.error)
+        let text = try await session.webView.callAsyncJavaScript("return document.body.textContent", arguments: [:], in: nil, contentWorld: .page) as? String
+        XCTAssertEqual(text, "Parent stays usable")
+    }
+
+    func testSuccessfulPageLoadClearsOnlyNavigationErrors() async throws {
+        let session = WebAgentSession(provider: .claude, storageURL: temporaryDirectory().appendingPathComponent("state.json"), fixture: false)
+        session.webView(session.webView, didFailProvisionalNavigation: nil, withError: NSError(domain: NSURLErrorDomain, code: NSURLErrorNotConnectedToInternet))
+        XCTAssertNotNil(session.error)
+        session.webView.loadHTMLString("<body>Recovered</body>", baseURL: WebProvider.claude.homeURL)
+        try await waitFor { !session.webView.isLoading && session.webView.url != nil }
+        XCTAssertNil(session.error)
+        let brokenStorage = temporaryDirectory()
+        try FileManager.default.createDirectory(at: brokenStorage, withIntermediateDirectories: true)
+        let blocked = WebAgentSession(provider: .claude, storageURL: brokenStorage, fixture: false)
+        let storageError = blocked.error
+        XCTAssertNotNil(storageError)
+        blocked.webView(blocked.webView, didFailProvisionalNavigation: nil, withError: NSError(domain: NSURLErrorDomain, code: NSURLErrorNotConnectedToInternet))
+        XCTAssertEqual(blocked.error, storageError)
+        blocked.webView.loadHTMLString("<body>Storage remains blocked</body>", baseURL: WebProvider.claude.homeURL)
+        try await waitFor { !blocked.webView.isLoading && blocked.webView.url != nil }
+        XCTAssertEqual(blocked.error, storageError)
+    }
+
+    func testLiveBrowserKeepsBlankLoginPopupInTheSameSession() async throws {
+        let session = WebAgentSession(provider: .claude, storageURL: temporaryDirectory().appendingPathComponent("state.json"), fixture: false)
+        session.webView.configuration.preferences.javaScriptCanOpenWindowsAutomatically = true
+        session.webView.loadHTMLString("<body>Local login popup test</body>", baseURL: WebProvider.claude.homeURL)
+        try await waitFor { session.error != nil || (!session.webView.isLoading && session.webView.url != nil) }
+        XCTAssertNil(session.error)
+        guard session.error == nil else { return }
+        _ = try await session.webView.callAsyncJavaScript("window.open('about:blank','login')", arguments: [:], in: nil, contentWorld: .page)
+        try await waitFor { session.popup != nil }
+        XCTAssertTrue(session.popup?.configuration.websiteDataStore === session.webView.configuration.websiteDataStore)
+        XCTAssertNil(session.error)
+        session.closePopup()
+    }
+
     func testNewProvidersAttachReceiptsToTheirComparison() async throws {
         for provider in [WebProvider.chatgpt, .claude, .grok] {
             let session = WebAgentSession(provider: provider, storageURL: temporaryDirectory().appendingPathComponent("state.json"), fixture: true)

@@ -1,0 +1,311 @@
+{
+  "status": "complete",
+  "verdict": "Ready with fixes",
+  "verdict_reason": "The frozen imported diff has two confirmed P2 defects: navigation recovery can hide a persistent storage warning (#2), and launch sizing can be capped against the wrong display (#1). Address #2 first, then #1, and validate each against the updated source. The caller's later fixes are outside this receipt.",
+  "scope": {
+    "base": "f9b05275a501d170626879f71c0f14f52795689a",
+    "branch": "codex/webkit-services",
+    "head_sha": "f9b05275a501d170626879f71c0f14f52795689a",
+    "pr_url": null,
+    "files_changed": 5,
+    "mode": "standalone",
+    "snapshot": "Frozen full.diff plus the base revision; subsequent caller edits are excluded.",
+    "diff_sha256": "adeb59057676cebff42821a10cc7d8a21725bcfdd1a82bbed9bf5f0a27056b1c"
+  },
+  "intent": "Import the web-navigation worktree changes into the existing WebKit-services branch: open a larger centered launch window capped by the visible screen, support internal WebKit frames and blank sign-in popups, clear recovered navigation errors, isolate named web preview storage, and remove pane home buttons. Preserve newer first-use sign-in and New Blast behavior; four regressions exercise the imported navigation behavior and test teardown removes named WebKit stores.",
+  "intent_confidence": "explicit",
+  "reviewers": [
+    "correctness",
+    "project-standards",
+    "testing",
+    "security",
+    "reliability",
+    "adversarial",
+    "swift-ios"
+  ],
+  "findings": [
+    {
+      "#": 1,
+      "title": "Size restored windows using their actual screen",
+      "severity": "P2",
+      "file": "msgblast/App/msgblastApp.swift",
+      "line": 11,
+      "confidence": 75,
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "pre_existing": false,
+      "suggested_fix": "Pass the uncapped 1600x1100 target into InitialWindowFrame and clamp it using window.screen?.visibleFrame inside viewDidMoveToWindow; keep defaultSize separately capped for initial scene creation if needed.",
+      "first_evidence": "msgblast/App/msgblastApp.swift:11 -- let screen = NSScreen.main?.visibleFrame.size ?? NSSize(width: 1600, height: 1100)",
+      "why_it_matters": "A window restored on a larger external display can open substantially smaller than the requested 1600x1100 size when the main display is a smaller laptop screen. The preferred size is capped against NSScreen.main before the window exists, and the later frame adjustment can only reduce that size. Compute the 1600x1100 target against the window's screen when applying its frame so each launch window uses its own visible area.",
+      "evidence": [
+        "msgblast/App/msgblastApp.swift:11 -- let screen = NSScreen.main?.visibleFrame.size ?? NSSize(width: 1600, height: 1100)",
+        "msgblast/App/msgblastApp.swift:12 -- return NSSize(width: min(1600, screen.width), height: min(1100, screen.height))",
+        "msgblast/App/msgblastApp.swift:21 -- }.background(InitialWindowFrame(size: initialWindowSize))",
+        "msgblast/App/msgblastApp.swift:99 -- guard let window, let screen = window.screen ?? NSScreen.main else { return }",
+        "msgblast/App/msgblastApp.swift:101 -- let width = min(size.width, bounds.width), height = min(size.height, bounds.height)",
+        "Apple NSScreen.main documentation: identifies the display of the keyboard-focused window, not necessarily the newly restored window; https://developer.apple.com/documentation/AppKit/NSScreen/main"
+      ],
+      "reviewers": [
+        "swift-ios"
+      ],
+      "independent_reviewers": [
+        "swift-ios"
+      ],
+      "validation_status": "confirmed",
+      "validation_reason": "When the screen used during scene construction is smaller than the restored window's screen, msgblast/App/msgblastApp.swift:11-12 caps the target prematurely, lines 83-87 retain that capped size, and lines 99-103 can only reduce it further; [Apple's NSScreen.main contract](https://developer.apple.com/documentation/AppKit/NSScreen/main) permits that display mismatch, so a two-display restoration test would expose this newly introduced sizing defect, although incidence was not measured."
+    },
+    {
+      "#": 2,
+      "title": "Preserve storage failures across navigation recovery",
+      "severity": "P2",
+      "file": "msgblast/Core/WebAgentSession.swift",
+      "line": 343,
+      "confidence": 75,
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "pre_existing": false,
+      "suggested_fix": "Preserve the persistent storage diagnostic when storageFailed is true: prevent failedNavigation and the blocked-link policy callback from replacing it with navigationError, or store the persistent diagnostic separately and restore it in didFinish. Extend testSuccessfulPageLoadClearsOnlyNavigationErrors with the existing broken-storage session receiving a non-cancelled navigation failure before its successful load; the storage warning must remain afterward.",
+      "first_evidence": "msgblast/Core/WebAgentSession.swift:343 -- if let navigationError, error == navigationError { error = nil }",
+      "why_it_matters": "A session with unreadable or unwritable storage can lose its repair warning after a network failure followed by a successful reload, even though storageFailed remains true and sending is still blocked. The navigation failure overwrites the storage message, and this new success path then clears the replacement to nil; comparing the current message with navigationError cannot recover the displaced persistent failure. Keep the storage error visible when recording transient navigation errors, or retain it separately and restore it after recovery.",
+      "evidence": [
+        "msgblast/Core/WebAgentSession.swift:343 -- if let navigationError, error == navigationError { error = nil }",
+        "msgblast/Core/WebAgentSession.swift:44 -- storageFailed = failure != nil",
+        "msgblast/Core/WebAgentSession.swift:45 -- error = failure",
+        "msgblast/Core/WebAgentSession.swift:356 -- self.error = navigationError",
+        "msgblast/Core/WebAgentSession.swift:226 -- guard !storageFailed else { error = \"Repair web session storage before sending.\"; return nil }",
+        "msgblastTests/MultiWebAgentTests.swift:45 -- blocked.webView.loadHTMLString(\"<body>Storage remains blocked</body>\", baseURL: WebProvider.claude.homeURL)",
+        "Base f9b0527 WebAgentSession.swift: didFinish did not clear error. Overwriting the storage diagnostic on a navigation failure existed before the diff; the new didFinish clearing can now leave no warning while storageFailed remains true."
+      ],
+      "reviewers": [
+        "correctness"
+      ],
+      "independent_reviewers": [
+        "correctness"
+      ],
+      "validation_status": "confirmed",
+      "validation_reason": "For a storage-failed session that connects, receives a non-cancelled navigation failure, and then successfully reloads, WebAgentSession.swift:44-45 retains storageFailed while lines 354-356 replace its diagnostic and newly added line 343 clears the replacement without restoring it, leaving WebServicesView.swift:269 without a warning while send remains blocked at line 226; MultiWebAgentTests.swift:33-47 covers those conditions separately rather than this reachable combined sequence, whose incidence was not measured."
+    }
+  ],
+  "actionable_findings": [
+    {
+      "#": 1,
+      "title": "Size restored windows using their actual screen",
+      "severity": "P2",
+      "file": "msgblast/App/msgblastApp.swift",
+      "line": 11,
+      "confidence": 75,
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "pre_existing": false,
+      "suggested_fix": "Pass the uncapped 1600x1100 target into InitialWindowFrame and clamp it using window.screen?.visibleFrame inside viewDidMoveToWindow; keep defaultSize separately capped for initial scene creation if needed.",
+      "first_evidence": "msgblast/App/msgblastApp.swift:11 -- let screen = NSScreen.main?.visibleFrame.size ?? NSSize(width: 1600, height: 1100)",
+      "why_it_matters": "A window restored on a larger external display can open substantially smaller than the requested 1600x1100 size when the main display is a smaller laptop screen. The preferred size is capped against NSScreen.main before the window exists, and the later frame adjustment can only reduce that size. Compute the 1600x1100 target against the window's screen when applying its frame so each launch window uses its own visible area.",
+      "evidence": [
+        "msgblast/App/msgblastApp.swift:11 -- let screen = NSScreen.main?.visibleFrame.size ?? NSSize(width: 1600, height: 1100)",
+        "msgblast/App/msgblastApp.swift:12 -- return NSSize(width: min(1600, screen.width), height: min(1100, screen.height))",
+        "msgblast/App/msgblastApp.swift:21 -- }.background(InitialWindowFrame(size: initialWindowSize))",
+        "msgblast/App/msgblastApp.swift:99 -- guard let window, let screen = window.screen ?? NSScreen.main else { return }",
+        "msgblast/App/msgblastApp.swift:101 -- let width = min(size.width, bounds.width), height = min(size.height, bounds.height)",
+        "Apple NSScreen.main documentation: identifies the display of the keyboard-focused window, not necessarily the newly restored window; https://developer.apple.com/documentation/AppKit/NSScreen/main"
+      ],
+      "reviewers": [
+        "swift-ios"
+      ],
+      "independent_reviewers": [
+        "swift-ios"
+      ],
+      "validation_status": "confirmed",
+      "validation_reason": "When the screen used during scene construction is smaller than the restored window's screen, msgblast/App/msgblastApp.swift:11-12 caps the target prematurely, lines 83-87 retain that capped size, and lines 99-103 can only reduce it further; [Apple's NSScreen.main contract](https://developer.apple.com/documentation/AppKit/NSScreen/main) permits that display mismatch, so a two-display restoration test would expose this newly introduced sizing defect, although incidence was not measured."
+    },
+    {
+      "#": 2,
+      "title": "Preserve storage failures across navigation recovery",
+      "severity": "P2",
+      "file": "msgblast/Core/WebAgentSession.swift",
+      "line": 343,
+      "confidence": 75,
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "pre_existing": false,
+      "suggested_fix": "Preserve the persistent storage diagnostic when storageFailed is true: prevent failedNavigation and the blocked-link policy callback from replacing it with navigationError, or store the persistent diagnostic separately and restore it in didFinish. Extend testSuccessfulPageLoadClearsOnlyNavigationErrors with the existing broken-storage session receiving a non-cancelled navigation failure before its successful load; the storage warning must remain afterward.",
+      "first_evidence": "msgblast/Core/WebAgentSession.swift:343 -- if let navigationError, error == navigationError { error = nil }",
+      "why_it_matters": "A session with unreadable or unwritable storage can lose its repair warning after a network failure followed by a successful reload, even though storageFailed remains true and sending is still blocked. The navigation failure overwrites the storage message, and this new success path then clears the replacement to nil; comparing the current message with navigationError cannot recover the displaced persistent failure. Keep the storage error visible when recording transient navigation errors, or retain it separately and restore it after recovery.",
+      "evidence": [
+        "msgblast/Core/WebAgentSession.swift:343 -- if let navigationError, error == navigationError { error = nil }",
+        "msgblast/Core/WebAgentSession.swift:44 -- storageFailed = failure != nil",
+        "msgblast/Core/WebAgentSession.swift:45 -- error = failure",
+        "msgblast/Core/WebAgentSession.swift:356 -- self.error = navigationError",
+        "msgblast/Core/WebAgentSession.swift:226 -- guard !storageFailed else { error = \"Repair web session storage before sending.\"; return nil }",
+        "msgblastTests/MultiWebAgentTests.swift:45 -- blocked.webView.loadHTMLString(\"<body>Storage remains blocked</body>\", baseURL: WebProvider.claude.homeURL)",
+        "Base f9b0527 WebAgentSession.swift: didFinish did not clear error. Overwriting the storage diagnostic on a navigation failure existed before the diff; the new didFinish clearing can now leave no warning while storageFailed remains true."
+      ],
+      "reviewers": [
+        "correctness"
+      ],
+      "independent_reviewers": [
+        "correctness"
+      ],
+      "validation_status": "confirmed",
+      "validation_reason": "For a storage-failed session that connects, receives a non-cancelled navigation failure, and then successfully reloads, WebAgentSession.swift:44-45 retains storageFailed while lines 354-356 replace its diagnostic and newly added line 343 clears the replacement without restoring it, leaving WebServicesView.swift:269 without a warning while send remains blocked at line 226; MultiWebAgentTests.swift:33-47 covers those conditions separately rather than this reachable combined sequence, whose incidence was not measured."
+    }
+  ],
+  "triage_groups": [],
+  "pre_existing_findings": [],
+  "requirements_completeness": null,
+  "learnings": [],
+  "agent_native_gaps": [],
+  "deployment_notes": [],
+  "residual_risks": [],
+  "testing_gaps": [
+    "The added local navigation fixtures do not assert that top-level data/blob navigation remains canceled in the primary view and blank login popup. This is a distinct uncovered boundary of the changed main-frame policy at msgblast/Core/WebAgentSession.swift:367-372.",
+    "Authenticated live-provider sign-in and redirect completion remains unverified; the navigation tests use local HTML fixtures."
+  ],
+  "coverage": {
+    "depth": "full",
+    "reviewer_selection": [
+      {
+        "reviewer": "correctness",
+        "tier": "session",
+        "reason": "Always-on behavioral correctness"
+      },
+      {
+        "reviewer": "project-standards",
+        "tier": "mid-tier",
+        "reason": "AGENTS.md criteria governs all changed paths"
+      },
+      {
+        "reviewer": "testing",
+        "tier": "mid-tier",
+        "reason": "Four navigation regressions and WebKit test-store teardown"
+      },
+      {
+        "reviewer": "security",
+        "tier": "session",
+        "reason": "Sign-in popup and frame navigation policy"
+      },
+      {
+        "reviewer": "reliability",
+        "tier": "mid-tier",
+        "reason": "Transient navigation errors and persistent storage failure recovery"
+      },
+      {
+        "reviewer": "adversarial",
+        "tier": "session",
+        "reason": "71 executable non-test lines, external navigation and persistence interactions; in-process fallback"
+      },
+      {
+        "reviewer": "swift-ios",
+        "tier": "mid-tier",
+        "reason": "SwiftUI launch window sizing, AppKit lifecycle and WebKit delegates"
+      }
+    ],
+    "standards": {
+      "criteria": [
+        {
+          "path": "AGENTS.md",
+          "governs": [
+            "msgblast/App/msgblastApp.swift",
+            "msgblast/Core/WebAgentSession.swift",
+            "msgblast/Storage/LocalStore.swift",
+            "msgblast/Windows/WebServicesView.swift",
+            "msgblastTests/MultiWebAgentTests.swift"
+          ]
+        }
+      ],
+      "fallback_named": true,
+      "not_run_reason": null
+    },
+    "compound_packs": {
+      "roots": [],
+      "errors": [],
+      "warnings": []
+    },
+    "suppressed_count": 0,
+    "suppressed_by_confidence": {},
+    "malformed_findings": 0,
+    "malformed_returns": 0,
+    "first_evidence_backfilled": 0,
+    "first_evidence_demoted": 0,
+    "mode_aware_demotions": 0,
+    "settlement_suppressed": 0,
+    "settlement_suppression_evaluated": false,
+    "failed_reviewers": [],
+    "bound_exceeded": [],
+    "cross_model": {
+      "selected": true,
+      "target": null,
+      "route": null,
+      "preference_source": null,
+      "outcome": "in-process-fallback",
+      "artifact": null,
+      "coverage": "Cross-model pass: not run. Automatic approval previously rejected exporting private repository code to external Claude review; the caller prohibited reattempt or alternate export. No peer job was started and no code was exported. The in-process adversarial reviewer covered the lens; cross-model independence is not claimed."
+    },
+    "validator": {
+      "outcome": "verdicts",
+      "batches": 1,
+      "selected": 3,
+      "confirmed": 2,
+      "rejected": 1,
+      "unresolved": 0,
+      "malformed": 0,
+      "failed": 0,
+      "shortcut_skipped": 0,
+      "bound_exceeded": false,
+      "shortcut_evidence_basis": "No finding has first_evidence plus ordinary-reviewer and independence-verified adversarial-provider corroboration; all three actionable P2 findings require the validator.",
+      "protected_subjects": {
+        "1": null,
+        "2": null,
+        "3": null
+      },
+      "protected_subject_reasoning": {
+        "1": "The claim concerns window geometry, not an ordering or synchronization failure.",
+        "2": "The claim concerns a lost warning; sending remains blocked and no destructive write, data loss, or authentication failure is alleged.",
+        "3": "The claim concerns insufficient content assertions in local iframe fixtures, not identity, token handling, privilege boundaries, or injection."
+      },
+      "protected_subject_reclassifications": [],
+      "degraded_blockers": [],
+      "rejections": [
+        {
+          "#": 3,
+          "title": "Frame regression asserts load events instead of content",
+          "reason": "The alleged escape requires cancelled local data/blob navigations to emit all three counted load events, but MultiWebAgentTests.swift:10-20 uses valid local documents without CSP or network dependencies, and inspected [WebKit PolicyChecker code](https://github.com/WebKit/WebKit/blob/main/Source/WebCore/loader/PolicyChecker.cpp) explicitly emits load for CSP rejection while handling delegate cancellation separately, so general iframe error-load semantics and the reported passing suite do not establish this specific regression escape without a discriminating cancellation or mutation test."
+        }
+      ]
+    },
+    "notes": [
+      "Full depth selected for sign-in/navigation policy and authentication-adjacent boundary, not a line-count floor: helper reports 71 executable non-test changed lines, 135 total changed lines, small size band, no hard-block classes.",
+      "At reviewer collection, full.diff was byte-identical to the five-file staged and unstaged diff against frozen f9b05275a501d170626879f71c0f14f52795689a. Later caller edits are outside this receipt.",
+      "AGENTS.md instruction-file fallback governs all five files; no CODING_STANDARDS.md or CLAUDE.md found.",
+      "No matching docs/plans plan found; formal requirements completeness not assessed.",
+      "Native concurrency tool accepted one review child at a time and rejected second simultaneous child for capacity; all seven selected reviewers completed serially without dropping any reviewer.",
+      "No source edits, builds, tests, commits, pushes, PR updates, or external code export performed by this review.",
+      "Local HTML fixtures exercise WebKit; authenticated live-provider sign-in/redirect completion remains unverified.",
+      "No PR description or screenshots/video evidence reviewed in this base-scoped code review; any PR update remains subject to AGENTS.md Screenshots and Video requirements.",
+      "No performance, public API, migration, deployment, learnings, agent-native, prior-comment, or frontend-DOM-race reviewers selected because corresponding substantive surfaces are absent.",
+      "Cross-model pass: not run. Automatic approval previously rejected exporting private repository code to external Claude review; the caller prohibited reattempt or alternate export. No peer job was started and no code was exported. The in-process adversarial reviewer covered the lens; cross-model independence is not claimed.",
+      "Caller update after reviewer collection: initial imported 111-test suite passed (/tmp/msgblast-navigation-tests.log), controller checks passed (/tmp/msgblast-navigation-controllers.log), and the build with updated test teardown passed. Updated XCTest run exited 137 while stuck at the first live-session teardown. This is reported runtime evidence, not a reviewer-run reproduction.",
+      "The third candidate concerns pre-clamping launch size against NSScreen.main before later clamping against the restored window screen; imported forced sizing itself is intended behavior.",
+      "Post-snapshot caller update: storage-warning loss reproduced in /tmp/msgblast-navigation-red.log by testSuccessfulPageLoadClearsOnlyNavigationErrors (1 test, 2 failures) before a caller-applied fix. Caller subsequently preserved the prior error when storageFailed in failedNavigation and blocked-link policy, strengthened storage and iframe tests, and removed the hanging teardown helper. Those later edits are outside frozen full.diff and are not approved by this receipt; a bounded recheck is planned.",
+      "Post-snapshot caller verification run /tmp/msgblast-navigation-verified-tests.log is in progress; this receipt must not call it passed. Caller will also apply the screen pre-clamp correction after validation.",
+      "Synthesis retained three P2 candidates after source inspection: per-window display sizing, loss of a persistent storage warning after navigation recovery, and non-discriminating child-frame assertions. None challenges the intentionally larger forced launch size.",
+      "No plan was found; settlement suppression was not evaluated. Explicit requested source behavior was honored during admission.",
+      "Mechanics: 0 suppressed findings, 0 malformed findings, 0 malformed returns, 0 quote-gate demotions, and 0 first_evidence backfills. No semantic duplicates or direct-dependency reclassifications required a second helper pass.",
+      "Mode-aware demotions: 0. Generic missing tests for simple preview-directory naming and broad launch-frame behavior were not retained as independent gaps; no demonstrated material issue justified those absence-only claims.",
+      "Validator shortcut-skipped: 0. No finding has verified cross-model corroboration. All three remaining actionable findings are selected in one deterministic batch ordered by severity and stable number.",
+      "Public Apple and WHATWG documentation was consulted only for API and iframe event semantics. No repository source or private review artifacts were sent to those sources.",
+      "Independent validation completed in one batch within the bound: 2 confirmed (#1, #2), 1 rejected (#3), 0 unresolved, 0 malformed, 0 failed, 0 shortcut-skipped. Confirmation did not change severity, confidence, route, or apply authority.",
+      "The report independently classified all three actual failure claims as outside protected subjects. No protected-subject reclassification or degraded blocker remains.",
+      "Finding #3 was dropped because the inspected evidence does not establish that WebKit delegate cancellation would emit all counted load events for these valid local fixtures. This is an unsupported specific regression claim, not proof that content assertions cannot help. Its former two-finding triage group was removed after pruning left only #2.",
+      "The report reconstructed the reviewed files in memory from f9b05275a501d170626879f71c0f14f52795689a plus frozen full.diff and checked cited line numbers and surrounding guards; it did not substitute the caller's newer source.",
+      "Post-snapshot caller evidence: /tmp/msgblast-navigation-red.log reportedly reproduces #2 in testSuccessfulPageLoadClearsOnlyNavigationErrors with 1 test and 2 failures. This report did not inspect or rerun that reproduction; the validator reasons preserve their original unmeasured-incidence qualification.",
+      "The caller reports later changes preserving storage warnings in failedNavigation and blocked-link policy, strengthening the storage and iframe regressions, and removing the hanging teardown helper. A later 111-test run was in progress at /tmp/msgblast-navigation-verified-tests.log, with a screen-sizing fix planned next. These later changes and results are unreviewed by this frozen-snapshot receipt and do not clear its findings.",
+      "Stage 5c was skipped: mode:agent is report-only and apply_local is false. No source changes, builds, tests, commits, pushes, PR edits, or external code export were performed by this report."
+    ]
+  },
+  "artifact_path": "/tmp/compound-engineering-501/ce-code-review/20261005-213821-2b664edc",
+  "run_id": "20261005-213821-2b664edc"
+}
