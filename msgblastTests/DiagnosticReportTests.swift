@@ -49,7 +49,7 @@ final class DiagnosticReportTests: XCTestCase {
         XCTAssertTrue(readme.contains("msgblast does not upload this report."))
         for topic in DiagnosticReport.excludedTopics { XCTAssertTrue(readme.contains(topic), topic) }
         let object = try JSONSerialization.jsonObject(with: Data(diagnostics.utf8)) as? [String: Any]
-        XCTAssertEqual(Set(object?.keys ?? []), Set(DiagnosticReport.diagnosticKeys))
+        XCTAssertEqual(Set(object.map { Array($0.keys) } ?? []), Set(DiagnosticReport.diagnosticKeys))
         XCTAssertEqual(object?["variant"] as? String, "production")
         XCTAssertEqual(object?["bundleIdentifier"] as? String, "com.msgblast.mac")
         XCTAssertEqual(object?["version"] as? String, "unknown")
