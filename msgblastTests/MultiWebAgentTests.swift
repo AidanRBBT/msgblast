@@ -179,6 +179,85 @@ final class MultiWebAgentTests: XCTestCase {
         }
     }
 
+    func testComparisonSetupWaitsForAllLoginsAndDoesNotSubmitOnSignIn() async throws {
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let web = WebAgents(directory: directory, fixture: true)
+        web.connectSelected()
+        try await waitFor { web.sessions.allSatisfy { $0.snapshot.ready } }
+        let claude = web.sessions[2]
+        _ = try await claude.webView.callAsyncJavaScript("chat.hidden=true;login.hidden=false", arguments: [:], in: nil, contentWorld: .page)
+        let signedOut = await web.prepareComparison(nil, for: web.selected)
+        XCTAssertFalse(signedOut)
+        XCTAssertTrue(web.sessions.allSatisfy { $0.state.attempts.isEmpty && !$0.snapshot.messages.contains { $0.role == "user" } })
+        _ = try await claude.webView.callAsyncJavaScript("chat.hidden=false;login.hidden=true", arguments: [:], in: nil, contentWorld: .page)
+        await claude.refresh()
+        // Muse can return to its main page after login; submission must open a side chat.
+        _ = try await web.sessions[0].webView.callAsyncJavaScript("history.replaceState({},'', '/')", arguments: [:], in: nil, contentWorld: .page)
+        let openedSideChat = await web.prepareComparison(nil, for: web.selected)
+        XCTAssertFalse(openedSideChat, "Navigating from an unready main page must only prepare the comparison")
+        XCTAssertEqual(web.sessions[0].webView.url, WebProvider.muse.newChatURL)
+        let connected = await web.prepareComparison(nil, for: web.selected)
+        XCTAssertTrue(connected)
+        XCTAssertTrue(web.sessions.allSatisfy { $0.state.attempts.isEmpty && !$0.snapshot.messages.contains { $0.role == "user" } }, "Setup and sign-in must never send")
+        let results = await WebAgents.send("Explicit submission after sign-in", to: web.selected)
+        XCTAssertEqual(results.count, 4)
+        XCTAssertTrue(results.values.allSatisfy { $0.status == .observed })
+    }
+
+    func testFailedNewComparisonSetupClearsDeselectedWorkspaceIdentity() async throws {
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let web = WebAgents(directory: directory, fixture: true), previousID = UUID()
+        web.connectSelected()
+        try await waitFor { web.sessions.allSatisfy { $0.snapshot.ready } }
+        let previous = await WebAgents.send("Previous comparison", to: web.selected, comparisonID: previousID)
+        XCTAssertTrue(previous.values.allSatisfy { $0.status == .observed })
+        web.setComparison(previousID)
+        web.sessions[0].updateState { $0.selected = false }
+        let claude = web.sessions[2]
+        _ = try await claude.webView.callAsyncJavaScript("chat.hidden=true;login.hidden=false", arguments: [:], in: nil, contentWorld: .page)
+        let prepared = await web.prepareComparison(nil, for: web.selected)
+        XCTAssertFalse(prepared)
+        XCTAssertNil(web.comparisonID, "Failed setup must not restore an old comparison on retry")
+        XCTAssertTrue(web.sessions.allSatisfy { $0.state.comparisonID == nil })
+        XCTAssertTrue(web.sessions.allSatisfy { $0.state.conversationURLs[previousID.uuidString] == previous[$0.provider]?.conversationURL })
+    }
+
+    func testLoginCompletingDuringSetupRequiresAnotherExplicitSubmission() async throws {
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let web = WebAgents(directory: directory, fixture: true)
+        web.connectSelected()
+        try await waitFor { web.sessions.allSatisfy { $0.snapshot.ready } }
+        let claude = web.sessions[2]
+        _ = try await claude.webView.callAsyncJavaScript("chat.hidden=true;login.hidden=false;history.replaceState({},'', '/login')", arguments: [:], in: nil, contentWorld: .page)
+        XCTAssertTrue(claude.snapshot.ready, "Exercise a stale snapshot before the next polling tick")
+        let signIn = Task { @MainActor in
+            try await Task.sleep(for: .milliseconds(500))
+            _ = try await claude.webView.callAsyncJavaScript("chat.hidden=false;login.hidden=true", arguments: [:], in: nil, contentWorld: .page)
+        }
+        let maySubmit = await web.prepareComparison(nil, for: web.selected)
+        try await signIn.value
+        XCTAssertTrue(claude.snapshot.ready, "The fixture must finish signing in during preparation")
+        XCTAssertFalse(maySubmit, "An unready click must never become a queued send after sign-in")
+        XCTAssertTrue(web.sessions.allSatisfy { $0.state.attempts.isEmpty })
+        let explicitRetry = await web.prepareComparison(nil, for: web.selected)
+        XCTAssertTrue(explicitRetry)
+    }
+
+    func testComparisonSetupPreservesExistingPageDraft() async throws {
+        let web = WebAgents(directory: temporaryDirectory(), fixture: true)
+        web.connectSelected()
+        try await waitFor { web.sessions.allSatisfy { $0.snapshot.ready } }
+        let chatgpt = web.sessions[1]
+        _ = try await chatgpt.webView.callAsyncJavaScript("document.querySelector('textarea').value='Keep my page draft'", arguments: [:], in: nil, contentWorld: .page)
+        let ready = await web.prepareComparison(nil, for: web.selected)
+        XCTAssertFalse(ready)
+        XCTAssertEqual(chatgpt.snapshot.draft, "Keep my page draft")
+        XCTAssertTrue(web.sessions.allSatisfy { $0.state.attempts.isEmpty })
+    }
+
     func testDraftOrSignedOutAgentDoesNotBlockIndependentSubmissions() async throws {
         let web = WebAgents(directory: temporaryDirectory(), fixture: true)
         web.sessions.forEach { $0.connect() }

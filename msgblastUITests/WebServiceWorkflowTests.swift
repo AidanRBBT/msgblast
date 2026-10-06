@@ -2,6 +2,37 @@ import XCTest
 
 final class WebServiceWorkflowTests: XCTestCase {
     @MainActor
+    func testSignedOutAgentOpensSetupAndKeepsPromptUntilUserSubmitsAgain() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--demo", "--isolated-demo"]
+        app.launch()
+        defer { app.terminate() }
+        for name in ["Cedar", "Lumen", "Orbit", "Maple", "Echo", "Flint", "ChatGPT", "Claude", "Grok"] { app.buttons[name].click() }
+        app.buttons["Muse"].rightClick()
+        app.menuItems["Open chat"].click()
+        let signOut = app.buttons["Sign out of fixture"]
+        XCTAssertTrue(signOut.waitForExistence(timeout: 10))
+        signOut.click()
+        XCTAssertTrue(app.buttons["Sign in to fixture"].waitForExistence(timeout: 10))
+        app.buttons["My agents"].click()
+        let editor = app.textViews["Shared prompt"]
+        editor.click(); editor.typeKey("a", modifierFlags: .command); editor.typeText("Keep this comparison request")
+        let send = app.buttons["Send & compare"]
+        XCTAssertTrue(send.isEnabled, "A signed-out agent must lead to setup, not a disabled send button")
+        send.click()
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "Connect your accounts")).firstMatch.waitForExistence(timeout: 10))
+        app.buttons["Start signing in"].click()
+        XCTAssertEqual(editor.value as? String, "Keep this comparison request")
+        XCTAssertFalse(app.staticTexts["Appeared in Muse"].exists)
+        app.buttons["Sign in to fixture"].click()
+        XCTAssertTrue(app.buttons["Sign out of fixture"].waitForExistence(timeout: 10))
+        XCTAssertEqual(editor.value as? String, "Keep this comparison request")
+        XCTAssertFalse(app.staticTexts["Appeared in Muse"].exists, "Signing in must not submit automatically")
+        send.click()
+        XCTAssertTrue(app.staticTexts["Appeared in Muse"].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
     func testFailedMessagesRecipientCanRetryWithoutResendingToMuse() {
         let app = XCUIApplication()
         app.launchArguments = ["--demo", "--isolated-demo"]

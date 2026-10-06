@@ -1,0 +1,12 @@
+Test Suite 'Selected tests' started at 2026-10-05 20:54:25.661.
+Test Suite 'msgblastTests.xctest' started at 2026-10-05 20:54:25.663.
+Test Suite 'MultiWebAgentTests' started at 2026-10-05 20:54:25.663.
+Test Case '-[msgblastTests.MultiWebAgentTests testLoginCompletingDuringSetupRequiresAnotherExplicitSubmission]' started.
+$REPO/msgblastTests/MultiWebAgentTests.swift:243: error: -[msgblastTests.MultiWebAgentTests testLoginCompletingDuringSetupRequiresAnotherExplicitSubmission] : XCTAssertFalse failed - An unready click must never become a queued send after sign-in
+Test Case '-[msgblastTests.MultiWebAgentTests testLoginCompletingDuringSetupRequiresAnotherExplicitSubmission]' failed (2.046 seconds).
+Test Suite 'MultiWebAgentTests' failed at 2026-10-05 20:54:27.710.
+	 Executed 1 test, with 1 failure (0 unexpected) in 2.046 (2.047) seconds
+Test Suite 'msgblastTests.xctest' failed at 2026-10-05 20:54:27.710.
+	 Executed 1 test, with 1 failure (0 unexpected) in 2.046 (2.047) seconds
+Test Suite 'Selected tests' failed at 2026-10-05 20:54:27.710.
+	 Executed 1 test, with 1 failure (0 unexpected) in 2.046 (2.049) seconds

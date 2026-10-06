@@ -12,6 +12,8 @@ struct AgentsWorkspaceView: View {
     @ObservedObject var model: AppModel
     @ObservedObject var web: WebAgents
     @Binding var showingComparison: Bool
+    @State private var showingConnectionIntro = false
+    @State private var hasPresentedConnectionIntro = false
     private var busy: Bool { model.busy || model.webBroadcastBusy || web.sessions.contains { $0.isSending } }
     private var hasSentMessage: Bool {
         guard let comparisonID = web.comparisonID else { return false }
@@ -24,9 +26,9 @@ struct AgentsWorkspaceView: View {
     private var attachments: [MessageAttachment] { model.attachmentDraft(comparisonID: attachmentComparisonID) }
     private var canSend: Bool {
         let text = model.state.draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        return !busy && (!web.selected.isEmpty || !nativeRecipients.isEmpty)
+        return !busy && !showingConnectionIntro && (!web.selected.isEmpty || !nativeRecipients.isEmpty)
             && (web.selected.isEmpty || (!text.isEmpty && attachments.isEmpty))
-            && web.selected.allSatisfy { $0.snapshot.ready && $0.snapshot.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !$0.state.hasUnresolvedSend(text) }
+            && web.selected.allSatisfy { $0.snapshot.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !$0.state.hasUnresolvedSend(text) }
             && (nativeRecipients.isEmpty || (model.databaseAvailable && nativeRecipients.allSatisfy { model.route($0) != nil }))
     }
 
@@ -48,7 +50,28 @@ struct AgentsWorkspaceView: View {
             composer
         }
         .background(Color(nsColor: .textBackgroundColor))
+        .overlay { if showingConnectionIntro { connectionIntro } }
         .task { web.connectSelected() }
+    }
+
+    private var connectionIntro: some View {
+        ZStack {
+            Color.black.opacity(0.35)
+            VStack(spacing: 18) {
+                Image(systemName: "person.crop.circle.badge.checkmark")
+                    .font(.system(size: 34)).foregroundStyle(Color.accentColor)
+                Text("Connect your accounts").font(.title2.weight(.semibold))
+                Text("Sign in to each selected agent in the pages here. Then press Send & compare again to send your request to all of them.")
+                    .multilineTextAlignment(.center)
+                Text("Your request is saved in the message box below. Signing in won’t send it.")
+                    .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                Button("Start signing in") { showingConnectionIntro = false }
+                    .buttonStyle(.borderedProminent).controlSize(.large).keyboardShortcut(.defaultAction)
+            }
+            .padding(28).frame(maxWidth: 420)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
+            .padding(20).accessibilityElement(children: .contain)
+        }
     }
 
     private var nativeComparison: Comparison? { web.comparisonID.flatMap { model.comparison($0) } }
@@ -114,11 +137,6 @@ struct AgentsWorkspaceView: View {
                     }
                 }
             }
-            let unavailable = web.selected.filter { !$0.snapshot.ready && !$0.loading }.map { $0.provider.name }
-            if !unavailable.isEmpty && !model.state.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !busy {
-                Text("Send & compare can’t send to \(unavailable.formatted(.list(type: .and))). You can message them directly in their chats.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
             if !web.selected.isEmpty && !attachments.isEmpty {
                 Text("Web agents support text here. Remove the attachments or deselect them to send.")
                     .font(.caption).foregroundStyle(.orange)
@@ -169,6 +187,14 @@ struct AgentsWorkspaceView: View {
             Task { await model.start() }
             return
         }
+        if !hasPresentedConnectionIntro && web.selected.contains(where: { !$0.snapshot.ready }) {
+            if !showingComparison { web.setComparison(nil) }
+            web.connectSelected()
+            showingComparison = true
+            hasPresentedConnectionIntro = true
+            showingConnectionIntro = true
+            return
+        }
         let originalDraft = model.state.draft
         let recipients = Set(nativeRecipients.map(\.id))
         let model = model
@@ -178,6 +204,7 @@ struct AgentsWorkspaceView: View {
         showingComparison = true
         Task { @MainActor in
             defer { model.webBroadcastBusy = false }
+            guard await web.prepareComparison(existingID, for: sessions) else { return }
             let comparisonID: UUID
             if let existingID { comparisonID = existingID }
             else {

@@ -33,6 +33,14 @@ public final class WebAgents: ObservableObject {
         }
     }
     public func connectSelected() { selected.forEach { $0.connect() } }
+    public func prepareComparison(_ id: UUID?, for sessions: [WebAgentSession]) async -> Bool {
+        // Muse stores the workspace identity even when it is deselected.
+        setComparison(id)
+        let tasks = sessions.map { session in Task { @MainActor in await session.openComparison(id) } }
+        var ready = true
+        for task in tasks { if !(await task.value) { ready = false } }
+        return ready
+    }
     public static func send(_ text: String, to sessions: [WebAgentSession], comparisonID: UUID? = nil) async -> [WebProvider: WebSendAttempt] {
         let tasks = sessions.map { session in Task { @MainActor in (session.provider, await session.send(text, comparisonID: comparisonID)) } }
         var results: [WebProvider: WebSendAttempt] = [:]

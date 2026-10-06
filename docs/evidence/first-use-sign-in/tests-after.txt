@@ -1,0 +1,254 @@
+Test Suite 'All tests' started at 2026-10-05 20:56:34.500.
+Test Suite 'msgblastTests.xctest' started at 2026-10-05 20:56:34.502.
+Test Suite 'AttachmentTests' started at 2026-10-05 20:56:34.502.
+Test Case '-[msgblastTests.AttachmentTests testAttachmentAnchorUsesMetadataAndRequiresUniqueOutgoingRecord]' started.
+Test Case '-[msgblastTests.AttachmentTests testAttachmentAnchorUsesMetadataAndRequiresUniqueOutgoingRecord]' passed (0.002 seconds).
+Test Case '-[msgblastTests.AttachmentTests testNativeEditorAcceptsImagePasteAndKeepsPlainTextEditable]' started.
+Test Case '-[msgblastTests.AttachmentTests testNativeEditorAcceptsImagePasteAndKeepsPlainTextEditable]' passed (1.148 seconds).
+Test Case '-[msgblastTests.AttachmentTests testNativePasteDistinguishesFilesAndImagesFromPlainText]' started.
+Test Case '-[msgblastTests.AttachmentTests testNativePasteDistinguishesFilesAndImagesFromPlainText]' passed (0.004 seconds).
+Test Case '-[msgblastTests.AttachmentTests testPartialAttachmentSendSurvivesRestartWithoutRetryingAcceptedParts]' started.
+Test Case '-[msgblastTests.AttachmentTests testPartialAttachmentSendSurvivesRestartWithoutRetryingAcceptedParts]' passed (0.001 seconds).
+Test Case '-[msgblastTests.AttachmentTests testSavedAttachmentDraftsAndInterruptedReceiptsRecoverTogether]' started.
+Test Case '-[msgblastTests.AttachmentTests testSavedAttachmentDraftsAndInterruptedReceiptsRecoverTogether]' passed (0.002 seconds).
+Test Case '-[msgblastTests.AttachmentTests testTransportCopiesRecipientsIntoSeparatePrivateDirectories]' started.
+Test Case '-[msgblastTests.AttachmentTests testTransportCopiesRecipientsIntoSeparatePrivateDirectories]' passed (0.005 seconds).
+Test Case '-[msgblastTests.AttachmentTests testTransportRejectsSymlinkRootAndSource]' started.
+Test Case '-[msgblastTests.AttachmentTests testTransportRejectsSymlinkRootAndSource]' passed (0.003 seconds).
+Test Suite 'AttachmentTests' passed at 2026-10-05 20:56:35.673.
+	 Executed 7 tests, with 0 failures (0 unexpected) in 1.165 (1.171) seconds
+Test Suite 'CoreTests' started at 2026-10-05 20:56:35.673.
+Test Case '-[msgblastTests.CoreTests testComparisonWindowsDefaultToConnectedAndLegacyStateStillLoads]' started.
+Test Case '-[msgblastTests.CoreTests testComparisonWindowsDefaultToConnectedAndLegacyStateStillLoads]' passed (0.000 seconds).
+Test Case '-[msgblastTests.CoreTests testDuplicateResolvedDestinationsAreRejected]' started.
+Test Case '-[msgblastTests.CoreTests testDuplicateResolvedDestinationsAreRejected]' passed (0.001 seconds).
+Test Case '-[msgblastTests.CoreTests testKnownUnsubmittedErrorsCanRetryButUnknownPostSendErrorsCannot]' started.
+Test Case '-[msgblastTests.CoreTests testKnownUnsubmittedErrorsCanRetryButUnknownPostSendErrorsCannot]' passed (0.000 seconds).
+Test Case '-[msgblastTests.CoreTests testManualAccountCanBeCreatedWithoutAnExistingChat]' started.
+Test Case '-[msgblastTests.CoreTests testManualAccountCanBeCreatedWithoutAnExistingChat]' passed (0.000 seconds).
+Test Case '-[msgblastTests.CoreTests testManualCandidateResolvesItsExistingChatAndSavedContactsRetainTheirIDs]' started.
+Test Case '-[msgblastTests.CoreTests testManualCandidateResolvesItsExistingChatAndSavedContactsRetainTheirIDs]' passed (0.000 seconds).
+Test Case '-[msgblastTests.CoreTests testNamePillsToggleDisplayedRecipientsIncludingAfterPrivateFocus]' started.
+Test Case '-[msgblastTests.CoreTests testNamePillsToggleDisplayedRecipientsIncludingAfterPrivateFocus]' passed (0.000 seconds).
+Test Case '-[msgblastTests.CoreTests testOldRangeKeepsThreadRepliesAndOtherAgentRemainsOpen]' started.
+Test Case '-[msgblastTests.CoreTests testOldRangeKeepsThreadRepliesAndOtherAgentRemainsOpen]' passed (0.000 seconds).
+Test Case '-[msgblastTests.CoreTests testPhoneAndEmailNormalization]' started.
+Test Case '-[msgblastTests.CoreTests testPhoneAndEmailNormalization]' passed (0.000 seconds).
+Test Case '-[msgblastTests.CoreTests testReconciliationDoesNotClaimLaterSameTextOrOwnedAnchor]' started.
+Test Case '-[msgblastTests.CoreTests testReconciliationDoesNotClaimLaterSameTextOrOwnedAnchor]' passed (0.000 seconds).
+Test Case '-[msgblastTests.CoreTests testRefreshRemovesUnavailableSelectionsWithoutReselectingExcludedAgents]' started.
+Test Case '-[msgblastTests.CoreTests testRefreshRemovesUnavailableSelectionsWithoutReselectingExcludedAgents]' passed (0.000 seconds).
+Test Case '-[msgblastTests.CoreTests testResolverExcludesGroupsAndChoosesNewestExistingIMessage]' started.
+Test Case '-[msgblastTests.CoreTests testResolverExcludesGroupsAndChoosesNewestExistingIMessage]' passed (0.000 seconds).
+Test Case '-[msgblastTests.CoreTests testRestartQuarantinesInFlightSubmission]' started.
+Test Case '-[msgblastTests.CoreTests testRestartQuarantinesInFlightSubmission]' passed (0.000 seconds).
+Test Case '-[msgblastTests.CoreTests testRestoredFollowUpSeparatesUnsentAndFailedFromAcceptedOrUncertain]' started.
+Test Case '-[msgblastTests.CoreTests testRestoredFollowUpSeparatesUnsentAndFailedFromAcceptedOrUncertain]' passed (0.001 seconds).
+Test Case '-[msgblastTests.CoreTests testRetryOnlyKnownFailuresNeverUncertainOrSubmitted]' started.
+Test Case '-[msgblastTests.CoreTests testRetryOnlyKnownFailuresNeverUncertainOrSubmitted]' passed (0.001 seconds).
+Test Case '-[msgblastTests.CoreTests testSixColumnsRemainReadableAndOrdered]' started.
+Test Case '-[msgblastTests.CoreTests testSixColumnsRemainReadableAndOrdered]' passed (0.000 seconds).
+Test Case '-[msgblastTests.CoreTests testUniversalRecipientsDefaultToEveryoneAndConversationSelectionTargetsOnlyOne]' started.
+Test Case '-[msgblastTests.CoreTests testUniversalRecipientsDefaultToEveryoneAndConversationSelectionTargetsOnlyOne]' passed (0.000 seconds).
+Test Case '-[msgblastTests.CoreTests testUniversalSelectionPersistsWithOneDraftAndDoesNotRetargetSavedRetry]' started.
+Test Case '-[msgblastTests.CoreTests testUniversalSelectionPersistsWithOneDraftAndDoesNotRetargetSavedRetry]' passed (0.001 seconds).
+Test Case '-[msgblastTests.CoreTests testWebPreviewPreservesSurroundingTextAndLeavesOtherLinksAlone]' started.
+Test Case '-[msgblastTests.CoreTests testWebPreviewPreservesSurroundingTextAndLeavesOtherLinksAlone]' passed (0.006 seconds).
+Test Case '-[msgblastTests.CoreTests testWindowPreferencePersistsWithoutChangingConversationDraftsOrReceipts]' started.
+Test Case '-[msgblastTests.CoreTests testWindowPreferencePersistsWithoutChangingConversationDraftsOrReceipts]' passed (0.001 seconds).
+Test Suite 'CoreTests' passed at 2026-10-05 20:56:35.690.
+	 Executed 19 tests, with 0 failures (0 unexpected) in 0.014 (0.017) seconds
+Test Suite 'DiscoverTests' started at 2026-10-05 20:56:35.690.
+Test Case '-[msgblastTests.DiscoverTests testBundledDirectoryContainsOnlyUniqueDirectNumbers]' started.
+Test Case '-[msgblastTests.DiscoverTests testBundledDirectoryContainsOnlyUniqueDirectNumbers]' passed (0.003 seconds).
+Test Case '-[msgblastTests.DiscoverTests testDiscoverOnlyShowsPersonalResearchAndShoppingAgents]' started.
+Test Case '-[msgblastTests.DiscoverTests testDiscoverOnlyShowsPersonalResearchAndShoppingAgents]' passed (0.005 seconds).
+Test Suite 'DiscoverTests' passed at 2026-10-05 20:56:35.699.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.009 (0.009) seconds
+Test Suite 'InstallationLocationTests' started at 2026-10-05 20:56:35.699.
+Test Case '-[msgblastTests.InstallationLocationTests testDevelopmentBuildsCanStartButUninstalledReleaseCannot]' started.
+Test Case '-[msgblastTests.InstallationLocationTests testDevelopmentBuildsCanStartButUninstalledReleaseCannot]' passed (0.000 seconds).
+Test Case '-[msgblastTests.InstallationLocationTests testDownloadedCopiesCannotStartPermissionSetup]' started.
+Test Case '-[msgblastTests.InstallationLocationTests testDownloadedCopiesCannotStartPermissionSetup]' passed (0.000 seconds).
+Test Case '-[msgblastTests.InstallationLocationTests testInstalledCopiesCanStart]' started.
+Test Case '-[msgblastTests.InstallationLocationTests testInstalledCopiesCanStart]' passed (0.000 seconds).
+Test Suite 'InstallationLocationTests' passed at 2026-10-05 20:56:35.700.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'MessagesDatabaseTests' started at 2026-10-05 20:56:35.700.
+Test Case '-[msgblastTests.MessagesDatabaseTests testAbsentDeliveryColumnsRemainUnknown]' started.
+Test Case '-[msgblastTests.MessagesDatabaseTests testAbsentDeliveryColumnsRemainUnknown]' passed (0.010 seconds).
+Test Case '-[msgblastTests.MessagesDatabaseTests testAttachmentsRemainAssociatedWithTheirMessageAndDatabaseIsReadOnly]' started.
+Test Case '-[msgblastTests.MessagesDatabaseTests testAttachmentsRemainAssociatedWithTheirMessageAndDatabaseIsReadOnly]' passed (0.023 seconds).
+Test Case '-[msgblastTests.MessagesDatabaseTests testChangeVersionDetectsOtherConnectionsCommits]' started.
+Test Case '-[msgblastTests.MessagesDatabaseTests testChangeVersionDetectsOtherConnectionsCommits]' passed (0.015 seconds).
+Test Case '-[msgblastTests.MessagesDatabaseTests testDeliveryFailureIsReadFromHistoryWithoutAssumingSubmissionMeansDelivered]' started.
+Test Case '-[msgblastTests.MessagesDatabaseTests testDeliveryFailureIsReadFromHistoryWithoutAssumingSubmissionMeansDelivered]' passed (0.019 seconds).
+Test Case '-[msgblastTests.MessagesDatabaseTests testMissingDatabaseDoesNotCreateFile]' started.
+Test Case '-[msgblastTests.MessagesDatabaseTests testMissingDatabaseDoesNotCreateFile]' passed (0.001 seconds).
+Test Case '-[msgblastTests.MessagesDatabaseTests testReactionsAttachToTheirMessageAndRespectReplacementAndRemoval]' started.
+Test Case '-[msgblastTests.MessagesDatabaseTests testReactionsAttachToTheirMessageAndRespectReplacementAndRemoval]' passed (0.019 seconds).
+Test Case '-[msgblastTests.MessagesDatabaseTests testReadOnlyAdapterRoutesAndReadsWithoutMutatingDatabase]' started.
+Test Case '-[msgblastTests.MessagesDatabaseTests testReadOnlyAdapterRoutesAndReadsWithoutMutatingDatabase]' passed (0.013 seconds).
+Test Case '-[msgblastTests.MessagesDatabaseTests testUnsupportedSchemaBlocksCleanly]' started.
+Test Case '-[msgblastTests.MessagesDatabaseTests testUnsupportedSchemaBlocksCleanly]' passed (0.003 seconds).
+Test Suite 'MessagesDatabaseTests' passed at 2026-10-05 20:56:35.804.
+	 Executed 8 tests, with 0 failures (0 unexpected) in 0.102 (0.103) seconds
+Test Suite 'MultiWebAgentTests' started at 2026-10-05 20:56:35.804.
+Test Case '-[msgblastTests.MultiWebAgentTests testAllProvidersBroadcastAndObserveRepliesWithoutAnAttachedWindow]' started.
+Test Case '-[msgblastTests.MultiWebAgentTests testAllProvidersBroadcastAndObserveRepliesWithoutAnAttachedWindow]' passed (2.356 seconds).
+Test Case '-[msgblastTests.MultiWebAgentTests testAnExistingSidebarConversationCannotConfirmANewChatSend]' started.
+Test Case '-[msgblastTests.MultiWebAgentTests testAnExistingSidebarConversationCannotConfirmANewChatSend]' passed (0.640 seconds).
+Test Case '-[msgblastTests.MultiWebAgentTests testComparisonSelectionSynchronizesEveryProviderIncludingDeselectedOnes]' started.
+Test Case '-[msgblastTests.MultiWebAgentTests testComparisonSelectionSynchronizesEveryProviderIncludingDeselectedOnes]' passed (0.382 seconds).
+Test Case '-[msgblastTests.MultiWebAgentTests testComparisonSetupPreservesExistingPageDraft]' started.
+Test Case '-[msgblastTests.MultiWebAgentTests testComparisonSetupPreservesExistingPageDraft]' passed (0.638 seconds).
+Test Case '-[msgblastTests.MultiWebAgentTests testComparisonSetupWaitsForAllLoginsAndDoesNotSubmitOnSignIn]' started.
+Test Case '-[msgblastTests.MultiWebAgentTests testComparisonSetupWaitsForAllLoginsAndDoesNotSubmitOnSignIn]' passed (1.190 seconds).
+Test Case '-[msgblastTests.MultiWebAgentTests testContenteditableFollowUpRestoresTheEditingSelection]' started.
+Test Case '-[msgblastTests.MultiWebAgentTests testContenteditableFollowUpRestoresTheEditingSelection]' passed (1.658 seconds).
+Test Case '-[msgblastTests.MultiWebAgentTests testDraftOrSignedOutAgentDoesNotBlockIndependentSubmissions]' started.
+Test Case '-[msgblastTests.MultiWebAgentTests testDraftOrSignedOutAgentDoesNotBlockIndependentSubmissions]' passed (0.963 seconds).
+Test Case '-[msgblastTests.MultiWebAgentTests testEachProviderKeepsSeparateSavedChatsAcrossComparisonsAndReopening]' started.
+Test Case '-[msgblastTests.MultiWebAgentTests testEachProviderKeepsSeparateSavedChatsAcrossComparisonsAndReopening]' passed (11.698 seconds).
+Test Case '-[msgblastTests.MultiWebAgentTests testEditingThePageDuringSubmissionCannotConfirmAnotherConversation]' started.
+Test Case '-[msgblastTests.MultiWebAgentTests testEditingThePageDuringSubmissionCannotConfirmAnotherConversation]' passed (0.606 seconds).
+Test Case '-[msgblastTests.MultiWebAgentTests testEveryProviderRequiresSavedURLAndBlocksUnconfirmedFollowUps]' started.
+Test Case '-[msgblastTests.MultiWebAgentTests testEveryProviderRequiresSavedURLAndBlocksUnconfirmedFollowUps]' passed (16.787 seconds).
+Test Case '-[msgblastTests.MultiWebAgentTests testFailedNewComparisonSetupClearsDeselectedWorkspaceIdentity]' started.
+Test Case '-[msgblastTests.MultiWebAgentTests testFailedNewComparisonSetupClearsDeselectedWorkspaceIdentity]' passed (21.652 seconds).
+Test Case '-[msgblastTests.MultiWebAgentTests testLegacyMuseSavedChatMigratesWithoutChangingTheLoginStore]' started.
+Test Case '-[msgblastTests.MultiWebAgentTests testLegacyMuseSavedChatMigratesWithoutChangingTheLoginStore]' passed (0.000 seconds).
+Test Case '-[msgblastTests.MultiWebAgentTests testLegacyMuseSessionSelectionAndPendingReceiptSurviveUpgrade]' started.
+Test Case '-[msgblastTests.MultiWebAgentTests testLegacyMuseSessionSelectionAndPendingReceiptSurviveUpgrade]' passed (0.221 seconds).
+Test Case '-[msgblastTests.MultiWebAgentTests testLoginCompletingDuringSetupRequiresAnotherExplicitSubmission]' started.
+Test Case '-[msgblastTests.MultiWebAgentTests testLoginCompletingDuringSetupRequiresAnotherExplicitSubmission]' passed (0.835 seconds).
+Test Case '-[msgblastTests.MultiWebAgentTests testMultilinePromptMatchesRenderedParagraphs]' started.
+Test Case '-[msgblastTests.MultiWebAgentTests testMultilinePromptMatchesRenderedParagraphs]' passed (1.736 seconds).
+Test Case '-[msgblastTests.MultiWebAgentTests testNewAgentsStartSelectedAndRememberDeselectionAfterRelaunch]' started.
+Test Case '-[msgblastTests.MultiWebAgentTests testNewAgentsStartSelectedAndRememberDeselectionAfterRelaunch]' passed (0.141 seconds).
+Test Case '-[msgblastTests.MultiWebAgentTests testNewProvidersAttachReceiptsToTheirComparison]' started.
+Test Case '-[msgblastTests.MultiWebAgentTests testNewProvidersAttachReceiptsToTheirComparison]' passed (1.766 seconds).
+Test Case '-[msgblastTests.MultiWebAgentTests testPrependingHistoryDoesNotChangeAnOlderMessageIntoAReceipt]' started.
+Test Case '-[msgblastTests.MultiWebAgentTests testPrependingHistoryDoesNotChangeAnOlderMessageIntoAReceipt]' passed (0.580 seconds).
+Test Case '-[msgblastTests.MultiWebAgentTests testProviderDestinationsAndFirstConversationTransition]' started.
+Test Case '-[msgblastTests.MultiWebAgentTests testProviderDestinationsAndFirstConversationTransition]' passed (0.000 seconds).
+Test Case '-[msgblastTests.MultiWebAgentTests testRevealingAnOlderMatchingMessageIsNotANewSendReceipt]' started.
+Test Case '-[msgblastTests.MultiWebAgentTests testRevealingAnOlderMatchingMessageIsNotANewSendReceipt]' passed (5.575 seconds).
+Test Case '-[msgblastTests.MultiWebAgentTests testSignedOutEditorsAndAmbiguousSendControlsAreNotSubmitted]' started.
+Test Case '-[msgblastTests.MultiWebAgentTests testSignedOutEditorsAndAmbiguousSendControlsAreNotSubmitted]' passed (1.242 seconds).
+Test Suite 'MultiWebAgentTests' passed at 2026-10-05 20:57:46.475.
+	 Executed 21 tests, with 0 failures (0 unexpected) in 70.668 (70.672) seconds
+Test Suite 'PermissionGuideLifecycleTests' started at 2026-10-05 20:57:46.475.
+Test Case '-[msgblastTests.PermissionGuideLifecycleTests testClosingSettingsPreservesPendingCompletionButBackAbandonsIt]' started.
+Test Case '-[msgblastTests.PermissionGuideLifecycleTests testClosingSettingsPreservesPendingCompletionButBackAbandonsIt]' passed (0.002 seconds).
+Test Case '-[msgblastTests.PermissionGuideLifecycleTests testRestartFinishesOnlyAfterHistoryReadSucceeds]' started.
+Test Case '-[msgblastTests.PermissionGuideLifecycleTests testRestartFinishesOnlyAfterHistoryReadSucceeds]' passed (0.002 seconds).
+Test Suite 'PermissionGuideLifecycleTests' passed at 2026-10-05 20:57:46.480.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.004 (0.005) seconds
+Test Suite 'PermissionHandoffTests' started at 2026-10-05 20:57:46.480.
+Test Case '-[msgblastTests.PermissionHandoffTests testDragTransfersTheRealAppURLAndRejectsImagesAndExecutables]' started.
+sandbox_extension_consume failed: 1 (Operation not permitted)
+Test Case '-[msgblastTests.PermissionHandoffTests testDragTransfersTheRealAppURLAndRejectsImagesAndExecutables]' passed (0.002 seconds).
+Test Case '-[msgblastTests.PermissionHandoffTests testDropDoesNotClaimHistoryAccessAndCancellationCanRetry]' started.
+Test Case '-[msgblastTests.PermissionHandoffTests testDropDoesNotClaimHistoryAccessAndCancellationCanRetry]' passed (0.000 seconds).
+Test Case '-[msgblastTests.PermissionHandoffTests testGuideStaysVisibleAsSettingsMovesAcrossDisplays]' started.
+Test Case '-[msgblastTests.PermissionHandoffTests testGuideStaysVisibleAsSettingsMovesAcrossDisplays]' passed (0.000 seconds).
+Test Suite 'PermissionHandoffTests' passed at 2026-10-05 20:57:46.482.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.002 (0.002) seconds
+Test Suite 'PersonalAgentTests' started at 2026-10-05 20:57:46.482.
+Test Case '-[msgblastTests.PersonalAgentTests testAllProviderAdaptersUseStdinAndReturnOnlyCompletedOutput]' started.
+Test Case '-[msgblastTests.PersonalAgentTests testAllProviderAdaptersUseStdinAndReturnOnlyCompletedOutput]' passed (0.284 seconds).
+Test Case '-[msgblastTests.PersonalAgentTests testDiscoveryIgnoresGenericAgentAndRelativePaths]' started.
+Test Case '-[msgblastTests.PersonalAgentTests testDiscoveryIgnoresGenericAgentAndRelativePaths]' passed (0.002 seconds).
+Test Case '-[msgblastTests.PersonalAgentTests testExistingStateDecodesWithoutPersonalAgentFields]' started.
+Test Case '-[msgblastTests.PersonalAgentTests testExistingStateDecodesWithoutPersonalAgentFields]' passed (0.000 seconds).
+Test Case '-[msgblastTests.PersonalAgentTests testProcessHandlesLargeOutputTimeoutCancellationAndExitStatus]' started.
+Test Case '-[msgblastTests.PersonalAgentTests testProcessHandlesLargeOutputTimeoutCancellationAndExitStatus]' passed (0.408 seconds).
+Test Case '-[msgblastTests.PersonalAgentTests testProviderArgumentsRetainNoninteractiveAndToolRestrictions]' started.
+Test Case '-[msgblastTests.PersonalAgentTests testProviderArgumentsRetainNoninteractiveAndToolRestrictions]' passed (0.000 seconds).
+Test Case '-[msgblastTests.PersonalAgentTests testProviderJSONErrorsAndEmptyOutputAreNotSummaries]' started.
+Test Case '-[msgblastTests.PersonalAgentTests testProviderJSONErrorsAndEmptyOutputAreNotSummaries]' passed (0.000 seconds).
+Test Case '-[msgblastTests.PersonalAgentTests testReactionsCountAsResponsesAndInvalidateSummaryWhenChangedOrRemoved]' started.
+Test Case '-[msgblastTests.PersonalAgentTests testReactionsCountAsResponsesAndInvalidateSummaryWhenChangedOrRemoved]' passed (0.001 seconds).
+Test Case '-[msgblastTests.PersonalAgentTests testReportRequiresActionAndRationaleAndPreservesLegacySummary]' started.
+Test Case '-[msgblastTests.PersonalAgentTests testReportRequiresActionAndRationaleAndPreservesLegacySummary]' passed (0.000 seconds).
+Test Case '-[msgblastTests.PersonalAgentTests testSavedSummaryRoundTripsAndDraftChangesDoNotInvalidateIt]' started.
+Test Case '-[msgblastTests.PersonalAgentTests testSavedSummaryRoundTripsAndDraftChangesDoNotInvalidateIt]' passed (0.000 seconds).
+Test Case '-[msgblastTests.PersonalAgentTests testSavedUnsafeProviderSelectionsAndReportsRemainDecodable]' started.
+Test Case '-[msgblastTests.PersonalAgentTests testSavedUnsafeProviderSelectionsAndReportsRemainDecodable]' passed (0.000 seconds).
+Test Case '-[msgblastTests.PersonalAgentTests testSnapshotIncludesEveryMemberAndBoundedRepliesButNoDraftsOrAddresses]' started.
+Test Case '-[msgblastTests.PersonalAgentTests testSnapshotIncludesEveryMemberAndBoundedRepliesButNoDraftsOrAddresses]' passed (0.001 seconds).
+Test Case '-[msgblastTests.PersonalAgentTests testTimeoutAndSuccessCleanUpWrapperChildrenAndTemporaryInput]' started.
+Test Case '-[msgblastTests.PersonalAgentTests testTimeoutAndSuccessCleanUpWrapperChildrenAndTemporaryInput]' passed (2.490 seconds).
+Test Case '-[msgblastTests.PersonalAgentTests testUnsafeProvidersAreExcludedEvenWhenTheirCLIsAreInstalled]' started.
+Test Case '-[msgblastTests.PersonalAgentTests testUnsafeProvidersAreExcludedEvenWhenTheirCLIsAreInstalled]' passed (0.002 seconds).
+Test Case '-[msgblastTests.PersonalAgentTests testUnsafeProvidersCannotLaunchForUntrustedRepliesOrDirectProcessCalls]' started.
+Test Case '-[msgblastTests.PersonalAgentTests testUnsafeProvidersCannotLaunchForUntrustedRepliesOrDirectProcessCalls]' passed (0.002 seconds).
+Test Suite 'PersonalAgentTests' passed at 2026-10-05 20:57:49.675.
+	 Executed 14 tests, with 0 failures (0 unexpected) in 3.191 (3.192) seconds
+Test Suite 'UpdateTests' started at 2026-10-05 20:57:49.675.
+Test Case '-[msgblastTests.UpdateTests testFailedStateSaveCancelsQuitAndKeepsTheAppRunning]' started.
+Test Case '-[msgblastTests.UpdateTests testFailedStateSaveCancelsQuitAndKeepsTheAppRunning]' passed (0.001 seconds).
+Test Case '-[msgblastTests.UpdateTests testLocalFixtureCannotEnableOrdinaryPreviewsOrReleaseBuilds]' started.
+Test Case '-[msgblastTests.UpdateTests testLocalFixtureCannotEnableOrdinaryPreviewsOrReleaseBuilds]' passed (0.000 seconds).
+Test Case '-[msgblastTests.UpdateTests testOnlyConfiguredRealAppsQueryTheProductionFeed]' started.
+Test Case '-[msgblastTests.UpdateTests testOnlyConfiguredRealAppsQueryTheProductionFeed]' passed (0.001 seconds).
+Test Case '-[msgblastTests.UpdateTests testQuitWaitsForActiveSubmissionThenSavesDraftAndAttachmentReferences]' started.
+Test Case '-[msgblastTests.UpdateTests testQuitWaitsForActiveSubmissionThenSavesDraftAndAttachmentReferences]' passed (0.001 seconds).
+Test Case '-[msgblastTests.UpdateTests testXCTestHostNeverQueriesTheProductionFeed]' started.
+Test Case '-[msgblastTests.UpdateTests testXCTestHostNeverQueriesTheProductionFeed]' passed (0.000 seconds).
+Test Suite 'UpdateTests' passed at 2026-10-05 20:57:49.678.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.003 (0.003) seconds
+Test Suite 'WebServiceTests' started at 2026-10-05 20:57:49.678.
+Test Case '-[msgblastTests.WebServiceTests testAvatarClearsOnSignOutAndIsNotPersistedForAnotherAccount]' started.
+Test Case '-[msgblastTests.WebServiceTests testAvatarClearsOnSignOutAndIsNotPersistedForAnotherAccount]' passed (3.430 seconds).
+Test Case '-[msgblastTests.WebServiceTests testAvatarIgnoresChatImagesAndAmbiguousOrHiddenHosts]' started.
+Test Case '-[msgblastTests.WebServiceTests testAvatarIgnoresChatImagesAndAmbiguousOrHiddenHosts]' passed (0.158 seconds).
+Test Case '-[msgblastTests.WebServiceTests testBroadcastCompletionPreservesEditsToTheNextDraft]' started.
+Test Case '-[msgblastTests.WebServiceTests testBroadcastCompletionPreservesEditsToTheNextDraft]' passed (0.001 seconds).
+Test Case '-[msgblastTests.WebServiceTests testChangedComparisonCancelsPendingReopenWithoutStaleError]' started.
+Test Case '-[msgblastTests.WebServiceTests testChangedComparisonCancelsPendingReopenWithoutStaleError]' passed (1.882 seconds).
+Test Case '-[msgblastTests.WebServiceTests testChangedSideChatCannotBeAttributedToTheComparison]' started.
+Test Case '-[msgblastTests.WebServiceTests testChangedSideChatCannotBeAttributedToTheComparison]' passed (1.004 seconds).
+Test Case '-[msgblastTests.WebServiceTests testComparisonCreatesSideChatAndFollowUpsReuseItAfterReopening]' started.
+Test Case '-[msgblastTests.WebServiceTests testComparisonCreatesSideChatAndFollowUpsReuseItAfterReopening]' passed (2.729 seconds).
+Test Case '-[msgblastTests.WebServiceTests testExistingSiteDraftIsNeverOverwritten]' started.
+Test Case '-[msgblastTests.WebServiceTests testExistingSiteDraftIsNeverOverwritten]' passed (0.148 seconds).
+Test Case '-[msgblastTests.WebServiceTests testExpiredSessionCannotReceiveSharedPrompt]' started.
+Test Case '-[msgblastTests.WebServiceTests testExpiredSessionCannotReceiveSharedPrompt]' passed (0.163 seconds).
+Test Case '-[msgblastTests.WebServiceTests testIdenticalEarlierTextIsNotTheNewSubmissionReceipt]' started.
+Test Case '-[msgblastTests.WebServiceTests testIdenticalEarlierTextIsNotTheNewSubmissionReceipt]' passed (1.019 seconds).
+Test Case '-[msgblastTests.WebServiceTests testInterruptedClickRemainsUncertainAcrossReload]' started.
+Test Case '-[msgblastTests.WebServiceTests testInterruptedClickRemainsUncertainAcrossReload]' passed (0.000 seconds).
+Test Case '-[msgblastTests.WebServiceTests testInvalidSavedConversationNeverStartsAnotherChat]' started.
+Test Case '-[msgblastTests.WebServiceTests testInvalidSavedConversationNeverStartsAnotherChat]' passed (0.139 seconds).
+Test Case '-[msgblastTests.WebServiceTests testMainChatRedirectNeverReceivesPreparedText]' started.
+Test Case '-[msgblastTests.WebServiceTests testMainChatRedirectNeverReceivesPreparedText]' passed (20.956 seconds).
+Test Case '-[msgblastTests.WebServiceTests testMissingOutgoingObservationIsNotRetried]' started.
+Test Case '-[msgblastTests.WebServiceTests testMissingOutgoingObservationIsNotRetried]' passed (5.487 seconds).
+Test Case '-[msgblastTests.WebServiceTests testMuseReceiptRequiresSavedThreadAndRejectsMainAliases]' started.
+Test Case '-[msgblastTests.WebServiceTests testMuseReceiptRequiresSavedThreadAndRejectsMainAliases]' passed (0.000 seconds).
+Test Case '-[msgblastTests.WebServiceTests testOnlyMuseSideChatsAreAutomationDestinations]' started.
+Test Case '-[msgblastTests.WebServiceTests testOnlyMuseSideChatsAreAutomationDestinations]' passed (0.000 seconds).
+Test Case '-[msgblastTests.WebServiceTests testOptimisticMessageWithoutAssignedThreadIsUnconfirmedAndBlocksFollowUp]' started.
+Test Case '-[msgblastTests.WebServiceTests testOptimisticMessageWithoutAssignedThreadIsUnconfirmedAndBlocksFollowUp]' passed (5.519 seconds).
+Test Case '-[msgblastTests.WebServiceTests testPartialBroadcastKeepsIndependentResultsAndConsumesOnlySubmittedDraft]' started.
+Test Case '-[msgblastTests.WebServiceTests testPartialBroadcastKeepsIndependentResultsAndConsumesOnlySubmittedDraft]' passed (0.003 seconds).
+Test Case '-[msgblastTests.WebServiceTests testPersonalAvatarFollowsTheMainChatMediaAndChanges]' started.
+Test Case '-[msgblastTests.WebServiceTests testPersonalAvatarFollowsTheMainChatMediaAndChanges]' passed (2.225 seconds).
+Test Case '-[msgblastTests.WebServiceTests testRealWebViewSendsOnceAndObservesAReply]' started.
+Test Case '-[msgblastTests.WebServiceTests testRealWebViewSendsOnceAndObservesAReply]' passed (1.242 seconds).
+Test Case '-[msgblastTests.WebServiceTests testReopeningShowsOnlyThatComparisonsReceipt]' started.
+Test Case '-[msgblastTests.WebServiceTests testReopeningShowsOnlyThatComparisonsReceipt]' passed (1.579 seconds).
+Test Case '-[msgblastTests.WebServiceTests testReopeningWorkspaceRetainsSessionAndDraft]' started.
+Test Case '-[msgblastTests.WebServiceTests testReopeningWorkspaceRetainsSessionAndDraft]' passed (0.051 seconds).
+Test Case '-[msgblastTests.WebServiceTests testStorageFailureAfterOutgoingObservationNeverClaimsNotSent]' started.
+Test Case '-[msgblastTests.WebServiceTests testStorageFailureAfterOutgoingObservationNeverClaimsNotSent]' passed (0.692 seconds).
+Test Case '-[msgblastTests.WebServiceTests testSwitchingComparisonPreservesFreshPageDraft]' started.
+Test Case '-[msgblastTests.WebServiceTests testSwitchingComparisonPreservesFreshPageDraft]' passed (0.584 seconds).
+Test Suite 'WebServiceTests' passed at 2026-10-05 20:58:38.694.
+	 Executed 23 tests, with 0 failures (0 unexpected) in 49.012 (49.016) seconds
+Test Suite 'msgblastTests.xctest' passed at 2026-10-05 20:58:38.694.
+	 Executed 107 tests, with 0 failures (0 unexpected) in 124.171 (124.192) seconds
+Test Suite 'All tests' passed at 2026-10-05 20:58:38.694.
+	 Executed 107 tests, with 0 failures (0 unexpected) in 124.171 (124.194) seconds

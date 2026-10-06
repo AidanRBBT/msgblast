@@ -103,16 +103,25 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
         return provider == .muse && webView.url.map(provider.isChatURL) == true ? "\(host) · Side chat" : host
     }
 
-    public func openComparison(_ id: UUID?) async {
-        guard !isSending else { return }
+    @discardableResult
+    public func openComparison(_ id: UUID?) async -> Bool {
+        guard !isSending else { return false }
         if state.comparisonID != id { updateState { $0.comparisonID = id } }
         connect()
-        do { try await prepareConversation(); self.error = nil }
-        catch is CancellationError { }
-        catch { self.error = error.localizedDescription }
+        do {
+            let readyBeforeSetup = try await prepareConversation()
+            self.error = nil
+            return readyBeforeSetup
+        }
+        catch is CancellationError { return false }
+        catch { self.error = error.localizedDescription; return false }
     }
 
-    private func prepareConversation() async throws {
+    @discardableResult
+    private func prepareConversation() async throws -> Bool {
+        // Readiness must come from this click's inspection, not the polling cache.
+        // A page that becomes ready during setup needs another explicit submission.
+        var readyBeforeSetup = false
         if let id = state.comparisonID, let saved = state.conversationURLs[id.uuidString], !provider.isSavedConversation(saved) {
             throw WebSessionFailure.notSent("This comparison’s saved \(provider.name) chat is invalid. Nothing was sent; its saved address has been preserved.")
         }
@@ -129,6 +138,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
             try checkCurrent()
             guard let result else { throw WebSessionFailure.notSent("\(provider.name)’s page could not be checked before switching chats.") }
             snapshot = try JSONDecoder().decode(WebPageSnapshot.self, from: JSONSerialization.data(withJSONObject: result))
+            readyBeforeSetup = snapshot.ready
         }
         try checkCurrent()
         guard snapshot.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -141,7 +151,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
            snapshot.messages.contains(where: { $0.role == "user" }) {
             throw WebSessionFailure.notSent("\(provider.name) has an unfinished conversation submission. Check its page before starting another comparison.")
         }
-        if !loading, snapshot.ready, snapshot.url == target.absoluteString, webView.url == target { return }
+        if !loading, snapshot.ready, snapshot.url == target.absoluteString, webView.url == target { return readyBeforeSetup }
         if webView.url != target {
             if fixture, webView.url != nil {
                 _ = try await webView.callAsyncJavaScript("navigateFixtureThread(url)", arguments: ["url":target.absoluteString], in: nil, contentWorld: .page)
@@ -152,7 +162,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
             try checkCurrent()
             await refresh()
             try checkCurrent()
-            if !loading, snapshot.ready, snapshot.url == target.absoluteString { return }
+            if !loading, snapshot.ready, snapshot.url == target.absoluteString { return readyBeforeSetup }
         }
         throw WebSessionFailure.notSent("\(provider.name)’s comparison chat could not open. Open it in this pane and sign in if needed. Nothing was sent.")
     }

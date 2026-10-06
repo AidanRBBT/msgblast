@@ -37,7 +37,7 @@ final class WebServiceTests: XCTestCase {
         let older = Task { await session.openComparison(firstID) }
         try await waitFor { session.state.comparisonID == firstID }
         await session.openComparison(secondID)
-        await older.value
+        _ = await older.value
         XCTAssertEqual(session.state.comparisonID, secondID)
         XCTAssertEqual(session.webView.url, second?.conversationURL)
         XCTAssertNotEqual(session.webView.url, first?.conversationURL)
@@ -46,7 +46,7 @@ final class WebServiceTests: XCTestCase {
         let pending = Task { await session.openComparison(firstID) }
         try await waitFor { session.state.comparisonID == firstID }
         session.updateState { $0.comparisonID = nil }
-        await pending.value
+        _ = await pending.value
         XCTAssertNil(session.state.comparisonID)
         XCTAssertNil(session.error, "New comparison must invalidate an older reopen's timeout")
     }
