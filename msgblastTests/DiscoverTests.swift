@@ -44,4 +44,20 @@ final class DiscoverTests: XCTestCase {
         }
         XCTAssertTrue(catalog.filtered(query: "no-such-agent-xyz", category: nil).isEmpty)
     }
+    func testKnownAgentsAreFoundWithoutAConversationAndAvoidPartialNames() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let catalog = try JSONDecoder().decode(DiscoverCatalog.self, from: Data(contentsOf: root.appendingPathComponent("msgblast/Resources/Discover/catalog.json")))
+        let known = KnownAgentContacts(agents: catalog.discoverAgents)
+        for name in ["Fo", " szn ", "INSTINCT", "Fo AI", "Instinct (Agent)"] {
+            XCTAssertTrue(known.contains(name: name), name)
+        }
+        for entry in catalog.discoverAgents {
+            XCTAssertTrue(known.contains(name: entry.name), entry.name)
+        }
+        for name in ["Ford", "Szn Smith", "Alex Instinct Jones", "My instinct", "Alex Chen"] {
+            XCTAssertFalse(known.contains(name: name), name)
+        }
+        XCTAssertFalse(known.contains(name: "Renamed contact"))
+    }
+
 }

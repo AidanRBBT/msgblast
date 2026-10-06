@@ -1,6 +1,6 @@
 {
   "0.4.3": [
-    "Send one prompt and compare your agents’ replies side by side.",
+    "Send one prompt and compare your agents\u2019 replies side by side.",
     "Keep each Blast and its follow-ups together.",
     "Sign in without losing your prompt or existing drafts."
   ],
@@ -13,5 +13,15 @@
     "Codex and Claude Code now use your configured skills and tools.",
     "Existing conversations keep their history and drafts.",
     "Updated the green app icon."
+  ],
+  "0.6.0": [
+    "Find and add agents from one Discover page.",
+    "Agents already in Contacts appear automatically by name.",
+    "Search as you type, with setup prompts above search."
+  ],
+  "0.6.1": [
+    "Read versioned highlights and contributor credits from What\u2019s New.",
+    "Browse earlier release notes offline.",
+    "Updates now use stable Developer ID signing and Apple notarization."
   ]
 }

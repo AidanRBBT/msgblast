@@ -4,27 +4,40 @@
 
 <h1 align="center">msgblast</h1>
 <p align="center"><strong>Ask once. Compare the answers.</strong></p>
-<p align="center">Send one question to several AI assistants. Read their replies side by side on your Mac.</p>
+<p align="center">Send one question to AI assistants across the web, Messages, and your local CLIs. Compare their replies side by side on your Mac.</p>
 <p align="center"><a href="https://updates.msgblast.app/latest.zip"><strong>Download for Mac</strong></a> · macOS Sequoia 15 or later</p>
 
 <img src="docs/images/readme/compare-answers.jpg" alt="One question sent to Instinct, Fo, and Szn, with three different answers side by side and a shared follow-up message" width="1100">
 
 Planning a weekend, researching a purchase, or testing an idea? Write your question once, choose your assistants, and compare their suggestions in one window. Send a follow-up to everyone or just one assistant. Your comparisons stay saved so you can return to them later.
 
-*Actual app screenshot with an example conversation. The replies are illustrative sample text.*
+*Actual Messages comparison captured from an earlier app version. The replies are illustrative sample text.*
 
-## Use the assistants you already text
+## Features
 
-msgblast works with AI assistants in **Messages**, including [Instinct](https://instinct.com/), [Fo](https://wajo.ai/), and [Szn](https://theszn.ai/). Start an iMessage conversation with each assistant you want to use, then add it to msgblast. Each assistant’s own account and access requirements apply.
+- **One question, several assistants.** Choose who receives each blast and read the answers together. Send follow-ups to everyone, a few agents, or one.
+- **Saved conversations.** Reopen a comparison from the sidebar and continue where you left off. Each web or CLI agent keeps a dedicated conversation for that blast; Muse uses a side chat.
+- **Your web and CLI accounts, together.** Ask ChatGPT and Codex CLI, or Claude and Claude Code, the same question. Each uses its own account, conversation, and configured capabilities.
+- **Discover more agents.** Search the built-in directory, browse categories, visit an agent’s website, and add it to your agents.
+- **Rich Messages conversations.** Send photos and files to Messages agents and read replies with attachment previews, link cards, and reactions.
+- **Comparison reports.** For Messages comparisons, ask a local agent to compare the replies, explain the tradeoffs, and recommend a next action. Save, copy, or update the report as the conversation develops.
 
-You can also send photos and files to your Messages assistants.
+## Supported agents
+
+| Connection | Agents | How it works |
+| --- | --- | --- |
+| Websites | **Muse, ChatGPT, Claude, Grok** | Selected by default on a new installation. Sign in inside msgblast and keep the chats in the app. |
+| Messages | AI assistants you already text, including **Instinct, Fo, and Szn** | Connect existing one-to-one iMessage conversations. Photos and files are supported. |
+| Optional CLI conversations | **Codex CLI, Claude Code** | Enable each in Settings to add it alongside the websites. Uses the installed CLI’s sign-in, skills, tools, and connectors, subject to its permissions. |
+
+Each service’s own account, subscription, and usage limits apply. Web and CLI requests use text; attachments are available when only Messages agents are selected.
 
 ## Get started
 
 1. [Download msgblast](https://updates.msgblast.app/latest.zip), unzip the file, and drag **msgblast.app** into **Applications**. Open the app.
-2. For Messages assistants, click **Open Settings** in msgblast and allow it to read Messages history. Quit and reopen the app afterward. Then click **Add Agent**, find your assistant by name, email, or phone number, and allow Contacts when asked. The permission steps are below.
-3. Muse, ChatGPT, Claude, and Grok start selected in **Agents**. Sign in to their websites inside msgblast when needed. **Agent** means an AI assistant in msgblast.
-4. Type a question and press the send arrow. If account setup opens, finish signing in, then send again; your question stays ready. Allow msgblast to control **Messages** when sending there. Replies appear together for comparison.
+2. Choose your agents in **Agents**. Muse, ChatGPT, Claude, and Grok start selected. Turn on optional CLI agents in **msgblast → Settings**; use **Add Agent** or **Discover** for Messages assistants.
+3. Write your question and press the send arrow. If sign-in is needed, finish it in the relevant pane and send again. Your question stays ready. Messages access is only needed for Messages agents; see the steps below.
+4. Compare the replies, choose recipients for a follow-up, or click **New Blast** to start another comparison. Saved comparisons remain in the sidebar.
 
 <details>
 <summary>Help opening the app and allowing Messages access</summary>
@@ -32,6 +45,8 @@ You can also send photos and files to your Messages assistants.
 **If macOS blocks the first launch:** after trying to open msgblast, go to **System Settings → Privacy & Security**, scroll to the security section, and choose **Open Anyway**. Confirm **Open** if you trust the download. [Apple’s first-launch instructions](https://support.apple.com/en-us/102445#openanyway).
 
 **Messages history:** click **Open Settings** in msgblast. In **Privacy & Security → Full Disk Access**, click **+**, choose **msgblast.app** from **Applications**, and click **Open**. Enable its switch and authenticate if asked. Quit and reopen msgblast, then click **Check again** if the history banner remains. This lets msgblast read replies from your existing Messages conversations.
+
+**Add a Messages agent:** start a one-to-one iMessage conversation with the assistant, then click **Add Agent** in msgblast and search by name, email, or phone number.
 
 **Contacts:** allow access when msgblast asks so it can find your assistants. If you previously declined, enable msgblast in **Privacy & Security → Contacts**.
 
@@ -41,19 +56,31 @@ You can also send photos and files to your Messages assistants.
 
 Check for updates from **msgblast → Check for Updates**.
 
-## Muse, ChatGPT, Claude, and Grok
+## Web accounts and optional CLI agents
 
-Select these agents alongside your Messages assistants. Each Blast gets its own conversations, and follow-ups continue in the saved chats.
+Muse, ChatGPT, Claude, and Grok run as websites inside msgblast. Sign-ins persist between launches. Signing in through Safari, Chrome, a desktop app, or a CLI does not automatically sign you in to these embedded pages. Choose models and thinking settings in each service’s own controls.
 
-All four use their websites inside msgblast, with persistent sign-in sessions. Muse uses a side chat. Existing Safari, Chrome, desktop-app and CLI sessions do not automatically sign you in to these embedded pages.
+Enable **Codex CLI** or **Claude Code** in **msgblast → Settings** to add a separate agent. Enabling a CLI does not replace its website. Each keeps its own saved history and draft, so you can compare the web account’s capabilities with the CLI’s configured skills, tools, and connectors. Manage local account sign-in and switching in Settings.
 
-**Codex CLI** and **Claude Code** are separate optional agents. Add them in **msgblast → Settings** to compare their replies alongside the web accounts. Their sign-ins, conversations and settings are separate from the websites; enabling a CLI does not replace its web agent. Manage local account sign-in and switching in Settings.
-
-Shared requests involving these four agents are text-only. Messages-only requests can include attachments. Model and thinking settings are not controlled by a shared selector.
+CLI conversations respect the installed CLI’s permissions. Actions needing interactive approval may require Terminal; msgblast does not bypass those approvals. Claude Code requires **2.1.259 or later**. Configuration from another project folder is not automatically loaded. See [CLI accounts and conversations](docs/personal-agent-reports.md#website-chats-and-optional-cli-conversations) for details.
 
 <img src="docs/images/readme/choose-agents.jpg" alt="Agent selection showing Muse, ChatGPT, Claude, Grok, Instinct, Fo, and Szn with their icons" width="1100">
 
-*Captured from the app source with sample Messages profiles. No messages were sent.*
+*App capture with sample Messages profiles. No messages were sent. Captures predate the current release; some labels and artwork have since changed.*
+
+## Messages comparisons and reports
+
+Connect assistants such as [Instinct](https://instinct.com/), [Fo](https://wajo.ai/), and [Szn](https://theszn.ai/) through your existing Messages conversations. Full Disk Access lets msgblast read Messages history; Automation permission allows sending through Messages. Website and CLI agents do not require Messages access.
+
+Messages comparisons can stay in one window or use separate conversation windows with a floating shared composer. Choose the layout in **msgblast → Settings → Conversations**.
+
+Click **Summarize** in a Messages comparison to generate a **Comparison report** with a recommended next action, supporting reasoning, differences between replies, and open questions. Reports use an installed, signed-in **Codex, Claude Code, Gemini CLI, Pi, or Hermes**. They use available Messages replies and reactions; website and CLI chat replies are not included. Attachment contents are not sent to the report agent.
+
+Reports are saved with the comparison and update when you request it. Unlike CLI conversations, report generation keeps tools restricted to analyze the supplied responses. OpenClaw setup is available in Settings, but OpenClaw conversations are not connected yet.
+
+## Current limits
+
+Website layout changes can affect sending. Review a failed or unconfirmed send before retrying; msgblast does not automatically resend it. Shared web/CLI blasts are text-only, and there is no shared model or thinking selector. Your prompts go to the selected services; CLI tools may act within their configured permissions.
 
 For developers: [build from source](docs/build-from-source.md).
 

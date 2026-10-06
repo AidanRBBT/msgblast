@@ -1,0 +1,79 @@
+{
+  "original_sha256": "f69d8bf53f2070d6b970017bd9b125f28bed614e37356d468b6e347d885c140f",
+  "backup_sha256": "f69d8bf53f2070d6b970017bd9b125f28bed614e37356d468b6e347d885c140f",
+  "drafts": {
+    "frames": {},
+    "agents": [
+      {
+        "handles": [
+          "cedar@example.com"
+        ],
+        "colorIndex": 0,
+        "name": "Cedar",
+        "id": "20478171-F7A2-45C9-8D5C-F4B21C1959BA",
+        "contactID": "fixture-0"
+      },
+      {
+        "handles": [
+          "lumen@example.com"
+        ],
+        "colorIndex": 1,
+        "name": "Lumen",
+        "id": "C9DA06A9-9B70-48E3-B795-460604BD17E8",
+        "contactID": "fixture-1"
+      },
+      {
+        "handles": [
+          "orbit@example.com"
+        ],
+        "colorIndex": 2,
+        "name": "Orbit",
+        "id": "1F9CABDA-1146-45E2-A0F1-FF12B1523268",
+        "contactID": "fixture-2"
+      },
+      {
+        "handles": [
+          "maple@example.com"
+        ],
+        "colorIndex": 3,
+        "name": "Maple",
+        "id": "0238588A-21BC-47AF-B419-18A55E9456AD",
+        "contactID": "fixture-3"
+      },
+      {
+        "handles": [
+          "echo@example.com"
+        ],
+        "colorIndex": 4,
+        "name": "Echo",
+        "id": "08A2453D-88F2-4900-B6AB-12AEC81F7635",
+        "contactID": "fixture-4"
+      },
+      {
+        "handles": [
+          "flint@example.com"
+        ],
+        "colorIndex": 5,
+        "name": "Flint",
+        "id": "50F1E9A5-1C8B-48BF-9153-FB5CD64F5BD6",
+        "contactID": "fixture-5"
+      }
+    ],
+    "comparisons": [],
+    "version": 1,
+    "draft": "New draft after unreadable state",
+    "selection": [
+      "C9DA06A9-9B70-48E3-B795-460604BD17E8",
+      "20478171-F7A2-45C9-8D5C-F4B21C1959BA",
+      "1F9CABDA-1146-45E2-A0F1-FF12B1523268",
+      "08A2453D-88F2-4900-B6AB-12AEC81F7635",
+      "0238588A-21BC-47AF-B419-18A55E9456AD",
+      "50F1E9A5-1C8B-48BF-9153-FB5CD64F5BD6"
+    ]
+  },
+  "relaunch": {
+    "build": "2",
+    "draft": "What is the clearest way to compare three approaches to the same problem?",
+    "recovery": true
+  }
+}

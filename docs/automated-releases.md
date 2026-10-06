@@ -1,6 +1,8 @@
-# Automated releases without Apple credentials
+# Automated msgblast releases
 
-`.github/workflows/release-adhoc.yml` runs on a pushed `vVERSION` tag, or a manual workflow dispatch from the default branch. It tests, prepares an ad-hoc signed Release app, signs the ZIP and appcast with Sparkle, publishes to an existing Cloudflare R2 host, and checks anonymous downloads. No Apple Developer account, Developer ID certificate or notarization credentials are used. The source repository stays private.
+`.github/workflows/release-adhoc.yml` runs on a pushed `vVERSION` tag, or a manual workflow dispatch from the default branch. It tests, prepares an ad-hoc signed Release app, signs the ZIP and appcast with Sparkle, publishes to an existing Cloudflare R2 host, and checks anonymous downloads. In the default ad-hoc mode, no Apple Developer account, Developer ID certificate or notarization credentials are used. The source repository stays private.
+
+For stable Developer ID signing and Apple notarization, follow [developer-id-signing.md](developer-id-signing.md). The same workflow supports that mode when `MSGBLAST_SIGNING_MODE=developer-id`; the existing ad-hoc mode stays the default until migration is activated. Missing Developer ID credentials stop a selected Developer ID run rather than falling back.
 
 ## One-time activation
 
@@ -49,7 +51,7 @@ Keep `release-notes/VERSION.md` brief: start with at most three short bullets ab
    git push origin v0.1.1
    ```
 
-   Alternatively, run **Release msgblast without Apple credentials** from the default branch in Actions and enter `0.1.1`. Version values are numeric; branch names and shell expressions are rejected. A source push without a release tag does not distribute a build.
+   Alternatively, run **Release msgblast** from the default branch in Actions and enter `0.1.1`. Version values are numeric; branch names and shell expressions are rejected. A source push without a release tag does not distribute a build.
 3. GitHub Actions performs the remaining steps. Its summary provides the published version/build, source revision, ZIP URL and feed URL. Successful artifacts are retained privately in Actions for 30 days; public archives and immutable release manifests remain on R2.
 
 No coding agent is needed for repetitive build/sign/upload steps once activation is complete. Release notes and the decision to release a source revision remain part of preparing the tag.
@@ -85,7 +87,7 @@ Later releases can install through Check for Updates or automatic checks. Preser
 
 To roll back, release the intended reverted source with a new tag/version or dispatch; the pipeline allocates a larger counter. Never reset the counter, lower the appcast build or replace an existing archive. If a run uploaded an archive but failed later, retain it and rerun; the next reservation advances the counter.
 
-The workflow code and local tests do not prove that an unconfigured R2 host or GitHub runner is working. The first hosted workflow run and a real old-to-new installed-app update are activation checks. The optional Developer ID/notarization path remains available in `scripts/release.py` for future distribution; see [updates.md](updates.md).
+The workflow code and local tests do not prove that an unconfigured R2 host or GitHub runner is working. The first hosted workflow run and a real old-to-new installed-app update are activation checks. The same automated workflow supports Developer ID/notarization after the setup and verification in [developer-id-signing.md](developer-id-signing.md).
 
 References: [Sparkle publishing](https://sparkle-project.org/documentation/publishing/), [R2 public buckets](https://developers.cloudflare.com/r2/buckets/public-buckets/), [R2 conditional S3 operations](https://developers.cloudflare.com/r2/api/s3/api/), [Xcode 27 runner image](https://github.com/actions/runner-images/blob/main/images/macos/xcode-27-arm64-Readme.md).
 

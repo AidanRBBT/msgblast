@@ -8,9 +8,11 @@ Ordinary development builds have no feed or signing key, so updates remain unava
 
 For the automated ad-hoc path without Apple credentials, use [automated-releases.md](automated-releases.md). The instructions below describe the separate Developer ID/notarization mode, which remains the default for direct `scripts/release.py` calls.
 
+The current update host and Sparkle key are already configured. Use [developer-id-signing.md](developer-id-signing.md) to add Developer ID and notarization to the automated release workflow. The direct-script instructions below are for local preparation and diagnostics; Actions remains the production publishing path.
+
 ### Before the first Developer ID release
 
-Developer ID distribution is not configured yet. The repository is private, and no distribution host or Developer ID Application signing identity has been supplied. Apple Development identities are insufficient for this release pipeline. No production release or public hosting is created by these scripts.
+Configure and verify Developer ID credentials using the signing setup guide before activation. The repository remains private; the existing public update host is https://updates.msgblast.app/. Apple Development identities are insufficient for Developer ID distribution. Direct preparation does not publish an app.
 
 The release operator needs:
 

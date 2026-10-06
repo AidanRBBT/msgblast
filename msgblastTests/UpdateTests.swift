@@ -94,4 +94,83 @@ final class UpdateTests: XCTestCase {
         XCTAssertEqual(gate.request(isBusy: false, persist: {}), .allowed)
         XCTAssertNil(gate.error)
     }
+    @MainActor
+    func testUnreadableStateCanQuitWithoutOverwritingOriginalOrLosingNewDrafts() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let original = root.appendingPathComponent("state.json")
+        let bytes = Data("{unreadable original state".utf8)
+        try bytes.write(to: original)
+        var state = AppState()
+        state.draft = "New draft entered after storage failed"
+        state.attachmentsDraft = [MessageAttachment(id: "fixture", filename: "photo.png", path: "/private/staged/photo.png")]
+        let gate = UpdateTermination()
+        var snapshot: URL?
+        XCTAssertEqual(gate.request(isBusy: false, persist: {
+            snapshot = try QuitStateRecovery.preserve(state, originalURL: original)
+        }), .allowed)
+        XCTAssertEqual(try Data(contentsOf: original), bytes)
+        let saved = try XCTUnwrap(snapshot)
+        let recovered = try JSONDecoder().decode(AppState.self, from: Data(contentsOf: saved))
+        XCTAssertEqual(recovered.draft, state.draft)
+        XCTAssertEqual(recovered.attachmentsDraft?.first?.path, state.attachmentsDraft?.first?.path)
+        XCTAssertEqual(try Data(contentsOf: saved.deletingLastPathComponent().appendingPathComponent("original-state.json")), bytes)
+        XCTAssertEqual((try FileManager.default.attributesOfItem(atPath: saved.path)[.posixPermissions] as? NSNumber)?.intValue, 0o600)
+        let second = try QuitStateRecovery.preserve(state, originalURL: original)
+        XCTAssertNotEqual(saved, second, "Repeated quits must retain every recovery snapshot")
+    }
+    @MainActor
+    func testRecoveryWriteFailureStillCancelsQuit() throws {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try Data("not a directory".utf8).write(to: file)
+        defer { try? FileManager.default.removeItem(at: file) }
+        let gate = UpdateTermination()
+        XCTAssertEqual(gate.request(isBusy: false, persist: {
+            _ = try QuitStateRecovery.preserve(AppState(), originalURL: file.appendingPathComponent("state.json"))
+        }), .cancelled)
+        XCTAssertNotNil(gate.error)
+        XCTAssertEqual(try String(contentsOf: file, encoding: .utf8), "not a directory")
+    }
+
+    func testRecoveryRetainsDraftWhenOriginalFileIsMissing() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        var state = AppState()
+        state.draft = "Retain unsaved draft"
+        let snapshot = try QuitStateRecovery.preserve(state, originalURL: root.appendingPathComponent("state.json"))
+        XCTAssertEqual(try JSONDecoder().decode(AppState.self, from: Data(contentsOf: snapshot)).draft, state.draft)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("state.json").path))
+    }
+    @MainActor
+    func testUnreadableStateRecoveryStillWaitsForActiveSend() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let gate = UpdateTermination()
+        let save = { _ = try QuitStateRecovery.preserve(AppState(), originalURL: root.appendingPathComponent("state.json")) }
+        XCTAssertEqual(gate.request(isBusy: true, persist: save), .deferred)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.path))
+        XCTAssertEqual(gate.resume(isBusy: false, persist: save), .allowed)
+    }
+
+    @MainActor
+    func testInaccessibleOriginalDoesNotBlockDurableDraftRecovery() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let original = root.appendingPathComponent("state.json", isDirectory: true)
+        try FileManager.default.createDirectory(at: original, withIntermediateDirectories: true)
+        let marker = original.appendingPathComponent("untouched")
+        try Data("keep original".utf8).write(to: marker)
+        defer { try? FileManager.default.removeItem(at: root) }
+        var state = AppState()
+        state.draft = "Draft after read error"
+        var snapshot: URL?
+        XCTAssertEqual(UpdateTermination().request(isBusy: false, persist: {
+            snapshot = try QuitStateRecovery.preserve(state, originalURL: original)
+        }), .allowed)
+        let saved = try XCTUnwrap(snapshot)
+        XCTAssertEqual(try JSONDecoder().decode(AppState.self, from: Data(contentsOf: saved)).draft, state.draft)
+        XCTAssertEqual(try String(contentsOf: marker, encoding: .utf8), "keep original")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: saved.deletingLastPathComponent().appendingPathComponent("original-read-error.txt").path))
+    }
+
 }
