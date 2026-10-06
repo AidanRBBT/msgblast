@@ -56,7 +56,8 @@ enum MusePageScript {
     try {
       const canvas = document.createElement('canvas'); canvas.width = canvas.height = 256;
       const side = Math.min(width, height);
-      canvas.getContext('2d').drawImage(media, (width-side)/2, (height-side)/2, side, side, 0, 0, 256, 256);
+      // This canvas is read back as PNG; CPU backing also works without GPU surfaces.
+      canvas.getContext('2d', {willReadFrequently: true}).drawImage(media, (width-side)/2, (height-side)/2, side, side, 0, 0, 256, 256);
       return {key:cached.key,png:canvas.toDataURL('image/png')};
     } catch { return {}; }
     """#
