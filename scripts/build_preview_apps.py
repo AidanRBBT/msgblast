@@ -1,0 +1,177 @@
+#!/usr/bin/env python3
+"""Build two ad-hoc macOS preview ZIPs. Does not publish or use release secrets."""
+import argparse
+from pathlib import Path
+import json
+import os
+import plistlib
+import shutil
+import subprocess
+import tempfile
+
+import preview_apps as preview
+
+
+def run(command, cwd):
+    print("+ " + " ".join(command), flush=True)
+    result = subprocess.run(command, cwd=cwd, text=True)
+    if result.returncode:
+        raise SystemExit(f"Command failed ({result.returncode}): {' '.join(command)}")
+
+
+def adhoc_sign(app, entitlements):
+    code = []
+    frameworks = app / "Contents/Frameworks"
+    if frameworks.is_dir():
+        for path in frameworks.rglob("*"):
+            if path.is_symlink():
+                continue
+            if path.is_dir() and path.suffix in {".framework", ".xpc", ".app"}:
+                code.append(path)
+            elif path.is_file():
+                magic = path.open("rb").read(4)
+                if magic in {bytes.fromhex(value) for value in (
+                    "feedface", "cefaedfe", "feedfacf", "cffaedfe", "cafebabe", "bebafeca", "cafebabf", "bfbafeca")}:
+                    code.append(path)
+        for path in sorted(code, key=lambda item: (-len(item.parts), str(item))):
+            run(["codesign", "--force", "--sign", "-", "--options", "runtime",
+                 "--preserve-metadata=entitlements", str(path)], app.parent)
+    run(["codesign", "--force", "--sign", "-", "--options", "runtime",
+         "--entitlements", str(entitlements), str(app)], app.parent)
+    run(["codesign", "--verify", "--deep", "--strict", "--verbose=2", str(app)], app.parent)
+
+
+def sample_icon(icns, swift_source):
+    output = subprocess.run(["swift", swift_source, str(icns)], check=True, text=True, capture_output=True)
+    red, green, blue = [float(value) for value in output.stdout.split()]
+    return red, green, blue
+
+
+def package_variant(workspace, variant, source_revision, output, swift_source):
+    derived = workspace / "derived" / variant["id"]
+    if derived.exists():
+        shutil.rmtree(derived)
+    run([
+        "xcodebuild", "-project", str(workspace / "msgblast.xcodeproj"), "-scheme", "msgblast",
+        "-configuration", "Debug", "-derivedDataPath", str(derived),
+        "-destination", "platform=macOS,arch=arm64",
+        f"ASSETCATALOG_COMPILER_APPICON_NAME={variant['icon_name']}",
+        "CODE_SIGNING_ALLOWED=NO",
+        f"MSGBLAST_APP_BUNDLE_IDENTIFIER={variant['bundle_id']}",
+        "SPARKLE_FEED_URL=", "SPARKLE_PUBLIC_ED_KEY=",
+        "-quiet", "build",
+    ], workspace)
+    built = derived / "Build/Products/Debug/msgblast.app"
+    app = output / variant["app_name"]
+    if app.exists():
+        shutil.rmtree(app)
+    shutil.copytree(built, app, symlinks=True)
+    info_path = app / "Contents/Info.plist"
+    with info_path.open("rb") as file:
+        info = plistlib.load(file)
+    info = preview.configure_info(info, variant, source_revision)
+    with info_path.open("wb") as file:
+        plistlib.dump(info, file)
+    with info_path.open("rb") as file:
+        preview.verify_configured_info(plistlib.load(file), variant, source_revision)
+    icns = app / "Contents/Resources/AppIcon.icns"
+    if not icns.is_file():
+        raise SystemExit(f"{variant['id']} bundle has no compiled AppIcon.icns")
+    red, green, blue = sample_icon(icns, swift_source)
+    kind = preview.classify_icon_color(red, green, blue)
+    expected = preview.expected_icon_color(variant)
+    print(f"{variant['id']} compiled icon RGB {red:.1f} {green:.1f} {blue:.1f} classified {kind}", flush=True)
+    if kind != expected:
+        raise SystemExit(f"{variant['id']} compiled icon looks {kind}, expected {expected}")
+    adhoc_sign(app, workspace / "msgblast/msgblastDebug.entitlements")
+    short = source_revision[:12]
+    zip_name = f"{variant['artifact_prefix']}-{short}.zip"
+    zip_path = output / zip_name
+    if zip_path.exists():
+        zip_path.unlink()
+    run(["ditto", "-c", "-k", "--sequesterRsrc", "--keepParent", str(app), str(zip_path)], output)
+    with tempfile.TemporaryDirectory() as extracted:
+        run(["ditto", "-x", "-k", str(zip_path), extracted], output)
+        packed = Path(extracted) / variant["app_name"]
+        run(["codesign", "--verify", "--deep", "--strict", "--verbose=2", str(packed)], output)
+    return {
+        "id": variant["id"],
+        "label": variant["label"],
+        "fixture": variant["fixture"],
+        "app_name": variant["app_name"],
+        "bundle_id": variant["bundle_id"],
+        "support_directory": f"~/Library/Application Support/{variant['support_directory']}",
+        "zip": zip_name,
+        "sha256": preview.sha256_file(zip_path),
+        "compiled_icon_sha256": preview.sha256_file(icns),
+        "compiled_icon_rgb": [round(red, 1), round(green, 1), round(blue, 1)],
+        "icon_fill_sha256": preview.sha256_file(variant["icon_source"] / "icon.json"),
+        "updates": "disabled",
+        "instructions": instructions(variant),
+    }
+
+
+def instructions(variant):
+    shared = (" A quarantined download may App Translocate and show an install gate. Drag this app file to Applications "
+              "and leave /Applications/msgblast.app in place. Ad-hoc builds may need System Settings → Privacy & Security → Open Anyway. "
+              "There is no Sparkle feed, so this app will not download or relaunch over the installed production app.")
+    if variant["fixture"]:
+        return ("Unzip msgblast Demo.app. Fixture mode is explicit (msgblastDemo): it uses simulated Cedar, Lumen, and Orbit "
+                "data and does not read Messages. A blue icon alone is not what turns fixture mode on. "
+                "Preferences follow the bundle ID com.msgblast.demo. Saved state is in ~/Library/Application Support/msgblast-Demo, "
+                "which other local demo builds also use, and is separate from production and from msgblast Dev." + shared)
+    return ("Unzip msgblast Dev.app and use it to exercise this branch. It is not a fixture and can read real Messages. "
+            "Grant this bundle Full Disk Access, Contacts, and Messages Automation. Those permissions belong to com.msgblast.development, "
+            "do not transfer from com.msgblast.mac, and may need to be granted again after a rebuild because the ad-hoc code hash changes. "
+            "Preferences are the standard defaults for that bundle ID. There is no app keychain usage. "
+            "Saved state is in ~/Library/Application Support/msgblast-Dev." + shared)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--sha", required=True)
+    parser.add_argument("--run-url", required=True)
+    parser.add_argument("--output", type=Path, required=True)
+    args = parser.parse_args()
+    if len(args.sha) < 12 or any(character not in "0123456789abcdef" for character in args.sha):
+        parser.error("SHA must be a hex commit id")
+    for tool in ("xcodebuild", "codesign", "ditto", "swift"):
+        if shutil.which(tool) is None:
+            raise SystemExit(f"Required macOS tool is missing: {tool}")
+    preview.assert_committed_icons_unchanged()
+    output = args.output.resolve()
+    output.mkdir(parents=True, exist_ok=True)
+    records = []
+    with tempfile.TemporaryDirectory(prefix="msgblast-preview-") as temporary:
+        workspace = preview.copy_workspace(Path(temporary) / "src")
+        swift_source = str(preview.ROOT / "scripts/fixtures/sample_icon_color.swift")
+        for variant in preview.VARIANTS.values():
+            records.append(package_variant(workspace, variant, args.sha, output, swift_source))
+    if len({record["compiled_icon_sha256"] for record in records}) != len(records):
+        raise SystemExit("Compiled preview icons are identical, so artwork selection did not change the app")
+    preview.assert_committed_icons_unchanged()
+    document = preview.manifest(args.sha, args.run_url, records)
+    manifest_path = output / "preview-manifest.json"
+    manifest_path.write_text(json.dumps(document, indent=2) + "\n")
+    print(manifest_path)
+    summary = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary:
+        lines = [
+            "## Branch preview apps",
+            "",
+            f"Source `{args.sha}`",
+            "",
+            f"Run: {args.run_url}",
+            "",
+            f"GitHub deletes these artifacts {preview.RETENTION_DAYS} days after this run.",
+            "",
+            "| Variant | Fixture | ZIP | SHA-256 |",
+            "| --- | --- | --- | --- |",
+        ]
+        for record in records:
+            lines.append(f"| {record['label']} | {record['fixture']} | `{record['zip']}` | `{record['sha256']}` |")
+        Path(summary).write_text("\n".join(lines) + "\n")
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,34 @@
+name: Check pull request evidence
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: msgblast-pr-evidence-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  evidence:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Reject missing, stale, or placeholder evidence
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          REVIEW_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          args=(--event-file "$GITHUB_EVENT_PATH" --head "$REVIEW_SHA")
+          if [[ "$HEAD_REF" == cursor/* ]]; then
+            args+=(--require-preview)
+          fi
+          python3 scripts/check_pr_evidence.py "${args[@]}"

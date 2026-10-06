@@ -5,6 +5,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = ROOT / ".github/workflows/validate.yml"
+EVIDENCE = ROOT / ".github/workflows/pr-evidence.yml"
 RELEASE = ROOT / ".github/workflows/release-adhoc.yml"
 INSTALL = ROOT / "scripts/cloud-agent-install.sh"
 CHECKOUT = "actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09"
@@ -28,6 +29,21 @@ class ValidateWorkflowTests(unittest.TestCase):
         self.assertIn(CHECKOUT, release)
         self.assertIn("automate_release.py", release)
         self.assertIn("tags: ['v*']", release)
+        self.assertIn("python3 scripts/build_preview_apps.py", text)
+        self.assertIn("com.msgblast.development", (ROOT / "scripts/preview_apps.py").read_text())
+        self.assertIn("com.msgblast.demo", (ROOT / "scripts/preview_apps.py").read_text())
+        self.assertIn("startsWith(github.head_ref, 'cursor/')", text)
+        self.assertIn("head.repo.full_name == github.repository", text)
+        self.assertIn("retention-days: 14", text)
+        self.assertNotIn("pull_request_target", text)
+        self.assertNotIn("secrets.", text)
+        evidence = EVIDENCE.read_text()
+        self.assertIn("python3 scripts/check_pr_evidence.py", evidence)
+        self.assertIn("types: [opened, synchronize, reopened, edited]", evidence)
+        self.assertIn("--require-preview", evidence)
+        self.assertNotIn("pull_request_target", evidence)
+        self.assertNotIn("secrets.", evidence)
+        self.assertNotIn("tags:", evidence)
 
     def test_linux_install_pins_a_virtualenv_and_does_not_build(self):
         text = INSTALL.read_text()

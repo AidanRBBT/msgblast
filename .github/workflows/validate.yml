@@ -60,3 +60,39 @@ jobs:
 
       - name: Exercise real Sparkle updater with isolated fixtures
         run: python3 scripts/test_updates.py --derived-data build/updater-validation
+
+  preview:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' &&
+       startsWith(github.head_ref, 'cursor/') &&
+       github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: xcode-27
+    timeout-minutes: 90
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
+      PYTHONDONTWRITEBYTECODE: '1'
+      PREVIEW_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Check out the branch head
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ env.PREVIEW_SHA }}
+          persist-credentials: false
+
+      - name: Build ad-hoc development and fixture preview apps
+        run: |
+          python3 scripts/build_preview_apps.py \
+            --sha "$PREVIEW_SHA" \
+            --run-url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            --output build/preview
+
+      - name: Upload preview apps
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: msgblast-branch-previews-${{ env.PREVIEW_SHA }}
+          path: |
+            build/preview/*.zip
+            build/preview/preview-manifest.json
+          if-no-files-found: error
+          retention-days: 14
