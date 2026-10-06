@@ -1,0 +1,137 @@
+name: Validate msgblast
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # Keep this group distinct from runs that started before the signing-order fix.
+  group: msgblast-validate-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Install pinned installer libraries and worker dependencies
+        run: bash scripts/cloud-agent-install.sh
+
+      - name: Test release tooling
+        run: python3 -m unittest discover -s scripts/tests -p 'test_*.py' -v
+
+      - name: Test download worker and dry-run its Wrangler config
+        working-directory: download
+        run: |
+          npm test
+          npm run check
+
+  native:
+    runs-on: xcode-27
+    timeout-minutes: 60
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
+      PYTHONDONTWRITEBYTECODE: '1'
+      # pull_request github.sha is the merge commit. Test the branch head the ZIPs record.
+      REVIEW_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Check out the branch head
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ env.REVIEW_SHA }}
+          persist-credentials: false
+
+      - name: Show selected Xcode
+        run: xcodebuild -version
+
+      - name: Build isolated demo-icon Debug app and run core regressions
+        run: |
+          set -o pipefail
+          rm -rf build/native-tests.xcresult
+          mkdir -p build
+          xcodebuild -project msgblast.xcodeproj -scheme msgblast \
+            -derivedDataPath build/updater-validation \
+            -destination 'platform=macOS,arch=arm64' \
+            -resultBundlePath "$PWD/build/native-tests.xcresult" \
+            ASSETCATALOG_COMPILER_APPICON_NAME=AppIconDemo \
+            -only-testing:msgblastTests test 2>&1 | tee build/native-tests.log
+
+      - name: Write native assertion details
+        if: always()
+        run: |
+          set +e
+          if [ -d build/native-tests.xcresult ]; then
+            xcrun xcresulttool get test-results tests --path build/native-tests.xcresult > build/native-test-results.txt
+            xcrun xcresulttool get test-results summary --path build/native-tests.xcresult > build/native-test-summary.txt
+          fi
+
+      - name: Upload native test results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: msgblast-native-tests-${{ env.REVIEW_SHA }}
+          path: |
+            build/native-tests.xcresult
+            build/native-tests.log
+            build/native-test-results.txt
+            build/native-test-summary.txt
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Exercise real Sparkle updater with isolated fixtures
+        run: python3 scripts/test_updates.py --derived-data build/updater-validation
+
+  preview:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' &&
+       startsWith(github.head_ref, 'cursor/') &&
+       github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: xcode-27
+    timeout-minutes: 90
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
+      PYTHONDONTWRITEBYTECODE: '1'
+      REVIEW_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Check out the branch head
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ env.REVIEW_SHA }}
+          persist-credentials: false
+
+      - name: Build ad-hoc development and fixture preview apps
+        run: |
+          python3 scripts/build_preview_apps.py \
+            --sha "$REVIEW_SHA" \
+            --run-url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            --output build/preview
+
+      - name: Retain a compiled icon that failed classification
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: msgblast-icon-diagnostics-${{ env.REVIEW_SHA }}
+          path: build/preview/diagnostics
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload preview apps
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: msgblast-branch-previews-${{ env.REVIEW_SHA }}
+          path: |
+            build/preview/*.zip
+            build/preview/preview-manifest.json
+          if-no-files-found: error
+          retention-days: 14

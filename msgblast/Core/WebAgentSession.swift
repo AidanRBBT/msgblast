@@ -319,7 +319,15 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
             }
             let generation = navigationGeneration
             let expectedURL = snapshot.url
-            let preparation = try await webView.callAsyncJavaScript(script.prepare, arguments: ["text": text], in: nil, contentWorld: .defaultClient) as? [String: Any]
+            let preparation: [String: Any]?
+            do {
+                preparation = try await webView.callAsyncJavaScript(script.prepare, arguments: ["text": text], in: nil, contentWorld: .defaultClient) as? [String: Any]
+            } catch {
+                guard generation == navigationGeneration, !loading else {
+                    throw WebSessionFailure.notSent("\(provider.name) navigated before submission. Review its draft.")
+                }
+                throw error
+            }
             guard preparation?["ok"] as? Bool == true, let messageIDs = preparation?["messageIDs"] as? [String] else {
                 throw WebSessionFailure.notSent(preparation?["reason"] as? String ?? "Could not prepare \(provider.name)’s message field.")
             }
@@ -489,7 +497,16 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
                 throw WebSessionFailure.notSent("\(provider.name) navigated before submission. Review its draft.")
             }
             // Read-only polling leaves the attempt in .preparing until a click is possible.
-            let result = try await webView.callAsyncJavaScript(script.sendReadiness, arguments: ["text": text, "expectedURL": expectedURL], in: nil, contentWorld: .defaultClient) as? [String: Any]
+            // A navigation that cancels this read is still "not sent", with the same detail as the generation check.
+            let result: [String: Any]?
+            do {
+                result = try await webView.callAsyncJavaScript(script.sendReadiness, arguments: ["text": text, "expectedURL": expectedURL], in: nil, contentWorld: .defaultClient) as? [String: Any]
+            } catch {
+                guard generation == navigationGeneration, !loading else {
+                    throw WebSessionFailure.notSent("\(provider.name) navigated before submission. Review its draft.")
+                }
+                throw error
+            }
             guard ContinuousClock.now < deadline else {
                 throw WebSessionFailure.notSent("\(provider.name)’s Send control is unavailable. Review the prepared draft.")
             }

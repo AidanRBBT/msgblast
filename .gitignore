@@ -18,3 +18,10 @@ output/icon-gradients/*
 !output/icon-gradients/32-WhiteToClearSoftFadeBlueGreen.icon/
 !output/icon-gradients/32-WhiteToClearSoftFadeBlue.icon/
 !output/icon-gradients/32-WhiteToClearSoftFade-Polished.icon/
+
+# Canonical app artwork must be available to cloud checkouts.
+!output/app-icons/
+output/app-icons/*
+!output/app-icons/msgblast.icon/
+!output/app-icons/msgblast-dev.icon/
+!output/app-icons/msgblast-demo.icon/

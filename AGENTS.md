@@ -2,11 +2,13 @@
 
 ## App icons
 
-- **Live/production app (default for users):** use the green polished exploration 32 icon. Its source is `output/icon-gradients/32-WhiteToClearSoftFade-Polished.icon`. Ensure `msgblast/AppIcon.icon` contains this green artwork when preparing a live build or release.
-- **Development app:** use the saved blue-green duplicate of exploration 32. Its source is `output/icon-gradients/32-WhiteToClearSoftFadeBlueGreen.icon`; the development app resource is `msgblast/AppIcon.icon`.
-- **Demo/fixture app:** use the saved blue duplicate of exploration 32. Its source is `output/icon-gradients/32-WhiteToClearSoftFadeBlue.icon`; the app resource is `msgblast/AppIconDemo.icon`.
+- **Live/production app (default for users):** use the green icon imported from the user's `msgblast.icon` bundle. Its canonical project source is `output/app-icons/msgblast.icon`. Ensure `msgblast/AppIcon.icon` matches this bundle exactly when preparing a live build or release.
+- **Development app:** use `output/app-icons/msgblast-dev.icon`, a duplicate of the live artwork with the saved blue-green background. Copy it to `msgblast/AppIcon.icon` only for an isolated development build; restore the green live bundle before release.
+- **Demo/fixture app:** use `output/app-icons/msgblast-demo.icon`, a duplicate of the live artwork with the saved blue background. Its app resource is `msgblast/AppIconDemo.icon`.
 - Standard builds select `ASSETCATALOG_COMPILER_APPICON_NAME=AppIcon`. `scripts/build_demo.sh` selects `AppIconDemo`. Verify the selected artwork matches the intended live, development, or demo build before building or publishing; choosing Release alone does not switch the development icon to green.
-- The unsuffixed `output/icon-gradients/32-WhiteToClearSoftFade.icon` is an editable exploration and may have a different background. Use the verified green `32-WhiteToClearSoftFade-Polished.icon` for live builds.
+- The previous exploration 32 bundles under `output/icon-gradients/` are historical artwork. Do not use them for new builds or site branding.
+- The public website at `https://msgblast.app` is served by the Cloudflare `msgblast-landing` Worker from `/Users/contains/projects/msgblast/landing/dist`; its source and deployment instructions are in that checkout’s `README.md` and `wrangler.jsonc`. The Sites URL is a separate private preview.
+- The public website uses a native macOS export of `output/app-icons/msgblast.icon` for its brand icon, favicon, and social card. Refresh those assets when the canonical live artwork changes; updating the private Sites preview does not update the public domain.
 - Preserve the user's saved artwork when copying these icons into the app resources. Keep both icon resources registered in `scripts/generate_project.py` and the generated Xcode project.
 - Validate icon changes with an isolated derived data directory. The demo script uses `build/icon-demo` and packages `build/Build/Products/Debug/msgblast Demo.app`. Do not overwrite or restart the user's running development app merely to validate an icon change.
 
@@ -101,11 +103,22 @@ Ad-hoc app signing is explicit and unnotarized, with disabled library validation
 
 Signing-key/identity changes require a deliberate migration. Missing R2 hosting or Actions variables/secrets are activation prerequisites; committed workflow code alone does not prove live distribution is configured.
 
+## Cursor Cloud specific instructions
+
+Hosted Cloud Agents run on Ubuntu and cannot validate the native Mac app. Follow [docs/cloud-agent.md](docs/cloud-agent.md) for install, Linux checks, the non-publishing native workflow, GitHub access limits, and release verification. Linux tests are not a substitute for `.github/workflows/validate.yml` on the `xcode-27` runner.
+
+- Start new tasks from fresh `main` unless the user specifies another pushed branch or exact commit. Fetch the intended base, record its resolved SHA, verify it is an ancestor of the working branch before editing, and include `Base-SHA:` in the PR. Report a stale/wrong base instead of resetting existing work. Cursor defaults are `mgalpert/msgblast` / `main`; the saved environment enables stale-build updates with a threshold of `0`.
+- Install with `bash scripts/cloud-agent-install.sh`. It pins `scripts/installer-requirements.txt` in `${MSGBLAST_INSTALLER_VENV:-$HOME/.msgblast-installer}` and runs `npm ci --prefix download`. Do not commit `.cursor/environment.json`; that file overrides the saved environment.
+- Linux checks: `python3 -m unittest discover -s scripts/tests -p 'test_*.py' -v`, then `npm test --prefix download` and `npm run check --prefix download`. The Wrangler check is a dry-run and does not deploy.
+- Native core checks belong to `validate.yml` (`msgblastTests` plus `scripts/test_updates.py` on `xcode-27`). Cursor PR branches (`cursor/*`) and manual `workflow_dispatch` also build two ad-hoc preview ZIPs in that workflow: blue-green `msgblast Dev.app` (`com.msgblast.development`) and blue fixture `msgblast Demo.app` (`com.msgblast.demo`, `msgblastDemo` true). Artifacts stay on the Actions run for 14 days. Do not dispatch `release-adhoc.yml` as a test.
+- Pull request descriptions need `## Screenshots`, `## Video`, and `Evidence-SHA: <branch head>`. `.github/workflows/pr-evidence.yml` rejects missing, local-only, placeholder, or stale evidence, including an empty or local `<video>` tag. Cursor branch previews also need separate `msgblast Dev SHA-256:` and `msgblast Demo SHA-256:` lines. A human still checks that the pictures show the change. A written exception is for that person to review; the checker does not treat it as a pass. Native UI evidence needs an authorized isolated Mac; Ubuntu cannot capture it, and an `.xcresult` is not a video. Do not use the user's live Mac without setup authorization.
+- Keep Sparkle and R2 secrets in Actions only. Recheck `gh auth status` and the live appcast before any release. The October 6, 2026 baseline is 0.2.2 build 7 at `f86cce472649d5468792d04a86dd05a7b763774a`.
+
 ## Pull request evidence
 
-- Every PR I create or update must include **Screenshots** and **Video** sections in its description showing the changes in that PR. A screenshot of whatever browser tab happens to be open does not count.
+- Every PR I create or update must include **Screenshots** and **Video** sections in its description showing the changes in that PR. A screenshot of whatever browser tab happens to be open does not count. Include `Evidence-SHA: <40-character branch head>` so `.github/workflows/pr-evidence.yml` can reject stale evidence. Cursor branch previews also name `msgblast Dev`, the `msgblast Demo` fixture, the Actions run URL, and separate lines `msgblast Dev SHA-256:` and `msgblast Demo SHA-256:` with different hashes. The workflow checks structure only; a human still has to confirm the images and video show this change.
 - Capture the actual changed feature or workflow from the reviewed revision. Include desktop and mobile screenshots for responsive UI changes, and a short video showing the relevant interaction and result. Show before/after states when they make the change clearer.
 - Embed screenshots and embed or directly link a playable video in the PR description; local-only file paths are not sufficient for reviewers. Keep evidence within the repository's existing access boundary.
-- For nonvisual changes, show the relevant terminal/API workflow when feasible. If meaningful visual evidence cannot be captured, explicitly explain why in those sections; never silently omit them or substitute unrelated visuals.
+- For nonvisual changes, show the relevant terminal/API workflow when feasible. If meaningful visual evidence cannot be captured, write the reason for a person to review. `scripts/check_pr_evidence.py` does not accept that explanation, an empty `<video>`, a local file, an unrelated image, or an example hidden in a code fence, indented code block, HTML comment, pre or code element, inline code, or escape. This setup change can record the workflow, so its screenshots and playable video stay mandatory.
 - Label local fixtures, simulated inputs, edited timing, and other demonstration limitations accurately. Refresh evidence after changes that affect what it demonstrates. Do not start paid jobs or live matches solely to capture evidence without existing authorization.
 - When the user asks for screenshots of a PR, show the changed feature's evidence, not the currently open browser page.
