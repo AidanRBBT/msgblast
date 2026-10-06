@@ -9,6 +9,8 @@ A written explanation never satisfies the screenshot or video requirement.
 When a change truly cannot be shown, a person reviews that explanation
 separately. This check still fails until the description has a remote image
 and a remote playable video. An empty or local <video> tag is not a video.
+Syntax inside a code fence, an HTML comment, inline code, or an escape does
+not count, because GitHub does not render it.
 """
 import argparse
 from pathlib import Path
@@ -28,6 +30,11 @@ SHA = re.compile(r"Evidence-SHA:\s*([0-9a-f]{40})\b")
 RUN_URL = re.compile(r"https://github\.com/[^\s)]+/actions/runs/\d+")
 DEV_CHECKSUM = re.compile(r"(?m)^msgblast Dev SHA-256:\s*([0-9a-f]{64})\b")
 DEMO_CHECKSUM = re.compile(r"(?m)^msgblast Demo SHA-256:\s*([0-9a-f]{64})\b")
+HTML_COMMENT = re.compile(r"(?is)<!--.*?-->|<!--.*\Z")
+CLOSED_FENCE = re.compile(r"(?ms)^[ ]{0,3}(?P<tick>`{3,}|~{3,})[^\n]*\n.*?^[ ]{0,3}(?P=tick)[ \t]*$")
+OPEN_FENCE = re.compile(r"(?ms)^[ ]{0,3}(`{3,}|~{3,})[^\n]*\n.*\Z")
+INLINE_CODE = re.compile(r"``+[^`\n]*``+|`[^`\n]*`")
+ESCAPED_EMBED = re.compile(r"\\!\[[^\]]*\]\([^)\n]*\)|\\</?(?:img|video|source)\b[^>\n]*>", re.IGNORECASE)
 
 
 def section(body, title):
@@ -40,8 +47,20 @@ def section(body, title):
     return ""
 
 
+def rendered_text(text):
+    """Keep only description text GitHub can render as an embed."""
+    if not text:
+        return ""
+    text = HTML_COMMENT.sub(" ", text)
+    text = CLOSED_FENCE.sub("\n", text)
+    text = OPEN_FENCE.sub("\n", text)
+    text = INLINE_CODE.sub(" ", text)
+    text = ESCAPED_EMBED.sub(" ", text)
+    return text
+
+
 def playable_video(text):
-    for match in REMOTE_URL.finditer(text or ""):
+    for match in REMOTE_URL.finditer(rendered_text(text)):
         url = match.group(0)
         if url.lower().startswith(USER_ATTACHMENT) or PLAYABLE_VIDEO.search(url):
             return True
@@ -54,15 +73,17 @@ def problems(body, head_sha, require_preview=False):
         return ["Pull request description is empty."]
     screenshots = section(body, "Screenshots")
     video = section(body, "Video")
+    visible_screenshots = rendered_text(screenshots)
+    visible_video = rendered_text(video)
     if not screenshots.strip():
         errors.append("Missing a Screenshots section.")
-    elif not IMAGE.search(screenshots):
+    elif not IMAGE.search(visible_screenshots):
         errors.append("Screenshots section needs an embedded https image, not only text.")
     if not video.strip():
         errors.append("Missing a Video section.")
     elif not playable_video(video):
         errors.append("Video section needs a remote playable https video (.mp4, .webm, .mov, or github.com/user-attachments), not an empty or local video tag.")
-    for name, text in (("Screenshots", screenshots), ("Video", video)):
+    for name, text in (("Screenshots", visible_screenshots), ("Video", visible_video)):
         if LOCAL.search(text):
             errors.append(f"{name} section contains a local-only path.")
         if PLACEHOLDER.search(text):

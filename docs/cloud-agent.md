@@ -100,7 +100,7 @@ Compiled icon color is read from the ICNS file itself. The sampler decodes the f
 - no local-only paths and no placeholder wording
 - `Evidence-SHA:` equal to the pull request head SHA
 
-An empty `<video>` tag, a local `src`, or a bare `<video` marker does not count. An uploaded `.xcresult` or a screenshot-only ZIP does not satisfy the video check.
+An empty `<video>` tag, a local `src`, or a bare `<video` marker does not count. An uploaded `.xcresult` or a screenshot-only ZIP does not satisfy the video check. A fenced code block, HTML comment, inline code span, or escaped image or video example does not count either. The embed has to be text GitHub renders.
 
 Cursor branches also require both preview names, a fixture label, the Actions run URL, and two different checksum lines:
 

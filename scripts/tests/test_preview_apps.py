@@ -274,6 +274,55 @@ msgblast Demo SHA-256: """ + ("c" * 64) + "\n"
         dev_only = same.replace("msgblast Demo SHA-256: " + ("e" * 64), "msgblast Demo checksum missing")
         self.assertTrue(any("msgblast Demo SHA-256" in item for item in evidence.problems(dev_only, sha, require_preview=True)))
 
+    def test_hidden_examples_do_not_satisfy_rendered_embeds(self):
+        sha = "c" * 40
+        hidden = f"""## Screenshots
+
+```markdown
+![hidden](https://example.com/hidden.png)
+```
+
+~~~
+<img src="https://example.com/tilde.png" />
+~~~
+
+<!-- ![comment](https://example.com/comment.png) -->
+
+`![inline](https://example.com/inline.png)`
+
+\\![escaped](https://example.com/escaped.png)
+
+## Video
+
+```
+https://example.com/hidden.mp4
+```
+
+<!-- <video src="https://example.com/comment.webm"></video> -->
+
+`https://example.com/inline.mov`
+
+\\<video src="https://example.com/escaped.mp4"></video>
+
+Evidence-SHA: {sha}
+"""
+        found = evidence.problems(hidden, sha)
+        self.assertTrue(any("embedded https image" in item for item in found))
+        self.assertTrue(any("empty or local" in item for item in found))
+        shown = hidden.replace(
+            "\\![escaped](https://example.com/escaped.png)",
+            "![Shown workflow](https://example.com/shown.png)\n",
+        ).replace(
+            "\\<video src=\"https://example.com/escaped.mp4\"></video>",
+            "<video src=\"https://example.com/shown.mp4\" controls></video>\n",
+        )
+        self.assertEqual(evidence.problems(shown, sha), [])
+        html = self.body(sha).replace(
+            '<img alt="Preview workflow" src="https://example.com/preview.png" />',
+            '<img alt="Preview workflow" src="https://example.com/preview.png" />\n<!-- ![nope](https://example.com/nope.png) -->\n',
+        )
+        self.assertEqual(evidence.problems(html, sha), [])
+
     def test_packaging_script_stays_nonpublishing(self):
         import sys
         sys.path.insert(0, str(ROOT / "scripts"))
