@@ -93,7 +93,11 @@ def adhoc_sign(app, entitlements):
 
 
 def sample_icon(icns, swift_source):
-    output = subprocess.run(["swift", swift_source, str(icns)], check=True, text=True, capture_output=True)
+    output = subprocess.run(["swift", swift_source, str(icns)], text=True, capture_output=True)
+    if output.stderr:
+        print(output.stderr, end="" if output.stderr.endswith("\n") else "\n", flush=True)
+    if output.returncode:
+        raise SystemExit(f"Could not sample {icns.name}: {output.stdout}")
     red, green, blue = [float(value) for value in output.stdout.split()]
     return red, green, blue
 
@@ -132,7 +136,7 @@ def package_variant(workspace, variant, source_revision, output, swift_source):
     red, green, blue = sample_icon(icns, swift_source)
     kind = preview.classify_icon_color(red, green, blue)
     expected = preview.expected_icon_color(variant)
-    print(f"{variant['id']} compiled icon RGB {red:.1f} {green:.1f} {blue:.1f} classified {kind}", flush=True)
+    print(f"{variant['id']} compiled icon {icns.name} RGB {red:.1f} {green:.1f} {blue:.1f} classified {kind}", flush=True)
     if kind != expected:
         raise SystemExit(f"{variant['id']} compiled icon looks {kind}, expected {expected}")
     adhoc_sign(app, workspace / "msgblast/msgblastDebug.entitlements")

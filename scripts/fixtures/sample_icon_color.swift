@@ -1,35 +1,54 @@
 import AppKit
 
-let image = NSImage(contentsOf: URL(fileURLWithPath: CommandLine.arguments[1]))!
-var rect = NSRect(origin: .zero, size: NSSize(width: 64, height: 64))
-guard let cg = image.cgImage(forProposedRect: &rect, context: nil, hints: nil) else {
+_ = NSApplication.shared
+let url = URL(fileURLWithPath: CommandLine.arguments[1])
+guard let image = NSImage(contentsOf: url) else {
     fputs("Could not read compiled icon\n", stderr)
     exit(1)
 }
-let width = cg.width
-let height = cg.height
-let bytes = UnsafeMutablePointer<UInt8>.allocate(capacity: width * height * 4)
-defer { bytes.deallocate() }
-let space = CGColorSpaceCreateDeviceRGB()
-guard let context = CGContext(data: bytes, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4, space: space, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
+let side = 1024
+guard let rep = NSBitmapImageRep(
+    bitmapDataPlanes: nil,
+    pixelsWide: side,
+    pixelsHigh: side,
+    bitsPerSample: 8,
+    samplesPerPixel: 4,
+    hasAlpha: true,
+    isPlanar: false,
+    colorSpaceName: .deviceRGB,
+    bytesPerRow: side * 4,
+    bitsPerPixel: 32
+), let raw = rep.bitmapData else {
+    fputs("Could not allocate icon bitmap\n", stderr)
     exit(1)
 }
-context.draw(cg, in: CGRect(x: 0, y: 0, width: width, height: height))
+NSGraphicsContext.saveGraphicsState()
+NSAppearance.current = NSAppearance(named: .aqua)
+NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+NSColor.clear.setFill()
+NSRect(x: 0, y: 0, width: side, height: side).fill()
+image.draw(in: NSRect(x: 0, y: 0, width: side, height: side), from: .zero, operation: .sourceOver, fraction: 1)
+NSGraphicsContext.restoreGraphicsState()
+
 var red = 0.0, green = 0.0, blue = 0.0, count = 0.0
-let marginX = width / 8
-let marginY = height / 8
-for y in 0..<height {
-    for x in 0..<width {
-        let edge = x < marginX || y < marginY || x >= width - marginX || y >= height - marginY
+let margin = side / 6
+for y in 0..<side {
+    for x in 0..<side {
+        let edge = x < margin || y < margin || x >= side - margin || y >= side - margin
         if !edge { continue }
-        let pixel = (y * width + x) * 4
-        let alpha = Double(bytes[pixel + 3])
-        if alpha < 16 { continue }
-        red += Double(bytes[pixel])
-        green += Double(bytes[pixel + 1])
-        blue += Double(bytes[pixel + 2])
+        let pixel = (y * side + x) * 4
+        if raw[pixel + 3] < 200 { continue }
+        let r = Double(raw[pixel]), g = Double(raw[pixel + 1]), b = Double(raw[pixel + 2])
+        if max(r, g, b) - min(r, g, b) < 36 { continue }
+        red += r
+        green += g
+        blue += b
         count += 1
     }
 }
-if count == 0 { exit(1) }
+if count < 100 {
+    fputs("Compiled icon has no chromatic edge pixels\n", stderr)
+    exit(1)
+}
+fputs("sampled \(Int(count)) chromatic edge pixels from \(side)px aqua draw\n", stderr)
 print(red / count, green / count, blue / count)
