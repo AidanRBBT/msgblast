@@ -18,6 +18,16 @@ public enum WebProvider: String, CaseIterable, Codable, Identifiable, Sendable {
     public func isSavedConversation(_ url: URL) -> Bool {
         isChatURL(url) && url.query == nil && url.fragment == nil && !url.path.isEmpty && url.path != "/" && url.path != newChatURL.path
     }
+    // A Grok response selector is not part of the persistent conversation identity.
+    public func canonicalConversationURL(_ url: URL) -> URL? {
+        guard isChatURL(url), var parts = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return nil }
+        if self == .grok, let items = parts.queryItems, items.count == 1,
+           items[0].name == "rid", let value = items[0].value, value.utf8.count == 36, UUID(uuidString: value) != nil {
+            parts.query = nil
+        }
+        guard let canonical = parts.url, isSavedConversation(canonical) else { return nil }
+        return canonical
+    }
     // Keep Muse's original file and WebKit data-store identifier through the upgrade.
     public var storageFilename: String { self == .muse ? "web-services.json" : "web-\(rawValue).json" }
     public func isChatURL(_ url: URL) -> Bool {
@@ -34,8 +44,9 @@ public enum WebProvider: String, CaseIterable, Codable, Identifiable, Sendable {
         }
     }
     // A first send can assign a conversation URL using history.replaceState.
-    // Existing conversations must stay on exactly the same URL.
+    // Existing conversations must stay in the same saved chat; only Grok rid is normalized.
     public func acceptsReceipt(from original: URL, at current: URL) -> Bool {
-        isChatURL(original) && isSavedConversation(current) && (original == current || original == newChatURL)
+        guard isChatURL(original), let destination = canonicalConversationURL(current) else { return false }
+        return original == newChatURL || canonicalConversationURL(original) == destination
     }
 }

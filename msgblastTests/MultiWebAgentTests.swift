@@ -309,6 +309,107 @@ final class MultiWebAgentTests: XCTestCase {
         XCTAssertEqual(session.snapshot.messages.filter { $0.role == "user" }.map(\.text), ["First question", "Follow-up after composing elsewhere"])
     }
 
+    func testGrokFollowUpWaitsForSubmitToBecomeEnabledAndClicksOnce() async throws {
+        let session = WebAgentSession(provider: .grok, storageURL: temporaryDirectory().appendingPathComponent("state.json"), fixture: true)
+        let html = WebPageScript(provider: .grok).fixture.replacingOccurrences(of: #"<textarea aria-label="Ask Grok anything"></textarea>"#,
+            with: #"<div contenteditable="true" role="textbox" aria-label="Ask Grok anything"></div>"#)
+        session.connect()
+        try await waitFor { session.snapshot.ready }
+        session.webView.loadHTMLString(html, baseURL: WebProvider.grok.newChatURL)
+        try await waitFor { !session.webView.isLoading }
+        let comparison = UUID()
+        let first = await session.send("First question", comparisonID: comparison)
+        XCTAssertEqual(first?.status, .observed)
+        guard first?.status == .observed else { return }
+        try await waitFor { session.snapshot.messages.contains { $0.role == "assistant" } }
+        _ = try await session.webView.callAsyncJavaScript("""
+        window.submitClicks=0;
+        send.addEventListener('click',()=>window.submitClicks++);
+        input.addEventListener('input',()=>{send.disabled=true;history.replaceState({},'',location.pathname+'?rid=11111111-2222-4333-8444-555555555555');setTimeout(()=>send.disabled=false,600)});
+        """, arguments: [:], in: nil, contentWorld: .page)
+        let followup = await session.send("Delayed follow-up", comparisonID: comparison)
+        XCTAssertEqual(followup?.status, .observed)
+        XCTAssertEqual(followup?.conversationURL, first?.conversationURL)
+        let clicks = try await session.webView.callAsyncJavaScript("return window.submitClicks", arguments: [:], in: nil, contentWorld: .page) as? Int
+        XCTAssertEqual(clicks, 1)
+        XCTAssertEqual(session.snapshot.messages.filter { $0.role == "user" }.map(\.text), ["First question", "Delayed follow-up"])
+    }
+
+    func testUnavailableSubmitTimesOutWithoutClickingAndKeepsTheDraft() async throws {
+        let session = WebAgentSession(provider: .grok, storageURL: temporaryDirectory().appendingPathComponent("state.json"), fixture: true)
+        session.connect()
+        try await waitFor { session.snapshot.ready }
+        try await bindExistingFixtureChat(session)
+        _ = try await session.webView.callAsyncJavaScript("""
+        window.submitClicks=0;
+        send.addEventListener('click',()=>window.submitClicks++);
+        input.addEventListener('input',()=>send.disabled=true);
+        """, arguments: [:], in: nil, contentWorld: .page)
+        let attempt = await session.send("Keep this unsent draft")
+        XCTAssertEqual(attempt?.status, .notSent)
+        XCTAssertTrue(attempt?.detail?.contains("Send control is unavailable") == true)
+        XCTAssertEqual(session.snapshot.draft, "Keep this unsent draft")
+        let clicks = try await session.webView.callAsyncJavaScript("return window.submitClicks", arguments: [:], in: nil, contentWorld: .page) as? Int
+        XCTAssertEqual(clicks, 0)
+        XCTAssertTrue(session.snapshot.messages.isEmpty)
+    }
+
+    func testWaitingForSubmitNeverSendsAfterDraftOrConversationChanges() async throws {
+        for change in [
+            "input.value='Keep my changed draft'",
+            "history.replaceState({},'', '/c/different-conversation')",
+            "send.after(send.cloneNode(true))",
+            "input.focus();input.select();document.execCommand('insertText',false,'Edited then restored');input.value='Do not send after a change'"
+        ] {
+            let session = WebAgentSession(provider: .grok, storageURL: temporaryDirectory().appendingPathComponent("state.json"), fixture: true)
+            session.connect()
+            try await waitFor { session.snapshot.ready }
+            try await bindExistingFixtureChat(session)
+            _ = try await session.webView.callAsyncJavaScript("""
+            window.submitClicks=0;
+            send.addEventListener('click',()=>window.submitClicks++);
+            input.addEventListener('input',()=>{send.disabled=true;setTimeout(()=>{\(change);send.disabled=false},600)},{once:true});
+            """, arguments: [:], in: nil, contentWorld: .page)
+            let attempt = await session.send("Do not send after a change")
+            XCTAssertEqual(attempt?.status, .notSent)
+            let clicks = try await session.webView.callAsyncJavaScript("return window.submitClicks", arguments: [:], in: nil, contentWorld: .page) as? Int
+            XCTAssertEqual(clicks, 0)
+            XCTAssertTrue(session.snapshot.messages.isEmpty)
+        }
+    }
+
+    func testNavigationWhileWaitingForSubmitStopsBeforeAttempting() async throws {
+        let session = WebAgentSession(provider: .grok, storageURL: temporaryDirectory().appendingPathComponent("state.json"), fixture: true)
+        session.connect()
+        try await waitFor { session.snapshot.ready }
+        try await bindExistingFixtureChat(session)
+        _ = try await session.webView.callAsyncJavaScript("input.addEventListener('input',()=>send.disabled=true)", arguments: [:], in: nil, contentWorld: .page)
+        let navigation = Task { @MainActor in
+            try await Task.sleep(for: .milliseconds(300))
+            session.webView.loadHTMLString("<body>Different page</body>", baseURL: WebProvider.grok.homeURL)
+        }
+        let attempt = await session.send("Do not follow a navigation")
+        try await navigation.value
+        XCTAssertEqual(attempt?.status, .notSent)
+        XCTAssertTrue(attempt?.detail?.contains("navigated") == true)
+        XCTAssertFalse(session.state.hasUnresolvedSend("Do not follow a navigation"))
+        XCTAssertFalse(session.isSending)
+    }
+
+    func testGrokResponseSelectorPreservesOnlyTheSameConversationIdentity() throws {
+        let base = try XCTUnwrap(URL(string: "https://grok.com/c/known-chat"))
+        let response = try XCTUnwrap(URL(string: base.absoluteString + "?rid=11111111-2222-4333-8444-555555555555"))
+        XCTAssertEqual(WebProvider.grok.canonicalConversationURL(response), base)
+        XCTAssertTrue(WebProvider.grok.acceptsReceipt(from: base, at: response))
+        XCTAssertTrue(WebProvider.grok.acceptsReceipt(from: response, at: base))
+        XCTAssertFalse(WebProvider.grok.isSavedConversation(response), "Persist only the conversation URL")
+        for suffix in ["?rid=not-an-id", "?rid=11111111-2222-4333-8444-555555555555%00ignored", "?rid=11111111-2222-4333-8444-555555555555&mode=other", "?other=1", "#other"] {
+            XCTAssertNil(WebProvider.grok.canonicalConversationURL(try XCTUnwrap(URL(string: base.absoluteString + suffix))))
+        }
+        XCTAssertFalse(WebProvider.grok.acceptsReceipt(from: base, at: try XCTUnwrap(URL(string: "https://grok.com/c/another-chat"))))
+        XCTAssertNil(WebProvider.chatgpt.canonicalConversationURL(try XCTUnwrap(URL(string: "https://chatgpt.com/c/chat?rid=11111111-2222-4333-8444-555555555555"))))
+    }
+
     func testLegacyMuseSavedChatMigratesWithoutChangingTheLoginStore() throws {
         let sessionID = UUID(), comparisonID = UUID()
         let url = "https://muse.ai/thread/11111111-2222-3333-4444-555555555555"

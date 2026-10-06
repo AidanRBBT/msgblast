@@ -59,6 +59,13 @@ struct WebPageScript {
             if (!observation.ids.has(e)) observation.ids.set(e,`node-${++observation.nextID}`);
             return {id:id||observation.ids.get(e),role:role||'unknown',text:normalized(copy.textContent||'')};
         });
+        const conversationLocation = () => {
+            const url=new URL(location.href),params=[...url.searchParams];
+            // Grok appends a response ID while staying in the same conversation.
+            if (config.provider==='grok' && /^\/c\/[a-zA-Z0-9-]+\/?$/.test(url.pathname) && !url.hash &&
+                params.length===1 && params[0][0]==='rid' && /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(params[0][1])) url.search='';
+            return url.href;
+        };
         const status = () => {
             const input=editor(); let reason='';
             const login=all('button,a').some(e=>/^(log in|sign in|sign up|sign up for free)$/i.test(normalized(e.innerText||e.getAttribute('aria-label')||'')));
@@ -72,7 +79,15 @@ struct WebPageScript {
             else if (modal) reason=`Finish the open dialog in ${config.name} first.`;
             else if (generating) reason=`Wait for ${config.name} to finish its current reply.`;
             else if (!input || input.disabled || input.readOnly || input.getAttribute('aria-disabled')==='true') reason=`Waiting for ${config.name}’s message field.`;
-            return {url:location.href,ready:!reason,reason:reason||`${config.name} chat ready`,draft:draft(input)};
+            return {url:conversationLocation(),ready:!reason,reason:reason||`${config.name} chat ready`,draft:draft(input)};
+        };
+        const submissionStatus = () => {
+            const current=status();
+            if (!current.ready || current.url!==expectedURL || current.draft!==text || observation.interrupted)
+                return {ready:false,retryable:false,reason:`${config.name} changed during preparation. Review its draft; nothing was clicked.`};
+            const candidates=all(config.send),send=candidates.length===1?candidates[0]:null;
+            const ready=!!send && !send.disabled && send.getAttribute('aria-disabled')!=='true';
+            return {ready,retryable:candidates.length<2,reason:`${config.name}’s Send control is unavailable. Review the prepared draft.`};
         };
         const inspect = () => ({...status(),messages:pathAllowed()?messages():[],submissionInterrupted:observation.interrupted});
         """#
@@ -122,20 +137,18 @@ struct WebPageScript {
             selection.removeAllRanges();selection.addRange(range);
             if (!document.execCommand('insertText',false,text)) return {ok:false,reason:'The page did not accept text. Use its composer directly.'};
         }
+        observation.interrupted=false;
         return {ok:true,messageIDs:baseline.map(m=>m.id),messages:baseline,existingConversationPaths};
         """#
     }
+    var sendReadiness: String { helpers + "\nreturn submissionStatus();" }
     var clickSend: String {
         if provider == .muse { return MusePageScript.clickSend }
         return helpers + #"""
-        const current=status();
-        if (!current.ready || current.url!==expectedURL || current.draft!==text)
-            return {clicked:false,reason:`${config.name} changed during preparation. Review its draft; nothing was clicked.`};
-        const send=unique(config.send);
-        if (!send || send.disabled || send.getAttribute('aria-disabled')==='true')
-            return {clicked:false,reason:`${config.name}’s Send control is unavailable. Review the prepared draft.`};
+        const check=submissionStatus();
+        if (!check.ready) return {clicked:false,reason:check.reason};
         observation.interrupted=false;
-        send.click(); return {clicked:true};
+        unique(config.send).click(); return {clicked:true};
         """#
     }
 

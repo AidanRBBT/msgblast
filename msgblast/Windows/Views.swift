@@ -244,8 +244,13 @@ struct MainView: View {
         } message: { Text(model.error ?? "") }
         .toolbar {
             ToolbarItem {
-                Button { setup = true } label: { Image(systemName: "plus") }
-                    .help("Add agent").accessibilityLabel("Add agent")
+                Button { setup = true } label: {
+                    Label("Add Agent", systemImage: "plus")
+                        .labelStyle(.titleAndIcon)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                }
+                .help("Add agent").accessibilityLabel("Add agent")
             }
         }
     }

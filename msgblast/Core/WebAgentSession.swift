@@ -159,7 +159,8 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
            snapshot.messages.contains(where: { $0.role == "user" }) {
             throw WebSessionFailure.notSent("\(provider.name) has an unfinished conversation submission. Check its page before starting another comparison.")
         }
-        if !loading, snapshot.ready, snapshot.url == target.absoluteString, webView.url == target { return readyBeforeSetup }
+        if !loading, snapshot.ready, snapshot.url == target.absoluteString,
+           webView.url == target || webView.url.flatMap(provider.canonicalConversationURL) == target { return readyBeforeSetup }
         if webView.url != target {
             if fixture, webView.url != nil {
                 _ = try await webView.callAsyncJavaScript("navigateFixtureThread(url)", arguments: ["url":target.absoluteString], in: nil, contentWorld: .page)
@@ -274,8 +275,8 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
             }
             let baseline = try JSONDecoder().decode([WebPageMessage].self, from: JSONSerialization.data(withJSONObject: messages))
             let existingPaths = Set(paths)
-            // Allow React's input handler to enable its own Send control.
-            try await Task.sleep(for: .milliseconds(150))
+            if provider == .muse { try await Task.sleep(for: .milliseconds(150)) }
+            else { try await waitForSendControl(text, expectedURL: expectedURL, generation: generation) }
             guard generation == navigationGeneration, !loading else { throw WebSessionFailure.notSent("\(provider.name) navigated before submission. Review its draft.") }
             attempt.status = .attempting
             try store(attempt) // The possible external side effect is durably recorded first.
@@ -296,7 +297,8 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
                     if snapshot.submissionInterrupted == true { break }
                     continue
                 }
-                guard provider.acceptsReceipt(from: url, at: currentURL) else { break }
+                guard provider.acceptsReceipt(from: url, at: currentURL),
+                      let savedURL = provider.canonicalConversationURL(currentURL) else { break }
                 // A user edit/navigation or changed history makes attribution ambiguous.
                 // First sends may create a URL, but cannot reuse an already linked chat.
                 guard snapshot.submissionInterrupted != true,
@@ -306,8 +308,8 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
                 if matches.count == 1 {
                     attempt.status = .observed
                     attempt.messageID = matches[0].id
-                    attempt.conversationURL = currentURL
-                    state.conversationURLs[id.uuidString] = currentURL
+                    attempt.conversationURL = savedURL
+                    state.conversationURLs[id.uuidString] = savedURL
                     attempt.detail = "The outgoing message appeared in \(provider.name). This is a page observation, not a server delivery receipt."
                     try store(attempt)
                     return attempt
@@ -326,6 +328,26 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
         }
         do { try store(attempt) } catch { self.error = "Could not save the send result. Check \(provider.name) before retrying." }
         return attempt
+    }
+
+    private func waitForSendControl(_ text: String, expectedURL: String, generation: Int) async throws {
+        let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+        while true {
+            try Task.checkCancellation()
+            guard generation == navigationGeneration, !loading else {
+                throw WebSessionFailure.notSent("\(provider.name) navigated before submission. Review its draft.")
+            }
+            // Read-only polling leaves the attempt in .preparing until a click is possible.
+            let result = try await webView.callAsyncJavaScript(script.sendReadiness, arguments: ["text": text, "expectedURL": expectedURL], in: nil, contentWorld: .defaultClient) as? [String: Any]
+            guard ContinuousClock.now < deadline else {
+                throw WebSessionFailure.notSent("\(provider.name)’s Send control is unavailable. Review the prepared draft.")
+            }
+            if result?["ready"] as? Bool == true { return }
+            guard result?["retryable"] as? Bool == true else {
+                throw WebSessionFailure.notSent(result?["reason"] as? String ?? "Could not check \(provider.name)’s Send control.")
+            }
+            try await Task.sleep(for: .milliseconds(100))
+        }
     }
 
     private static func normalized(_ text: String) -> String { text.split(whereSeparator: \.isWhitespace).joined(separator: " ") }

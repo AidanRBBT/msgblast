@@ -46,7 +46,10 @@ struct AgentsWorkspaceView: View {
                     showingComparison = false
                     web.setComparison(nil)
                 } label: {
-                    Label("New Blast", systemImage: "plus").labelStyle(.titleAndIcon)
+                    Label("New Blast", systemImage: "square.and.pencil")
+                        .labelStyle(.titleAndIcon)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
                 }
                 .accessibilityLabel("New Blast").disabled(busy)
             }
