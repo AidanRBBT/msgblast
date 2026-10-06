@@ -383,13 +383,23 @@ final class MultiWebAgentTests: XCTestCase {
         session.connect()
         try await waitFor { session.snapshot.ready }
         try await bindExistingFixtureChat(session)
-        _ = try await session.webView.callAsyncJavaScript("input.addEventListener('input',()=>send.disabled=true)", arguments: [:], in: nil, contentWorld: .page)
-        let navigation = Task { @MainActor in
-            try await Task.sleep(for: .milliseconds(300))
-            session.webView.loadHTMLString("<body>Different page</body>", baseURL: WebProvider.grok.homeURL)
+        _ = try await session.webView.callAsyncJavaScript("window.msgblastSubmitInputSeen=false;input.addEventListener('input',()=>{window.msgblastSubmitInputSeen=true;send.disabled=true})", arguments: [:], in: nil, contentWorld: .page)
+        let sending = Task { @MainActor in
+            await session.send("Do not follow a navigation")
         }
-        let attempt = await session.send("Do not follow a navigation")
-        try await navigation.value
+        let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+        while true {
+            let seen = try await session.webView.callAsyncJavaScript("return window.msgblastSubmitInputSeen===true", arguments: [:], in: nil, contentWorld: .page) as? Bool
+            if seen == true, session.isSending { break }
+            try await Task.sleep(for: .milliseconds(20))
+            if ContinuousClock.now >= deadline {
+                sending.cancel()
+                XCTFail("Send did not reach the blocked input before navigation")
+                return
+            }
+        }
+        session.webView.loadHTMLString("<body>Different page</body>", baseURL: WebProvider.grok.homeURL)
+        let attempt = await sending.value
         XCTAssertEqual(attempt?.status, .notSent)
         XCTAssertTrue(attempt?.detail?.contains("navigated") == true)
         XCTAssertFalse(session.state.hasUnresolvedSend("Do not follow a navigation"))
