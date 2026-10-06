@@ -1,0 +1,19 @@
+DETERMINISTIC LOCAL FIXTURE — no provider, login, connector, or paid model request
+
+Codex: input: /configured-fixture-skill inspect
+output: Configured fixture skill/tool: fixture configuration loaded
+follow-up: Configured fixture skill/tool: fixture configuration loaded (same saved session and directory)
+permission result: The configured fixture policy denied writing. No file was written.
+comparison summary: Restricted report: configured fixture tool was not loaded.
+legacy session: rebuilt once from quoted saved transcript; old ID and draft retained
+
+Claude Code: input: /configured-fixture-skill inspect
+output: Configured fixture skill/tool: fixture configuration loaded
+follow-up: Configured fixture skill/tool: fixture configuration loaded (same saved session and directory)
+permission result: The configured fixture policy denied writing. No file was written.
+
+Claude Code denied 1 requested action(s) under its permission rules. Those actions were not completed. Review permissions in the CLI before trying again.
+comparison summary: Restricted report: configured fixture tool was not loaded.
+legacy session: rebuilt once from quoted saved transcript; old ID and draft retained
+
+PASS: configured new/resumed conversations, denied action, restricted summaries, and legacy session retention

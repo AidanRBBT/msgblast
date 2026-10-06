@@ -24,6 +24,14 @@ final class AppModel {
 
 @MainActor
 enum LocalPersonalAgent {
+    // These fixtures verify report lifecycle only. Fail before producing any
+    // Terminal script or invoking real CLI setup if account paths are reached.
+    static func loginScript(using agent: InstalledPersonalAgent) throws -> String {
+        fatalError("Unexpected login in report lifecycle fixture")
+    }
+    static func executableSearchPath() async -> String {
+        fatalError("Unexpected setup in report lifecycle fixture")
+    }
     static var response: CheckedContinuation<String, Never>?
     static var requests = 0
     static func discover() async -> [InstalledPersonalAgent] {
