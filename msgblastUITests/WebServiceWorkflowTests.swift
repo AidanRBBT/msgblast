@@ -93,7 +93,9 @@ final class WebServiceWorkflowTests: XCTestCase {
         XCTAssertEqual(app.buttons["Muse"].value as? String, "Selected")
         XCTAssertEqual(app.buttons["Cedar"].value as? String, "Selected")
         XCTAssertEqual(app.textViews["Shared prompt"].value as? String, "Keep this shared draft")
-        app.buttons["Open Muse"].click()
+        for name in ["Muse", "ChatGPT", "Claude", "Grok"] { XCTAssertFalse(app.buttons["Open " + name].exists) }
+        app.buttons["Muse"].rightClick()
+        app.menuItems["Open chat"].click()
         XCTAssertTrue(app.staticTexts["Appeared in Muse"].exists)
         XCTAssertFalse(app.buttons["Connect Muse"].exists)
     }

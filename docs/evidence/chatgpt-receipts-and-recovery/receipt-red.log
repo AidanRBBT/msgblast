@@ -1,0 +1,12 @@
+Test Suite 'Selected tests' started at 2026-10-05 22:58:01.030.
+Test Suite 'msgblastTests.xctest' started at 2026-10-05 22:58:01.032.
+Test Suite 'MultiWebAgentTests' started at 2026-10-05 22:58:01.032.
+Test Case '-[msgblastTests.MultiWebAgentTests testChatGPTSearchMessageMarkupConfirmsSendsAndFollowups]' started.
+/Users/contains/.codex/worktrees/webkit-services/msgblast/msgblastTests/MultiWebAgentTests.swift:76: error: -[msgblastTests.MultiWebAgentTests testChatGPTSearchMessageMarkupConfirmsSendsAndFollowups] : XCTAssertEqual failed: ("Optional(msgblastCore.WebSendStatus.uncertain)") is not equal to ("Optional(msgblastCore.WebSendStatus.observed)")
+Test Case '-[msgblastTests.MultiWebAgentTests testChatGPTSearchMessageMarkupConfirmsSendsAndFollowups]' failed (6.211 seconds).
+Test Suite 'MultiWebAgentTests' failed at 2026-10-05 22:58:07.243.
+	 Executed 1 test, with 1 failure (0 unexpected) in 6.211 (6.211) seconds
+Test Suite 'msgblastTests.xctest' failed at 2026-10-05 22:58:07.243.
+	 Executed 1 test, with 1 failure (0 unexpected) in 6.211 (6.211) seconds
+Test Suite 'Selected tests' failed at 2026-10-05 22:58:07.243.
+	 Executed 1 test, with 1 failure (0 unexpected) in 6.211 (6.212) seconds

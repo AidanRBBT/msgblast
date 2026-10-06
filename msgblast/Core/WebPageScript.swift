@@ -11,7 +11,7 @@ struct WebPageScript {
         case .chatgpt:
             selectors = (#"textarea[aria-label="Chat with ChatGPT"],#prompt-textarea[contenteditable="true"],[contenteditable="true"][role="textbox"][aria-label="Ask ChatGPT"]"#,
                          #"button[data-testid="send-button"],button[aria-label="Send message"],button[aria-label="Send prompt"],button[aria-label="Send"]"#,
-                         #"[data-message-author-role][data-message-id]"#,
+                         #"[data-message-author-role][data-message-id],[data-chatgpt-search-unit-key][data-chatgpt-search-message-ids]"#,
                          #"button[data-testid="accounts-profile-button"],button[aria-label="Open profile menu"]"#)
         case .claude:
             selectors = (#"[contenteditable="true"][data-testid="chat-input"],div[contenteditable="true"].ProseMirror"#,
@@ -45,12 +45,19 @@ struct WebPageScript {
             (config.provider==='claude' ? /^\/(new|chat\/[a-zA-Z0-9-]+)\/?$/.test(location.pathname) : /^(\/|\/c\/[a-zA-Z0-9-]+\/?)$/.test(location.pathname));
         const messages = () => [...document.querySelectorAll(config.messages)].filter(e => !e.parentElement?.closest(config.messages)).map(e => {
             let role=e.getAttribute('data-message-author-role') || e.getAttribute('data-message-role');
+            let id=e.getAttribute('data-message-id') || e.closest('[data-message-id]')?.getAttribute('data-message-id');
+            if (!role && config.provider==='chatgpt') {
+                const roleMatch=e.getAttribute('data-chatgpt-search-unit-key')?.match(/:(user|assistant)$/);
+                const ids=[...new Set((e.getAttribute('data-chatgpt-search-message-ids')||'').split(/\s+/).filter(Boolean))];
+                if (roleMatch && ids.length===1) { role=roleMatch[1]; id=ids[0]; }
+            }
             if (!role && config.provider==='claude') role=e.getAttribute('data-testid')==='user-message' ? 'user' : 'assistant';
             if (!role && config.provider==='grok') role=e.classList.contains('items-end') || e.closest('[data-role="user"],.items-end') ? 'user' : 'assistant';
             const copy=e.cloneNode(true); copy.querySelectorAll('button,[role="button"],time').forEach(n=>n.remove());
+            if (config.provider==='chatgpt') copy.querySelectorAll('h4[data-conversation-role]').forEach(n=>n.remove());
             copy.querySelectorAll('br,p,div,li,pre,blockquote').forEach(n=>n.append(document.createTextNode(' ')));
             if (!observation.ids.has(e)) observation.ids.set(e,`node-${++observation.nextID}`);
-            return {id:e.getAttribute('data-message-id') || e.closest('[data-message-id]')?.getAttribute('data-message-id') || observation.ids.get(e),role:role||'unknown',text:normalized(copy.textContent||'')};
+            return {id:id||observation.ids.get(e),role:role||'unknown',text:normalized(copy.textContent||'')};
         });
         const status = () => {
             const input=editor(); let reason='';
@@ -71,6 +78,28 @@ struct WebPageScript {
         """#
     }
     var inspect: String { provider == .muse ? MusePageScript.inspect : helpers + "\nreturn inspect();" }
+    // Apply the initial pane layout once per document. A user's later choice wins.
+    var configureInitialLayout: String {
+        guard provider == .chatgpt else { return "return;" }
+        return helpers + #"""
+        if (observation.layoutConfigured) return;
+        if (observation.interrupted) { observation.layoutConfigured=true; return; }
+        if (!pathAllowed() || !editor() || !document.querySelector(config.account)) return;
+        const close=all('button[aria-label="Close sidebar"][aria-expanded="true"]');
+        const expanded=close.length ? close : all('button[aria-label="Toggle sidebar"][aria-expanded="true"],button[aria-label="Hide sidebar"][aria-expanded="true"]');
+        if (!expanded.length) {
+            if (all('button[aria-label="Show sidebar"],button[aria-label="Toggle sidebar"][aria-expanded="false"]').length) observation.layoutConfigured=true;
+            return;
+        }
+        if (expanded.length!==1) return;
+        const toggle=expanded[0];
+        // In narrow panes the sidebar itself is a dialog. Leave other dialogs alone.
+        if (all('[role="dialog"],[aria-modal="true"]').some(d=>!d.contains(toggle))) return;
+        if (toggle.disabled || toggle.getAttribute('aria-disabled')==='true') return;
+        observation.layoutConfigured=true;
+        toggle.click();
+        """#
+    }
     var prepare: String {
         if provider == .muse { return MusePageScript.prepare }
         return helpers + #"""

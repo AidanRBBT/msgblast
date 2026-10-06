@@ -15,12 +15,6 @@ struct AgentsWorkspaceView: View {
     @State private var showingConnectionIntro = false
     @State private var hasPresentedConnectionIntro = false
     private var busy: Bool { model.busy || model.webBroadcastBusy || web.sessions.contains { $0.isSending } }
-    private var hasSentMessage: Bool {
-        guard let comparisonID = web.comparisonID else { return false }
-        return web.sessions.contains { session in
-            session.state.attempts.contains { $0.comparisonID == comparisonID && $0.status == .observed }
-        }
-    }
     private var nativeRecipients: [Agent] { model.state.agents.filter { model.state.selection.contains($0.id) } }
     private var attachmentComparisonID: UUID? { showingComparison ? nativeComparison?.id : nil }
     private var attachments: [MessageAttachment] { model.attachmentDraft(comparisonID: attachmentComparisonID) }
@@ -132,16 +126,6 @@ struct AgentsWorkspaceView: View {
 
     private var composer: some View {
         VStack(alignment: .leading, spacing: 10) {
-            if !showingComparison && hasSentMessage {
-                ForEach(web.selected, id: \.provider) { session in
-                    HStack {
-                        Button("Open \(session.provider.name)") {
-                            session.connect(); showingComparison = true
-                        }.disabled(busy)
-                        Spacer()
-                    }
-                }
-            }
             if !web.selected.isEmpty && !attachments.isEmpty {
                 Text("Web agents support text here. Remove the attachments or deselect them to send.")
                     .font(.caption).foregroundStyle(.orange)

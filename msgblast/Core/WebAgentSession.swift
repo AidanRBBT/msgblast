@@ -23,6 +23,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
     private var comparisonGeneration = 0
     private var avatarKey: String?
     private var navigationError: String?
+    private var readinessError: String?
     public let provider: WebProvider
     private var script: WebPageScript { WebPageScript(provider: provider) }
 
@@ -112,9 +113,15 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
         do {
             let readyBeforeSetup = try await prepareConversation()
             self.error = nil
+            readinessError = nil
             return readyBeforeSetup
         }
         catch is CancellationError { return false }
+        catch WebSessionFailure.notReady(let message) {
+            readinessError = message
+            error = message
+            return false
+        }
         catch { self.error = error.localizedDescription; return false }
     }
 
@@ -146,7 +153,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
             throw WebSessionFailure.notSent("\(provider.name) has a draft. Send or clear it before switching chats.")
         }
         if !loading, snapshot.url == target.absoluteString, !snapshot.ready {
-            throw WebSessionFailure.notSent(snapshot.reason)
+            throw WebSessionFailure.notReady(snapshot.reason)
         }
         if target == provider.newChatURL, snapshot.url == target.absoluteString,
            snapshot.messages.contains(where: { $0.role == "user" }) {
@@ -165,7 +172,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
             try checkCurrent()
             if !loading, snapshot.ready, snapshot.url == target.absoluteString { return readyBeforeSetup }
         }
-        throw WebSessionFailure.notSent("\(provider.name)’s comparison chat could not open. Open it in this pane and sign in if needed. Nothing was sent.")
+        throw WebSessionFailure.notReady("\(provider.name)’s comparison chat could not open. Open it in this pane and sign in if needed. Nothing was sent.")
     }
 
     public func closePopup() { popup = nil; popupURL = ""; Task { await refresh() } }
@@ -184,10 +191,19 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
         defer { refreshing = false }
         let generation = navigationGeneration
         do {
+            if provider == .chatgpt && !isSending {
+                _ = try await webView.callAsyncJavaScript(script.configureInitialLayout, arguments: [:], in: nil, contentWorld: .defaultClient)
+                guard generation == navigationGeneration else { return }
+            }
             let result = try await webView.callAsyncJavaScript(script.inspect, arguments: [:], in: nil, contentWorld: .defaultClient)
             guard generation == navigationGeneration, let result else { return }
             let fresh = try JSONDecoder().decode(WebPageSnapshot.self, from: JSONSerialization.data(withJSONObject: result))
             if snapshot != fresh { snapshot = fresh }
+            if fresh.ready, fresh.url == comparisonURL.absoluteString, !storageFailed,
+               let readinessError, error == readinessError {
+                error = nil
+                self.readinessError = nil
+            }
             await refreshAvatar(generation: generation)
         } catch {
             guard generation == navigationGeneration else { return }
@@ -390,10 +406,10 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
 }
 
 private enum WebSessionFailure: LocalizedError {
-    case notSent(String), unconfirmed
+    case notSent(String), notReady(String), unconfirmed
     var errorDescription: String? {
         switch self {
-        case .notSent(let message): message
+        case .notSent(let message), .notReady(let message): message
         case .unconfirmed: "The page did not return a reliable result after Send. Check its page; no automatic resend."
         }
     }

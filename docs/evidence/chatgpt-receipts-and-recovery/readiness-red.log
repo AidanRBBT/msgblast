@@ -1,0 +1,13 @@
+Test Suite 'Selected tests' started at 2026-10-05 23:11:57.045.
+Test Suite 'msgblastTests.xctest' started at 2026-10-05 23:11:57.046.
+Test Suite 'MultiWebAgentTests' started at 2026-10-05 23:11:57.046.
+Test Case '-[msgblastTests.MultiWebAgentTests testRecoveredReadinessClearsOnlyTransientComparisonSetupWarnings]' started.
+/Users/contains/.codex/worktrees/webkit-services/msgblast/msgblastTests/MultiWebAgentTests.swift:25: error: -[msgblastTests.MultiWebAgentTests testRecoveredReadinessClearsOnlyTransientComparisonSetupWarnings] : XCTAssertNil failed: "Sign in to Muse and open a side chat." - A recovered page must not retain its temporary setup warning
+/Users/contains/.codex/worktrees/webkit-services/msgblast/msgblastTests/MultiWebAgentTests.swift:25: error: -[msgblastTests.MultiWebAgentTests testRecoveredReadinessClearsOnlyTransientComparisonSetupWarnings] : XCTAssertNil failed: "Finish the open dialog in Claude first." - A recovered page must not retain its temporary setup warning
+Test Case '-[msgblastTests.MultiWebAgentTests testRecoveredReadinessClearsOnlyTransientComparisonSetupWarnings]' failed (1.021 seconds).
+Test Suite 'MultiWebAgentTests' failed at 2026-10-05 23:11:58.067.
+	 Executed 1 test, with 2 failures (0 unexpected) in 1.021 (1.021) seconds
+Test Suite 'msgblastTests.xctest' failed at 2026-10-05 23:11:58.067.
+	 Executed 1 test, with 2 failures (0 unexpected) in 1.021 (1.021) seconds
+Test Suite 'Selected tests' failed at 2026-10-05 23:11:58.068.
+	 Executed 1 test, with 2 failures (0 unexpected) in 1.021 (1.022) seconds

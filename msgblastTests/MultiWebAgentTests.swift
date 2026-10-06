@@ -4,6 +4,39 @@ import WebKit
 
 @MainActor
 final class MultiWebAgentTests: XCTestCase {
+    func testRecoveredReadinessClearsOnlyTransientComparisonSetupWarnings() async throws {
+        for provider in [WebProvider.muse, .claude] {
+            let session = WebAgentSession(provider: provider, storageURL: temporaryDirectory().appendingPathComponent("state.json"), fixture: true)
+            session.connect()
+            try await waitFor { session.snapshot.ready }
+            let blocking = provider == .muse
+                ? "document.getElementById('hatch-chat-scroll').hidden=true"
+                : "const dialog=document.createElement('div');dialog.id='loading-dialog';dialog.setAttribute('role','dialog');dialog.textContent='Loading';document.body.append(dialog)"
+            _ = try await session.webView.callAsyncJavaScript(blocking, arguments: [:], in: nil, contentWorld: .page)
+            let opened = await session.openComparison(UUID())
+            XCTAssertFalse(opened)
+            XCTAssertNotNil(session.error)
+            let recovery = provider == .muse
+                ? "document.getElementById('hatch-chat-scroll').hidden=false"
+                : "document.getElementById('loading-dialog').remove()"
+            _ = try await session.webView.callAsyncJavaScript(recovery, arguments: [:], in: nil, contentWorld: .page)
+            await session.refresh()
+            XCTAssertTrue(session.snapshot.ready)
+            XCTAssertNil(session.error, "A recovered page must not retain its temporary setup warning")
+            XCTAssertTrue(session.state.attempts.isEmpty, "Recovery never sends automatically")
+
+            // An unrelated draft-protection error is not a transient readiness warning.
+            _ = try await session.webView.callAsyncJavaScript("const input=document.querySelector('textarea,[contenteditable]');if(input.tagName==='TEXTAREA')input.value='Keep draft';else input.textContent='Keep draft'", arguments: [:], in: nil, contentWorld: .page)
+            _ = await session.openComparison(UUID())
+            let draftError = try XCTUnwrap(session.error)
+            XCTAssertTrue(draftError.contains("has a draft"))
+            _ = try await session.webView.callAsyncJavaScript("const input=document.querySelector('textarea,[contenteditable]');if(input.tagName==='TEXTAREA')input.value='';else input.textContent=''", arguments: [:], in: nil, contentWorld: .page)
+            await session.refresh()
+            XCTAssertTrue(session.snapshot.ready)
+            XCTAssertEqual(session.error, draftError)
+        }
+    }
+
     // Control structures observed in the signed-in narrow panes on 2026-10-05.
     // No account data or provider network calls are used by these fixtures.
     func testSignedInNarrowLayoutsCanSendWithHiddenAccountControlsAndRichEditors() async throws {
@@ -51,6 +84,91 @@ final class MultiWebAgentTests: XCTestCase {
                 let signedOut = try await session.webView.callAsyncJavaScript(WebPageScript(provider: provider).inspect, arguments: [:], in: nil, contentWorld: .defaultClient) as? [String: Any]
                 XCTAssertEqual(signedOut?["ready"] as? Bool, false, provider.name)
             }
+        }
+    }
+
+    func testChatGPTSearchMessageMarkupConfirmsSendsAndFollowups() async throws {
+        let session = WebAgentSession(provider: .chatgpt, storageURL: temporaryDirectory().appendingPathComponent("state.json"), fixture: true)
+        session.connect()
+        try await waitFor { session.snapshot.ready }
+        var html = WebPageScript(provider: .chatgpt).fixture
+        let oldAttributes = "a.dataset.messageAuthorRole=role;a.dataset.messageId=crypto.randomUUID();"
+        XCTAssertTrue(html.contains(oldAttributes))
+        html = html.replacingOccurrences(of: oldAttributes, with: "const id=crypto.randomUUID();a.dataset.chatgptSearchUnitKey='fallback-turn-0:0:'+role;a.dataset.chatgptSearchMessageIds=role==='assistant'?id+' '+id:id;")
+        let oldContent = "a.textContent=text;document.getElementById('transcript').append(a);"
+        XCTAssertTrue(html.contains(oldContent))
+        html = html.replacingOccurrences(of: oldContent, with: """
+        const content=document.createElement('div');content.dataset.contentSearchUnitKey=a.dataset.chatgptSearchUnitKey;content.textContent=text;a.append(content);
+        if(role==='assistant'){const heading=document.createElement('h4');heading.dataset.conversationRole='assistant';heading.textContent='ChatGPT said:';a.prepend(heading);}
+        const action=document.createElement('button');action.textContent='Copy';a.append(action);document.getElementById('transcript').append(a);
+        """)
+        session.webView.loadHTMLString(html, baseURL: WebProvider.chatgpt.newChatURL)
+        try await waitFor { !session.webView.isLoading }
+        let comparison = UUID(), prompt = "A message with\ntwo lines"
+        let first = await session.send(prompt, comparisonID: comparison)
+        XCTAssertEqual(first?.status, .observed)
+        guard first?.status == .observed else { return }
+        let url = try XCTUnwrap(first?.conversationURL)
+        try await waitFor { session.snapshot.messages.contains { $0.role == "assistant" } }
+        XCTAssertEqual(session.snapshot.messages.map(\.role), ["user", "assistant"])
+        XCTAssertEqual(session.snapshot.messages.map(\.text), ["A message with two lines", "ChatGPT fixture reply: A message with two lines"])
+        XCTAssertEqual(Set(session.snapshot.messages.map(\.id)).count, 2)
+        // Repeating the same prompt must identify a new message, not reuse the old receipt.
+        let second = await session.send(prompt, comparisonID: comparison)
+        XCTAssertEqual(second?.status, .observed)
+        XCTAssertEqual(second?.conversationURL, url)
+        XCTAssertNotEqual(second?.messageID, first?.messageID)
+        XCTAssertEqual(session.snapshot.messages.filter { $0.role == "user" }.count, 2)
+        // Search units aggregating different messages cannot identify a unique user send.
+        _ = try await session.webView.callAsyncJavaScript("""
+        const unit=document.querySelector('[data-chatgpt-search-message-ids]');
+        unit.setAttribute('data-chatgpt-search-message-ids','first-id second-id');
+        """, arguments: [:], in: nil, contentWorld: .page)
+        await session.refresh()
+        XCTAssertEqual(session.snapshot.messages.first?.role, "unknown")
+    }
+
+    func testChatGPTInitialSidebarLayoutPreservesLaterUserChoice() async throws {
+        for sidebar in [
+            #"<button id="sidebar" aria-label="Toggle sidebar" aria-expanded="true">Sidebar</button>"#,
+            #"<div role="dialog"><button id="sidebar" aria-label="Close sidebar" aria-expanded="true">Sidebar</button></div>"#,
+            #"<button id="sidebar" aria-label="Hide sidebar" aria-expanded="true">Sidebar</button>"#
+        ] {
+            let session = WebAgentSession(provider: .chatgpt, storageURL: temporaryDirectory().appendingPathComponent("state.json"), fixture: true)
+            let html = WebPageScript(provider: .chatgpt).fixture.replacingOccurrences(of: "<main id=\"chat\">", with: """
+            \(sidebar)<script>document.querySelector('#sidebar').onclick=function(){this.setAttribute('aria-expanded',this.getAttribute('aria-expanded')==='true'?'false':'true');window.sidebarClicks=(window.sidebarClicks||0)+1;};</script><main id="chat">
+            """)
+            session.webView.loadHTMLString(html, baseURL: WebProvider.chatgpt.homeURL)
+            try await waitFor { !session.webView.isLoading }
+            let script = WebPageScript(provider: .chatgpt).configureInitialLayout
+            _ = try await session.webView.callAsyncJavaScript(script, arguments: [:], in: nil, contentWorld: .defaultClient)
+            let closed = try await session.webView.callAsyncJavaScript("return document.querySelector('#sidebar').getAttribute('aria-expanded')", arguments: [:], in: nil, contentWorld: .page) as? String
+            XCTAssertEqual(closed, "false")
+            // Simulate the user choosing to reopen after the initial layout was applied.
+            _ = try await session.webView.callAsyncJavaScript("document.querySelector('#sidebar').click()", arguments: [:], in: nil, contentWorld: .page)
+            _ = try await session.webView.callAsyncJavaScript(script, arguments: [:], in: nil, contentWorld: .defaultClient)
+            let clicks = try await session.webView.callAsyncJavaScript("return window.sidebarClicks", arguments: [:], in: nil, contentWorld: .page) as? Int
+            XCTAssertEqual(clicks, 2)
+        }
+    }
+
+    func testInitialSidebarLayoutDoesNotToggleCollapsedAmbiguousOrOtherProviderControls() async throws {
+        for (provider, controls) in [
+            (WebProvider.chatgpt, #"<button aria-label="Show sidebar">Sidebar</button>"#),
+            (.chatgpt, #"<button aria-label="Toggle sidebar" aria-expanded="false">Sidebar</button>"#),
+            (.chatgpt, #"<button aria-label="Toggle sidebar" aria-expanded="true">One</button><button aria-label="Toggle sidebar" aria-expanded="true">Two</button>"#),
+            (.chatgpt, #"<button aria-label="Toggle sidebar" aria-expanded="true" disabled>Sidebar</button>"#),
+            (.chatgpt, #"<button aria-label="Close sidebar" aria-expanded="true">Sidebar</button><div role="dialog">Unrelated dialog</div>"#),
+            (.claude, #"<button aria-label="Toggle sidebar" aria-expanded="true">Sidebar</button>"#)
+        ] {
+            let session = WebAgentSession(provider: provider, storageURL: temporaryDirectory().appendingPathComponent("state.json"), fixture: true)
+            let html = WebPageScript(provider: provider).fixture.replacingOccurrences(of: "<main id=\"chat\">", with: controls + "<main id=\"chat\">")
+            session.webView.loadHTMLString(html, baseURL: provider.newChatURL)
+            try await waitFor { !session.webView.isLoading }
+            _ = try await session.webView.callAsyncJavaScript("window.sidebarClicks=0;document.querySelectorAll('button[aria-label*=sidebar]').forEach(b=>b.onclick=()=>window.sidebarClicks++)", arguments: [:], in: nil, contentWorld: .page)
+            _ = try await session.webView.callAsyncJavaScript(WebPageScript(provider: provider).configureInitialLayout, arguments: [:], in: nil, contentWorld: .defaultClient)
+            let clicks = try await session.webView.callAsyncJavaScript("return window.sidebarClicks", arguments: [:], in: nil, contentWorld: .page) as? Int
+            XCTAssertEqual(clicks, 0, "\(provider): \(controls)")
         }
     }
 
