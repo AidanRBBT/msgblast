@@ -1,7 +1,7 @@
 // swift-tools-version: 6.0
 import PackageDescription
 let package = Package(
-    name: "msgblast", platforms: [.macOS("26.0")],
+    name: "msgblast", platforms: [.macOS("15.0")],
     products: [.executable(name: "msgblast", targets: ["msgblast"])],
     dependencies: [.package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.10.0")],
     targets: [

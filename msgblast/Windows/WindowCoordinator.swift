@@ -143,11 +143,7 @@ final class WindowCoordinator: NSObject, NSWindowDelegate, NSToolbarDelegate {
             let panel = ComposerPanel(contentRect: .zero, styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
             panel.title = "All \(comparison.members.count) · \(comparison.title)" + (model.demo ? " [Demo]" : "")
             panel.identifier = NSUserInterfaceItemIdentifier(composerKey)
-            let glass = NSGlassEffectView()
-            glass.style = .regular
-            glass.cornerRadius = 20
-            glass.contentView = NSHostingView(rootView: FloatingComposer(model: model, comparisonID: id))
-            panel.contentView = glass
+            panel.contentView = NSHostingView(rootView: FloatingComposer(model: model, comparisonID: id))
             configureChrome(panel)
             addSummaryToolbar(to: panel, comparisonID: id)
             panel.minSize = NSSize(width: 470, height: 170)
