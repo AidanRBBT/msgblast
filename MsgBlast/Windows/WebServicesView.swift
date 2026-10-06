@@ -95,14 +95,17 @@ struct AgentsWorkspaceView: View {
             if !showingComparison {
                 ForEach(web.selected, id: \.provider) { session in
                     HStack {
-                        Text(session.snapshot.ready ? "\(session.provider.name) is ready" : "Sign in to \(session.provider.name) inside MsgBlast to include it.")
-                            .font(.caption).foregroundStyle(.secondary)
-                        Spacer()
-                        Button(session.snapshot.ready ? "Open \(session.provider.name)" : "Sign in to \(session.provider.name)") {
+                        Button("Open \(session.provider.name)") {
                             session.connect(); showingComparison = true
                         }.disabled(busy)
+                        Spacer()
                     }
                 }
+            }
+            let unavailable = web.selected.filter { !$0.snapshot.ready && !$0.loading }.map { $0.provider.name }
+            if !unavailable.isEmpty && !model.state.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !busy {
+                Text("Send & compare can’t send to \(unavailable.formatted(.list(type: .and))). You can message them directly in their chats.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
             if !web.selected.isEmpty && !model.attachmentDraft().isEmpty {
                 Text("Web agents support text here. Remove the attachments or deselect them to send.")
@@ -187,9 +190,6 @@ private struct WebAgentPane: View {
                 }
                 Spacer()
                 if session.loading { ProgressView().controlSize(.small) }
-                Label(session.snapshot.ready ? "Chat ready" : session.connected ? "Needs attention" : "Not connected", systemImage: session.snapshot.ready ? "checkmark.circle.fill" : "circle")
-                    .font(.caption).foregroundStyle(session.snapshot.ready ? Color.green : Color.secondary)
-                    .accessibilityIdentifier("\(session.provider.name) connection status")
                 Button { session.openMainChat() } label: { Image(systemName: "house") }.help("Main \(session.provider.name) chat").accessibilityLabel("Main \(session.provider.name) chat").disabled(busy)
                 Button { session.reload() } label: { Image(systemName: "arrow.clockwise") }.help("Reload \(session.provider.name)").accessibilityLabel("Reload \(session.provider.name)").disabled(busy)
             }.padding(14).background(.bar)
@@ -204,9 +204,6 @@ private struct WebAgentPane: View {
             }
             if let error = session.error { Text(error).font(.caption).foregroundStyle(.orange).padding(10).frame(maxWidth: .infinity, alignment: .leading) }
             if session.connected {
-                if !session.snapshot.ready && !session.loading {
-                    Text(session.snapshot.reason).font(.caption).foregroundStyle(.secondary).padding(8).frame(maxWidth: .infinity, alignment: .leading)
-                }
                 if !session.snapshot.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !session.isSending {
                     Text("\(session.provider.name) has a draft. Send or clear it in the page before using the shared composer.").font(.caption).foregroundStyle(.orange).padding(8)
                 }
