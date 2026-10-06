@@ -4,8 +4,24 @@ import WebKit
 
 @MainActor
 final class MultiWebAgentTests: XCTestCase {
+    func testChatGPTAndClaudeUseRenderedWebReceiptsWithoutCLISessions() async throws {
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        for provider in [WebProvider.chatgpt, .claude] {
+            let session = WebAgentSession(provider: provider, storageURL: directory.appendingPathComponent(provider.storageFilename), fixture: true)
+            session.connect()
+            try await waitFor { session.snapshot.ready }
+            let id = UUID()
+            let receipt = await session.send("Same web fixture prompt", comparisonID: id)
+            XCTAssertEqual(receipt?.status, .observed)
+            XCTAssertNotNil(receipt?.conversationURL, "Web sends require a rendered page receipt")
+            XCTAssertTrue(session.state.localSessionIDs.isEmpty, "Web accounts must never create CLI sessions")
+            XCTAssertNil(provider.personalAgentProvider)
+        }
+    }
+
     func testProviderDestinationsAndFirstConversationTransition() {
-        for provider in WebProvider.allCases {
+        for provider in WebProvider.webDefaults {
             XCTAssertTrue(provider.isChatURL(provider.newChatURL))
             for invalid in ["https://\(provider.homeURL.host!).evil.test/", "http://\(provider.homeURL.host!)/", "https://\(provider.homeURL.host!)/login", "https://\(provider.homeURL.host!)/settings", "https://\(provider.homeURL.host!):444/", "https://user@\(provider.homeURL.host!)/"] {
                 XCTAssertFalse(provider.isChatURL(URL(string: invalid)!), invalid)
@@ -30,33 +46,33 @@ final class MultiWebAgentTests: XCTestCase {
         """
         try Data(json.utf8).write(to: directory.appendingPathComponent("web-services.json"))
         let web = WebAgents(directory: directory, fixture: false)
-        XCTAssertEqual(web.selected.map(\.provider), WebProvider.allCases)
-        XCTAssertEqual(web.sessions[0].state.sessionID, id)
-        XCTAssertEqual(web.sessions[0].state.draft, "Legacy draft")
+        XCTAssertEqual(web.selected.map(\.provider), WebProvider.webDefaults)
+        XCTAssertEqual(web.availableSessions[0].state.sessionID, id)
+        XCTAssertEqual(web.availableSessions[0].state.draft, "Legacy draft")
         XCTAssertEqual(web.comparisonID, comparison)
-        XCTAssertEqual(Set(web.sessions.map { $0.state.sessionID }).count, 4)
-        for session in web.sessions where session.provider.personalAgentProvider == nil { XCTAssertEqual(session.webView.configuration.websiteDataStore.identifier, session.state.sessionID) }
-        web.toggle(web.sessions[2])
+        XCTAssertEqual(Set(web.availableSessions.map { $0.state.sessionID }).count, 4)
+        for session in web.availableSessions where session.provider.personalAgentProvider == nil { XCTAssertEqual(session.webView.configuration.websiteDataStore.identifier, session.state.sessionID) }
+        web.toggle(web.availableSessions[2])
         let reopened = WebAgents(directory: directory, fixture: false)
         XCTAssertEqual(reopened.selected.map(\.provider), [.muse, .chatgpt, .grok])
-        XCTAssertEqual(reopened.sessions.map { $0.state.sessionID }, web.sessions.map { $0.state.sessionID })
+        XCTAssertEqual(reopened.availableSessions.map { $0.state.sessionID }, web.availableSessions.map { $0.state.sessionID })
     }
 
     func testAllProvidersBroadcastAndObserveRepliesWithoutAnAttachedWindow() async throws {
         let web = WebAgents(directory: temporaryDirectory(), fixture: true)
         web.connectSelected()
-        try await waitFor { web.sessions.allSatisfy { $0.snapshot.ready } }
+        try await waitFor { web.availableSessions.allSatisfy { $0.snapshot.ready } }
         let results = await WebAgents.send("Compare a morning walk with an afternoon walk.", to: web.selected)
         XCTAssertEqual(results.count, 4)
-        for provider in WebProvider.allCases { XCTAssertEqual(results[provider]?.status, .observed, provider.name) }
-        try await waitFor { web.sessions.allSatisfy { $0.snapshot.messages.contains { $0.role == "assistant" && $0.text.contains("afternoon walk") } } }
-        for session in web.sessions {
+        for provider in WebProvider.webDefaults { XCTAssertEqual(results[provider]?.status, .observed, provider.name) }
+        try await waitFor { web.availableSessions.allSatisfy { $0.snapshot.messages.contains { $0.role == "assistant" && $0.text.contains("afternoon walk") } } }
+        for session in web.availableSessions {
             XCTAssertEqual(session.snapshot.messages.filter { $0.role == "user" }.count, 1)
             XCTAssertEqual(session.snapshot.draft, "")
             if session.provider.personalAgentProvider == nil { XCTAssertNil(session.webView.window, "Submission must not depend on window focus") }
         }
         let again = await WebAgents.send("Compare a morning walk with an afternoon walk.", to: web.selected)
-        for provider in WebProvider.allCases {
+        for provider in WebProvider.webDefaults {
             XCTAssertEqual(again[provider]?.status, .observed, provider.name)
             XCTAssertNotEqual(again[provider]?.messageID, results[provider]?.messageID)
         }
@@ -67,21 +83,21 @@ final class MultiWebAgentTests: XCTestCase {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         try Data("invalid persisted state".utf8).write(to: directory.appendingPathComponent(WebProvider.claude.storageFilename))
         let web = WebAgents(directory: directory, fixture: true)
-        web.sessions.forEach { $0.connect() }
-        try await waitFor { web.sessions.filter { $0.provider != .claude }.allSatisfy { $0.snapshot.ready } }
-        let chatgpt = web.sessions[1], claude = web.sessions[2]
-        chatgpt.updateState { $0.draft = "Keep this draft" }
-        let results = await WebAgents.send("New question", to: web.sessions)
+        web.availableSessions.forEach { $0.connect() }
+        try await waitFor { web.availableSessions.filter { $0.provider != .claude }.allSatisfy { $0.snapshot.ready } }
+        let chatgpt = web.availableSessions[1], claude = web.availableSessions[2]
+        _ = try await chatgpt.webView.callAsyncJavaScript("document.querySelector('textarea,[contenteditable]').value = 'Keep this draft'", arguments: [:], in: nil, contentWorld: .page)
+        let results = await WebAgents.send("New question", to: web.availableSessions)
         XCTAssertEqual(results[.muse]?.status, .observed)
         XCTAssertEqual(results[.grok]?.status, .observed)
         XCTAssertEqual(results[.chatgpt]?.status, .notSent)
         XCTAssertNil(results[.claude])
         XCTAssertEqual(chatgpt.snapshot.draft, "Keep this draft")
-        XCTAssertFalse(claude.snapshot.ready)
+        XCTAssertNotNil(claude.error)
     }
 
     func testSignedOutEditorsAndAmbiguousSendControlsAreNotSubmitted() async throws {
-        for provider in [WebProvider.grok] {
+        for provider in [WebProvider.chatgpt, .claude, .grok] {
             let session = WebAgentSession(provider: provider, storageURL: temporaryDirectory().appendingPathComponent("state.json"), fixture: true)
             session.connect()
             try await waitFor { session.snapshot.ready }
@@ -155,7 +171,7 @@ final class MultiWebAgentTests: XCTestCase {
     }
 
     func testMultilinePromptMatchesRenderedParagraphs() async throws {
-        for provider in [WebProvider.grok] {
+        for provider in [WebProvider.chatgpt, .claude, .grok] {
             let session = WebAgentSession(provider: provider, storageURL: temporaryDirectory().appendingPathComponent("state.json"), fixture: true)
             session.connect()
             try await waitFor { session.snapshot.ready }
@@ -171,7 +187,7 @@ final class MultiWebAgentTests: XCTestCase {
     }
 
     func testRecoveredReadinessClearsOnlyTransientComparisonSetupWarnings() async throws {
-        for provider in [WebProvider.muse, .grok] {
+        for provider in WebProvider.webDefaults {
             let session = WebAgentSession(provider: provider, storageURL: temporaryDirectory().appendingPathComponent("state.json"), fixture: true)
             session.connect()
             try await waitFor { session.snapshot.ready }
@@ -206,7 +222,7 @@ final class MultiWebAgentTests: XCTestCase {
     // Control structures observed in the signed-in narrow panes on 2026-10-05.
     // No account data or provider network calls are used by these fixtures.
     func testLiveBrowserSupportsInternalFramesWithoutNavigationWarnings() async throws {
-        for provider in [WebProvider.grok] {
+        for provider in [WebProvider.chatgpt, .claude, .grok] {
             let session = WebAgentSession(provider: provider, storageURL: temporaryDirectory().appendingPathComponent("state.json"), fixture: false)
             session.webView.loadHTMLString("""
             <body data-test="navigation"><iframe id="blank" src="about:blank"></iframe>
@@ -399,11 +415,11 @@ final class MultiWebAgentTests: XCTestCase {
         let directory = temporaryDirectory()
         let web = WebAgents(directory: directory, fixture: true), id = UUID()
         web.setComparison(id)
-        XCTAssertTrue(web.sessions.allSatisfy { $0.state.comparisonID == id })
+        XCTAssertTrue(web.availableSessions.allSatisfy { $0.state.comparisonID == id })
         let restored = WebAgents(directory: directory, fixture: true)
-        XCTAssertTrue(restored.sessions.allSatisfy { $0.state.comparisonID == id })
+        XCTAssertTrue(restored.availableSessions.allSatisfy { $0.state.comparisonID == id })
         restored.setComparison(nil)
-        XCTAssertTrue(restored.sessions.allSatisfy { $0.state.comparisonID == nil && $0.latestComparisonAttempt == nil })
+        XCTAssertTrue(restored.availableSessions.allSatisfy { $0.state.comparisonID == nil && $0.latestComparisonAttempt == nil })
     }
 
     func testComparisonSetupWaitsForAllLoginsAndDoesNotSubmitOnSignIn() async throws {
@@ -411,22 +427,22 @@ final class MultiWebAgentTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: directory) }
         let web = WebAgents(directory: directory, fixture: true)
         web.connectSelected()
-        try await waitFor { web.sessions.allSatisfy { $0.snapshot.ready } }
-        let claude = web.sessions[3]
+        try await waitFor { web.availableSessions.allSatisfy { $0.snapshot.ready } }
+        let claude = web.availableSessions[3]
         _ = try await claude.webView.callAsyncJavaScript("chat.hidden=true;login.hidden=false", arguments: [:], in: nil, contentWorld: .page)
         let signedOut = await web.prepareComparison(nil, for: web.selected)
         XCTAssertFalse(signedOut)
-        XCTAssertTrue(web.sessions.allSatisfy { $0.state.attempts.isEmpty && !$0.snapshot.messages.contains { $0.role == "user" } })
+        XCTAssertTrue(web.availableSessions.allSatisfy { $0.state.attempts.isEmpty && !$0.snapshot.messages.contains { $0.role == "user" } })
         _ = try await claude.webView.callAsyncJavaScript("chat.hidden=false;login.hidden=true", arguments: [:], in: nil, contentWorld: .page)
         await claude.refresh()
         // Muse can return to its main page after login; submission must open a side chat.
-        _ = try await web.sessions[0].webView.callAsyncJavaScript("history.replaceState({},'', '/')", arguments: [:], in: nil, contentWorld: .page)
+        _ = try await web.availableSessions[0].webView.callAsyncJavaScript("history.replaceState({},'', '/')", arguments: [:], in: nil, contentWorld: .page)
         let openedSideChat = await web.prepareComparison(nil, for: web.selected)
         XCTAssertFalse(openedSideChat, "Navigating from an unready main page must only prepare the comparison")
-        XCTAssertEqual(web.sessions[0].webView.url, WebProvider.muse.newChatURL)
+        XCTAssertEqual(web.availableSessions[0].webView.url, WebProvider.muse.newChatURL)
         let connected = await web.prepareComparison(nil, for: web.selected)
         XCTAssertTrue(connected)
-        XCTAssertTrue(web.sessions.allSatisfy { $0.state.attempts.isEmpty && !$0.snapshot.messages.contains { $0.role == "user" } }, "Setup and sign-in must never send")
+        XCTAssertTrue(web.availableSessions.allSatisfy { $0.state.attempts.isEmpty && !$0.snapshot.messages.contains { $0.role == "user" } }, "Setup and sign-in must never send")
         let results = await WebAgents.send("Explicit submission after sign-in", to: web.selected)
         XCTAssertEqual(results.count, 4)
         XCTAssertTrue(results.values.allSatisfy { $0.status == .observed })
@@ -437,18 +453,18 @@ final class MultiWebAgentTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: directory) }
         let web = WebAgents(directory: directory, fixture: true), previousID = UUID()
         web.connectSelected()
-        try await waitFor { web.sessions.allSatisfy { $0.snapshot.ready } }
+        try await waitFor { web.availableSessions.allSatisfy { $0.snapshot.ready } }
         let previous = await WebAgents.send("Previous comparison", to: web.selected, comparisonID: previousID)
         XCTAssertTrue(previous.values.allSatisfy { $0.status == .observed })
         web.setComparison(previousID)
-        web.sessions[0].updateState { $0.selected = false }
-        let claude = web.sessions[3]
+        web.availableSessions[0].updateState { $0.selected = false }
+        let claude = web.availableSessions[3]
         _ = try await claude.webView.callAsyncJavaScript("chat.hidden=true;login.hidden=false", arguments: [:], in: nil, contentWorld: .page)
         let prepared = await web.prepareComparison(nil, for: web.selected)
         XCTAssertFalse(prepared)
         XCTAssertNil(web.comparisonID, "Failed setup must not restore an old comparison on retry")
-        XCTAssertTrue(web.sessions.allSatisfy { $0.state.comparisonID == nil })
-        XCTAssertTrue(web.sessions.allSatisfy { $0.state.conversationURLs[previousID.uuidString] == previous[$0.provider]?.conversationURL })
+        XCTAssertTrue(web.availableSessions.allSatisfy { $0.state.comparisonID == nil })
+        XCTAssertTrue(web.availableSessions.allSatisfy { $0.state.conversationURLs[previousID.uuidString] == previous[$0.provider]?.conversationURL })
     }
 
     func testLoginCompletingDuringSetupRequiresAnotherExplicitSubmission() async throws {
@@ -456,8 +472,8 @@ final class MultiWebAgentTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: directory) }
         let web = WebAgents(directory: directory, fixture: true)
         web.connectSelected()
-        try await waitFor { web.sessions.allSatisfy { $0.snapshot.ready } }
-        let claude = web.sessions[3]
+        try await waitFor { web.availableSessions.allSatisfy { $0.snapshot.ready } }
+        let claude = web.availableSessions[3]
         _ = try await claude.webView.callAsyncJavaScript("chat.hidden=true;login.hidden=false;history.replaceState({},'', '/login')", arguments: [:], in: nil, contentWorld: .page)
         XCTAssertTrue(claude.snapshot.ready, "Exercise a stale snapshot before the next polling tick")
         let signIn = Task { @MainActor in
@@ -468,7 +484,7 @@ final class MultiWebAgentTests: XCTestCase {
         try await signIn.value
         XCTAssertTrue(claude.snapshot.ready, "The fixture must finish signing in during preparation")
         XCTAssertFalse(maySubmit, "An unready click must never become a queued send after sign-in")
-        XCTAssertTrue(web.sessions.allSatisfy { $0.state.attempts.isEmpty })
+        XCTAssertTrue(web.availableSessions.allSatisfy { $0.state.attempts.isEmpty })
         let explicitRetry = await web.prepareComparison(nil, for: web.selected)
         XCTAssertTrue(explicitRetry)
     }
@@ -476,28 +492,28 @@ final class MultiWebAgentTests: XCTestCase {
     func testComparisonSetupPreservesExistingPageDraft() async throws {
         let web = WebAgents(directory: temporaryDirectory(), fixture: true)
         web.connectSelected()
-        try await waitFor { web.sessions.allSatisfy { $0.snapshot.ready } }
-        let chatgpt = web.sessions[3]
+        try await waitFor { web.availableSessions.allSatisfy { $0.snapshot.ready } }
+        let chatgpt = web.availableSessions[3]
         _ = try await chatgpt.webView.callAsyncJavaScript("document.querySelector('textarea').value='Keep my page draft'", arguments: [:], in: nil, contentWorld: .page)
         let ready = await web.prepareComparison(nil, for: web.selected)
         XCTAssertFalse(ready)
         XCTAssertEqual(chatgpt.snapshot.draft, "Keep my page draft")
-        XCTAssertTrue(web.sessions.allSatisfy { $0.state.attempts.isEmpty })
+        XCTAssertTrue(web.availableSessions.allSatisfy { $0.state.attempts.isEmpty })
     }
 
     func testNewAgentsStartSelectedAndRememberDeselectionAfterRelaunch() {
         let directory = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         let web = WebAgents(directory: directory, fixture: true)
-        XCTAssertEqual(web.selected.map(\.provider), WebProvider.allCases)
-        web.toggle(web.sessions[3])
+        XCTAssertEqual(web.selected.map(\.provider), WebProvider.webDefaults)
+        web.toggle(web.availableSessions[3])
         let restored = WebAgents(directory: directory, fixture: true)
         XCTAssertEqual(restored.selected.map(\.provider), [.muse, .chatgpt, .claude])
-        XCTAssertEqual(restored.sessions.map { $0.state.sessionID }, web.sessions.map { $0.state.sessionID })
+        XCTAssertEqual(restored.availableSessions.map { $0.state.sessionID }, web.availableSessions.map { $0.state.sessionID })
     }
 
     func testNewProvidersAttachReceiptsToTheirComparison() async throws {
-        for provider in [WebProvider.grok] {
+        for provider in [WebProvider.chatgpt, .claude, .grok] {
             let session = WebAgentSession(provider: provider, storageURL: temporaryDirectory().appendingPathComponent("state.json"), fixture: true)
             session.connect()
             try await waitFor { session.snapshot.ready }
@@ -510,7 +526,7 @@ final class MultiWebAgentTests: XCTestCase {
     }
 
     func testEachProviderKeepsSeparateSavedChatsAcrossComparisonsAndReopening() async throws {
-        for provider in WebProvider.allCases.filter({ $0.personalAgentProvider == nil }) {
+        for provider in WebProvider.webDefaults.filter({ $0.personalAgentProvider == nil }) {
             let directory = temporaryDirectory(), firstID = UUID(), secondID = UUID()
             let storage = directory.appendingPathComponent("state.json")
             let session = WebAgentSession(provider: provider, storageURL: storage, fixture: true)
@@ -544,7 +560,7 @@ final class MultiWebAgentTests: XCTestCase {
     }
 
     func testEveryProviderRequiresSavedURLAndBlocksUnconfirmedFollowUps() async throws {
-        for provider in [WebProvider.grok] {
+        for provider in [WebProvider.chatgpt, .claude, .grok] {
             let session = WebAgentSession(provider: provider, storageURL: temporaryDirectory().appendingPathComponent("state.json"), fixture: true)
             session.connect()
             try await waitFor { session.snapshot.ready }

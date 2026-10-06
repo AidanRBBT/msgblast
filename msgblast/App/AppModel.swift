@@ -276,9 +276,7 @@ final class AppModel: ObservableObject {
         guard !webBroadcastBusy, let comparison = comparison(id) else { return }
         webAgents.setComparison(id)
         state.selection = Set(comparison.members.map(\.id))
-        for session in webAgents.sessions {
-            session.updateState { $0.selected = comparison.webProviders?.contains(session.provider) == true }
-        }
+        webAgents.restoreSelection(for: comparison.webProviders ?? [])
         webAgents.connectSelected()
         webComparisonRequest = UUID()
         for session in webAgents.selected {

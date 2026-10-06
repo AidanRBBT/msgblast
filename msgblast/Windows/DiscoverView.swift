@@ -150,7 +150,7 @@ private struct DiscoverAgentCard: View {
                 Button(action: add) { Label(added ? "Added" : "Add", systemImage: added ? "checkmark" : "plus").frame(minWidth: 64) }
                     .buttonStyle(.borderedProminent).disabled(added || busy)
                     .accessibilityLabel(added ? "\(agent.name) added" : "Add \(agent.name)")
-                    .help(added ? "Saved in My agents" : "Add to My agents")
+                    .help(added ? "Saved in Agents" : "Add to Agents")
                 Spacer()
                 Link(destination: agent.website) { Label("Website", systemImage: "arrow.up.right") }
                     .font(.callout).accessibilityLabel("\(agent.name) website").help(agent.website.absoluteString)

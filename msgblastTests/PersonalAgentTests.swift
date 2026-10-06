@@ -3,10 +3,333 @@ import XCTest
 
 final class PersonalAgentTests: XCTestCase {
     @MainActor
+    func testOptionalCLIOptInPersistsAndArchivedOptOutCannotSend() async throws {
+        let directory = try fixtureDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let web = WebAgents(directory: directory, fixture: true)
+        XCTAssertEqual(web.availableSessions.map(\.provider), WebProvider.webDefaults)
+        XCTAssertEqual(web.selected.map(\.provider), WebProvider.webDefaults)
+        for provider in WebProvider.optionalProviders {
+            let session = try XCTUnwrap(web.sessions.first { $0.provider == provider })
+            XCTAssertFalse(session.isEnabled)
+            XCTAssertFalse(session.snapshot.ready)
+            let blocked = await session.send("No implicit opt-in")
+            XCTAssertNil(blocked)
+            web.setEnabled(true, for: provider)
+        }
+        let id = UUID()
+        let native = web.selected.filter { $0.provider.personalAgentProvider != nil }
+        _ = await web.prepareComparison(id, for: native)
+        let sent = await WebAgents.send("Saved local conversation", to: native, comparisonID: id)
+        XCTAssertEqual(sent.count, 2)
+        XCTAssertTrue(sent.values.allSatisfy { $0.status == .observed })
+        let reopened = WebAgents(directory: directory, fixture: true)
+        XCTAssertEqual(reopened.selected.map(\.provider), WebProvider.allCases)
+        reopened.setEnabled(false, for: .codexCLI)
+        reopened.setComparison(id)
+        reopened.restoreSelection(for: [.chatgpt, .codexCLI])
+        XCTAssertEqual(reopened.selected.map(\.provider), [.chatgpt])
+        XCTAssertEqual(reopened.displayed.map(\.provider), [.chatgpt, .codexCLI])
+        let archived = try XCTUnwrap(reopened.displayed.first { $0.provider == .codexCLI })
+        XCTAssertEqual(archived.snapshot.messages.first?.text, "Saved local conversation")
+        XCTAssertFalse(archived.snapshot.ready)
+        let blocked = await archived.send("Do not send from disabled history", comparisonID: id)
+        XCTAssertNil(blocked)
+        reopened.setComparison(nil)
+        XCTAssertEqual(reopened.displayed.map(\.provider), [.chatgpt])
+        let final = WebAgents(directory: directory, fixture: true)
+        XCTAssertFalse(try XCTUnwrap(final.sessions.first { $0.provider == .codexCLI }).isEnabled)
+    }
+
+    @MainActor
+    func testSamePromptReachesSeparateWebAndCLIConversations() async throws {
+        let directory = try fixtureDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let web = WebAgents(directory: directory, fixture: true)
+        WebProvider.optionalProviders.forEach { web.setEnabled(true, for: $0) }
+        web.connectSelected()
+        for _ in 0..<100 {
+            if web.selected.allSatisfy({ $0.snapshot.ready }) { break }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        XCTAssertTrue(web.selected.allSatisfy { $0.snapshot.ready })
+        let id = UUID(), prompt = "One shared fixture prompt"
+        let replies = await WebAgents.send(prompt, to: web.selected, comparisonID: id)
+        XCTAssertEqual(Set(replies.keys), Set(WebProvider.allCases))
+        XCTAssertTrue(replies.values.allSatisfy { $0.status == .observed && $0.text == prompt && $0.comparisonID == id })
+        for session in web.selected {
+            if session.provider.personalAgentProvider == nil {
+                XCTAssertNotNil(replies[session.provider]?.conversationURL)
+                XCTAssertTrue(session.state.localSessionIDs.isEmpty)
+            } else {
+                XCTAssertNil(replies[session.provider]?.conversationURL)
+                XCTAssertNotNil(session.state.localSessionIDs[id.uuidString])
+            }
+            XCTAssertEqual(session.snapshot.messages.first { $0.role == "user" }?.text, prompt)
+        }
+        XCTAssertEqual(Set(web.sessions.map { $0.state.sessionID }).count, 6)
+    }
+
+    @MainActor
+    func testMixedLegacyHistoriesKeepWebStoresNativeSessionsDraftsAndUncertainRequests() async throws {
+        let directory = try fixtureDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        for pair in WebProviderStateMigration.pairs {
+            let source = directory.appendingPathComponent(pair.web.storageFilename)
+            let webOnly = UUID(), nativeOnly = UUID(), both = UUID(), interrupted = UUID()
+            let path = pair.web == .claude ? "/chat/" : "/c/"
+            var legacy = WebWorkspaceState()
+            legacy.providerIdentityVersion = 1
+            legacy.comparisonID = nativeOnly
+            legacy.draft = "Keep the current local draft"
+            legacy.conversationURLs = [webOnly.uuidString: URL(string: path + "web-only", relativeTo: pair.web.homeURL)!.absoluteURL,
+                                       both.uuidString: URL(string: path + "mixed", relativeTo: pair.web.homeURL)!.absoluteURL]
+            legacy.localSessionIDs = [nativeOnly.uuidString: UUID().uuidString, both.uuidString: UUID().uuidString]
+            legacy.localConversations = [nativeOnly.uuidString: [WebPageMessage(role: "user", text: "Native history")],
+                                         both.uuidString: [WebPageMessage(role: "assistant", text: "Separate native reply")]]
+            legacy.localDrafts = [nativeOnly.uuidString: legacy.draft, both.uuidString: "Other local draft", "new": "Unsent new local draft"]
+            var pending = WebSendAttempt(text: "Interrupted native request", status: .attempting)
+            pending.comparisonID = interrupted
+            var receipt = WebSendAttempt(text: "Older web prompt", status: .observed)
+            receipt.comparisonID = both; receipt.conversationURL = legacy.conversationURLs[both.uuidString]
+            legacy.attempts = [pending, receipt]
+            let bytes = try JSONEncoder().encode(legacy)
+            try bytes.write(to: source)
+            var state = AppState()
+            state.comparisons = [webOnly, nativeOnly, both, interrupted].map { id in
+                var comparison = Comparison(prompt: "Archived prompt", members: [])
+                comparison.id = id; comparison.webProviders = [pair.web]; comparison.webProviderIdentityVersion = nil
+                return comparison
+            }
+            try WebProviderStateMigration.migrateComparisons(in: &state, directory: directory)
+            XCTAssertEqual(state.comparisons.map(\.webProviders), [[pair.web], [pair.native], [pair.web, pair.native], [pair.web, pair.native]])
+            let webState = try JSONDecoder().decode(WebWorkspaceState.self, from: Data(contentsOf: source))
+            XCTAssertEqual(webState.sessionID, legacy.sessionID)
+            XCTAssertEqual(webState.conversationURLs, legacy.conversationURLs)
+            XCTAssertEqual(webState.attempts, [pending, receipt])
+            XCTAssertTrue(webState.localConversations.isEmpty)
+            XCTAssertEqual(try Data(contentsOf: source.deletingPathExtension().appendingPathExtension("legacy-provider-state.json")), bytes)
+            let localURL = directory.appendingPathComponent(pair.native.storageFilename)
+            let session = WebAgentSession(provider: pair.native, storageURL: localURL, fixture: true)
+            XCTAssertFalse(session.isEnabled)
+            XCTAssertEqual(session.state.localSessionIDs, legacy.localSessionIDs)
+            XCTAssertEqual(session.state.localConversations, legacy.localConversations)
+            XCTAssertEqual(session.state.localDrafts, legacy.localDrafts)
+            XCTAssertEqual(session.state.attempts.first?.status, .uncertain)
+            XCTAssertEqual(session.state.attempts.first?.id, pending.id)
+            let expectedDirectory = directory.appendingPathComponent("local-conversations/\(pair.web.rawValue)/\(nativeOnly.uuidString)")
+            XCTAssertEqual(session.conversationWorkingDirectory(nativeOnly).standardizedFileURL.path, expectedDirectory.standardizedFileURL.path)
+            session.setEnabled(true)
+            let resumed = await session.send(legacy.draft, comparisonID: nativeOnly)
+            XCTAssertEqual(resumed?.status, .observed)
+            XCTAssertEqual(session.state.localSessionIDs[nativeOnly.uuidString], legacy.localSessionIDs[nativeOnly.uuidString])
+            XCTAssertEqual(session.snapshot.messages.first?.text, "Native history")
+            session.updateState { $0.comparisonID = both }
+            XCTAssertEqual(session.state.draft, "Other local draft")
+            session.updateState { $0.comparisonID = interrupted }
+            let blocked = await session.send("Do not repeat uncertain request", comparisonID: interrupted)
+            XCTAssertNil(blocked)
+            try WebProviderStateMigration.migrateComparisons(in: &state, directory: directory)
+            XCTAssertEqual(state.comparisons.map(\.webProviders), [[pair.web], [pair.native], [pair.web, pair.native], [pair.web, pair.native]])
+        }
+    }
+
+    func testCurrentAndMessagesOnlyArchivesIgnoreUnrelatedCorruptProviderFiles() throws {
+        let directory = try fixtureDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let corrupt = Data("unrelated corrupt provider state".utf8)
+        for provider in [WebProvider.chatgpt, .codexCLI] {
+            try corrupt.write(to: directory.appendingPathComponent(provider.storageFilename))
+        }
+        var state = AppState()
+        var current = Comparison(prompt: "Already migrated", members: [])
+        current.webProviders = [.chatgpt, .codexCLI]
+        var messages = Comparison(prompt: "Messages only", members: [])
+        messages.webProviderIdentityVersion = nil
+        state.comparisons = [current, messages]
+        XCTAssertNoThrow(try WebProviderStateMigration.migrateComparisons(in: &state, directory: directory))
+        XCTAssertEqual(state.comparisons[0].webProviders, [.chatgpt, .codexCLI])
+        XCTAssertEqual(state.comparisons[1].webProviderIdentityVersion, 2)
+        var unrelatedWeb = Comparison(prompt: "Legacy Claude web comparison", members: [])
+        unrelatedWeb.webProviders = [.claude]; unrelatedWeb.webProviderIdentityVersion = nil
+        state.comparisons.append(unrelatedWeb)
+        XCTAssertNoThrow(try WebProviderStateMigration.migrateComparisons(in: &state, directory: directory))
+        XCTAssertEqual(state.comparisons[2].webProviders, [.claude])
+        for provider in [WebProvider.chatgpt, .codexCLI] {
+            XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent(provider.storageFilename)), corrupt)
+        }
+    }
+
+    func testMixedLegacyUncertainTransportIsPreservedInBothHistories() throws {
+        let directory = try fixtureDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let id = UUID()
+        var legacy = WebWorkspaceState()
+        legacy.providerIdentityVersion = 1
+        legacy.conversationURLs[id.uuidString] = URL(string: "https://chatgpt.com/c/older-web")!
+        var pending = WebSendAttempt(text: "Interrupted follow-up", status: .uncertain)
+        pending.comparisonID = id
+        legacy.attempts = [pending]
+        let source = directory.appendingPathComponent(WebProvider.chatgpt.storageFilename)
+        try JSONEncoder().encode(legacy).write(to: source)
+        var comparison = Comparison(prompt: "Older mixed comparison", members: [])
+        comparison.id = id; comparison.webProviders = [.chatgpt]; comparison.webProviderIdentityVersion = nil
+        var state = AppState(); state.comparisons = [comparison]
+        try WebProviderStateMigration.migrateComparisons(in: &state, directory: directory)
+        for provider in [WebProvider.chatgpt, .codexCLI] {
+            let stored = try JSONDecoder().decode(WebWorkspaceState.self, from: Data(contentsOf: directory.appendingPathComponent(provider.storageFilename)))
+            XCTAssertEqual(stored.attempts, [pending])
+        }
+        XCTAssertEqual(state.comparisons[0].webProviders, [.chatgpt, .codexCLI])
+    }
+
+    @MainActor
+    func testUncertainFirstWebSendRetainsItsResendGuardAfterLegacyReencoding() async throws {
+        let directory = try fixtureDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let id = UUID(), otherCLI = UUID()
+        var legacy = WebWorkspaceState()
+        legacy.providerIdentityVersion = 1
+        legacy.localSessionIDs[otherCLI.uuidString] = UUID().uuidString
+        legacy.localDrafts[id.uuidString] = "Unsent CLI draft written after the web send"
+        var pending = WebSendAttempt(text: "First web send without a URL", status: .uncertain)
+        pending.comparisonID = id
+        legacy.attempts = [pending]
+        let source = directory.appendingPathComponent(WebProvider.chatgpt.storageFilename)
+        try JSONEncoder().encode(legacy).write(to: source)
+        var comparison = Comparison(prompt: pending.text, members: [])
+        comparison.id = id; comparison.webProviders = [.chatgpt]; comparison.webProviderIdentityVersion = nil
+        var state = AppState(); state.comparisons = [comparison]
+        try WebProviderStateMigration.migrateComparisons(in: &state, directory: directory)
+        XCTAssertEqual(state.comparisons[0].webProviders, [.chatgpt, .codexCLI])
+        let browser = WebAgentSession(provider: .chatgpt, storageURL: source, fixture: true)
+        XCTAssertTrue(browser.state.hasUnresolvedSend(pending.text))
+        XCTAssertEqual(browser.state.attempts, [pending])
+        let result = await browser.send(pending.text, comparisonID: id)
+        XCTAssertNil(result)
+        XCTAssertEqual(browser.state.attempts.count, 1)
+    }
+
+    func testDifferentRestoredLegacySnapshotsHaveSeparateIdempotentBackups() throws {
+        let directory = try fixtureDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let source = directory.appendingPathComponent("state.json")
+        let first = Data("first legacy snapshot".utf8), restored = Data("restored legacy snapshot".utf8)
+        try WebProviderStateMigration.preserveOriginal(first, at: source)
+        try WebProviderStateMigration.preserveOriginal(restored, at: source)
+        try WebProviderStateMigration.preserveOriginal(restored, at: source)
+        let backups = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
+        XCTAssertEqual(backups.count, 2)
+        XCTAssertEqual(Set(try backups.map { try Data(contentsOf: $0) }), Set([first, restored]))
+        for backup in backups {
+            XCTAssertEqual((try FileManager.default.attributesOfItem(atPath: backup.path)[.posixPermissions] as? NSNumber)?.intValue, 0o600)
+        }
+    }
+
+    func testEmptyLegacyNativeDraftEntriesDoNotAddCLIHistory() throws {
+        let directory = try fixtureDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let id = UUID()
+        var legacy = WebWorkspaceState()
+        legacy.providerIdentityVersion = 1
+        legacy.conversationURLs[id.uuidString] = URL(string: "https://claude.ai/chat/older-web")!
+        legacy.localDrafts = [id.uuidString: "", "new": ""]
+        let source = directory.appendingPathComponent(WebProvider.claude.storageFilename)
+        try JSONEncoder().encode(legacy).write(to: source)
+        var comparison = Comparison(prompt: "Only web history", members: [])
+        comparison.id = id; comparison.webProviders = [.claude]; comparison.webProviderIdentityVersion = nil
+        var state = AppState(); state.comparisons = [comparison]
+        try WebProviderStateMigration.migrateComparisons(in: &state, directory: directory)
+        XCTAssertEqual(state.comparisons[0].webProviders, [.claude])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.appendingPathComponent(WebProvider.claudeCode.storageFilename).path))
+    }
+
+    func testLegacyWebOnlyStateDoesNotBecomeNativeHistory() throws {
+        let directory = try fixtureDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let id = UUID(), sessionID = UUID()
+        let source = directory.appendingPathComponent(WebProvider.chatgpt.storageFilename)
+        let bytes = Data("""
+        {"sessionID":"\(sessionID)","draft":"Web draft","selected":false,"conversationURLs":{"\(id)":"https://chatgpt.com/c/older-web"}}
+        """.utf8)
+        try bytes.write(to: source)
+        var state = AppState()
+        var comparison = Comparison(prompt: "Older web prompt", members: [])
+        comparison.id = id; comparison.webProviders = [.chatgpt]; comparison.webProviderIdentityVersion = nil
+        state.comparisons = [comparison]
+        try WebProviderStateMigration.migrateComparisons(in: &state, directory: directory)
+        let browser = try JSONDecoder().decode(WebWorkspaceState.self, from: Data(contentsOf: source))
+        XCTAssertEqual(browser.sessionID, sessionID)
+        XCTAssertEqual(browser.draft, "Web draft")
+        XCTAssertFalse(browser.selected)
+        XCTAssertEqual(state.comparisons[0].webProviders, [.chatgpt])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.appendingPathComponent(WebProvider.codexCLI.storageFilename).path))
+    }
+
+    @MainActor
+    func testCorruptMigrationInputsPreserveOriginalFilesAndBlockAffectedSessions() throws {
+        let directory = try fixtureDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let source = directory.appendingPathComponent(WebProvider.chatgpt.storageFilename)
+        let destination = directory.appendingPathComponent(WebProvider.codexCLI.storageFilename)
+        let corrupt = Data("malformed source".utf8)
+        try corrupt.write(to: source)
+        let web = WebAgents(directory: directory, fixture: true)
+        XCTAssertNotNil(web.sessions.first { $0.provider == .chatgpt }?.error)
+        web.setEnabled(true, for: .codexCLI)
+        XCTAssertFalse(try XCTUnwrap(web.sessions.first { $0.provider == .codexCLI }).isEnabled)
+        XCTAssertEqual(try Data(contentsOf: source), corrupt)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: destination.path))
+        var legacy = WebWorkspaceState()
+        legacy.providerIdentityVersion = 1
+        legacy.localSessionIDs = [UUID().uuidString: UUID().uuidString]
+        let bytes = try JSONEncoder().encode(legacy)
+        try bytes.write(to: source)
+        try corrupt.write(to: destination)
+        XCTAssertThrowsError(try WebProviderStateMigration.migrate(web: .chatgpt, native: .codexCLI, directory: directory))
+        XCTAssertEqual(try Data(contentsOf: source), bytes)
+        XCTAssertEqual(try Data(contentsOf: destination), corrupt)
+    }
+
+    func testMigrationResumesAfterDestinationWriteWithoutDuplicatingOrReplacingNativeHistory() throws {
+        let directory = try fixtureDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let source = directory.appendingPathComponent(WebProvider.claude.storageFilename)
+        let destination = directory.appendingPathComponent(WebProvider.claudeCode.storageFilename)
+        var legacy = WebWorkspaceState()
+        legacy.providerIdentityVersion = 1
+        let id = UUID()
+        legacy.localSessionIDs = [id.uuidString: UUID().uuidString]
+        var attempt = WebSendAttempt(text: "Pending", status: .uncertain)
+        attempt.comparisonID = id; legacy.attempts = [attempt]
+        let bytes = try JSONEncoder().encode(legacy)
+        try bytes.write(to: source)
+        try WebProviderStateMigration.migrate(web: .claude, native: .claudeCode, directory: directory)
+        let first = try JSONDecoder().decode(WebWorkspaceState.self, from: Data(contentsOf: destination))
+        // Simulate interruption between the atomic destination and source writes.
+        try bytes.write(to: source)
+        try WebProviderStateMigration.migrate(web: .claude, native: .claudeCode, directory: directory)
+        let second = try JSONDecoder().decode(WebWorkspaceState.self, from: Data(contentsOf: destination))
+        XCTAssertEqual(second.sessionID, first.sessionID)
+        XCTAssertEqual(second.localSessionIDs, legacy.localSessionIDs)
+        XCTAssertEqual(second.attempts, [attempt])
+        var conflicting = legacy
+        conflicting.localSessionIDs[id.uuidString] = UUID().uuidString
+        let conflictBytes = try JSONEncoder().encode(conflicting)
+        try conflictBytes.write(to: source)
+        let destinationBytes = try Data(contentsOf: destination)
+        XCTAssertThrowsError(try WebProviderStateMigration.migrate(web: .claude, native: .claudeCode, directory: directory))
+        XCTAssertEqual(try Data(contentsOf: source), conflictBytes)
+        XCTAssertEqual(try Data(contentsOf: destination), destinationBytes)
+    }
+
+
+    @MainActor
     func testNativeComparisonPreparationPreservesSessionsAndBlocksIncompleteRequests() async throws {
         let directory = try fixtureDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         let web = WebAgents(directory: directory, fixture: true)
+        WebProvider.optionalProviders.forEach { web.setEnabled(true, for: $0) }
         let native = web.sessions.filter { $0.provider.personalAgentProvider != nil }
         let id = UUID()
         let prepared = await web.prepareComparison(id, for: native)
@@ -37,13 +360,13 @@ final class PersonalAgentTests: XCTestCase {
         let directory = try fixtureDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         let file = directory.appendingPathComponent("chat.json")
-        let session = WebAgentSession(provider: .claude, storageURL: file, fixture: true)
+        let session = WebAgentSession(provider: .claudeCode, storageURL: file, fixture: true)
         let first = UUID(), second = UUID()
         session.updateState { $0.comparisonID = first; $0.draft = "Draft for first comparison" }
         session.updateState { $0.comparisonID = second }
         XCTAssertTrue(session.state.draft.isEmpty)
         session.updateState { $0.draft = "Draft for second comparison" }
-        let reopened = WebAgentSession(provider: .claude, storageURL: file, fixture: true)
+        let reopened = WebAgentSession(provider: .claudeCode, storageURL: file, fixture: true)
         reopened.updateState { $0.comparisonID = first }
         XCTAssertEqual(reopened.state.draft, "Draft for first comparison")
         reopened.updateState { $0.comparisonID = second }
@@ -61,7 +384,8 @@ final class PersonalAgentTests: XCTestCase {
     func testNativeRequestCancellationAndShutdownPreserveIncompleteReceipt() async throws {
         let directory = try fixtureDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
-        let session = WebAgentSession(provider: .chatgpt, storageURL: directory.appendingPathComponent("chat.json"), fixture: true)
+        let session = WebAgentSession(provider: .codexCLI, storageURL: directory.appendingPathComponent("chat.json"), fixture: true)
+        session.setEnabled(true)
         session.connect(); await session.refresh()
         let id = UUID()
         let sending = Task { await session.send("Pending", comparisonID: id) }
@@ -77,7 +401,7 @@ final class PersonalAgentTests: XCTestCase {
         XCTAssertTrue(session.snapshot.messages.isEmpty)
         let afterShutdown = await session.send("No request after shutdown", comparisonID: id)
         XCTAssertNil(afterShutdown)
-        let reopened = WebAgentSession(provider: .chatgpt, storageURL: directory.appendingPathComponent("chat.json"), fixture: true)
+        let reopened = WebAgentSession(provider: .codexCLI, storageURL: directory.appendingPathComponent("chat.json"), fixture: true)
         let blocked = await reopened.send("Continue", comparisonID: id)
         XCTAssertNil(blocked)
         reopened.acknowledgeIncompleteRequest()
@@ -137,9 +461,10 @@ final class PersonalAgentTests: XCTestCase {
     func testNativeProviderConversationsPersistAndStaySeparateByComparison() async throws {
         let directory = try fixtureDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
-        for provider in [WebProvider.chatgpt, .claude] {
+        for provider in WebProvider.optionalProviders {
             let file = directory.appendingPathComponent(provider.storageFilename)
             let session = WebAgentSession(provider: provider, storageURL: file, fixture: true)
+            session.setEnabled(true)
             session.connect()
             await session.refresh()
             XCTAssertTrue(session.snapshot.ready)

@@ -31,3 +31,12 @@ Edit this Grok avatar image. Preserve the exact symbol shape, silver-white color
 ### Final refinement
 
 Precise scale-only edit for this Grok avatar. Keep the exact logo silhouette, monochrome silver-white shading, centered placement, and black square background unchanged. Enlarge the symbol by about 30 percent relative to its present size, expanding symmetrically from the center. Its two diagonal tips should still have clear black space around them inside a circular crop; aim for a symbol about 60 percent of the image's width and height, with 20 percent black margin at each outer edge. No square frame, no outline, no text. A polished, legible circular app avatar.
+
+## Local account icons
+
+The local accounts panel in Settings reuses the unmodified ChatGPT and Claude App Store artwork above. OpenClaw and Hermes use unmodified PNGs from their official project repositories, retrieved October 6, 2026 and pinned to the source revisions below. The projects retain ownership of their artwork and trademarks.
+
+| Resource | Official source | SHA-256 |
+| --- | --- | --- |
+| `WebAgentIcons/openclaw.png` | [OpenClaw iOS app icon](https://github.com/openclaw/openclaw/blob/bff90d69144ceec82e75f92d59c3a29ec7876351/apps/ios/Sources/Assets.xcassets/AppIcon.appiconset/1024.png) | `8ce11071e6cc34f3086b1947bb5f4b7f43f237a7a023bd8e0aa0ac529173ceb8` |
+| `WebAgentIcons/hermes.png` | [Hermes desktop app icon](https://github.com/NousResearch/hermes-agent/blob/85db7c3a6886762773827598793b0b51ef4e3325/apps/desktop/assets/icon.png) | `2e69dd9a8a1d3f9e3f627efc37102aed416f703e22f599e31c5d86b212a4d6de` |
