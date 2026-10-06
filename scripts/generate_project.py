@@ -47,14 +47,14 @@ for name in products:
         framework_builds.append(obj('linkSparkle', '{isa = PBXBuildFile; productRef = '+sparkle_product+';}'))
     framework_phase = obj(name+'frameworks', '{isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = '+seq(framework_builds)+'; runOnlyForDeploymentPostprocessing = 0;}')
     phases = [sources, framework_phase]
-    settings = {'PRODUCT_NAME': '"$(TARGET_NAME)"', 'PRODUCT_BUNDLE_IDENTIFIER': 'com.msgblast.'+name, 'MACOSX_DEPLOYMENT_TARGET': '26.0', 'SWIFT_VERSION': '6.0', 'CODE_SIGN_STYLE': 'Automatic', 'CODE_SIGN_IDENTITY': '"-"', 'ENABLE_HARDENED_RUNTIME': 'YES' if name == 'msgblast' else 'NO', 'ENABLE_TESTABILITY': 'YES', 'GENERATE_INFOPLIST_FILE': 'YES', 'LD_RUNPATH_SEARCH_PATHS': '"$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks"'}
+    settings = {'PRODUCT_NAME': '"$(TARGET_NAME)"', 'PRODUCT_BUNDLE_IDENTIFIER': 'com.msgblast.'+name, 'MACOSX_DEPLOYMENT_TARGET': '15.0', 'SWIFT_VERSION': '6.0', 'CODE_SIGN_STYLE': 'Automatic', 'CODE_SIGN_IDENTITY': '"-"', 'ENABLE_HARDENED_RUNTIME': 'YES' if name == 'msgblast' else 'NO', 'ENABLE_TESTABILITY': 'YES', 'GENERATE_INFOPLIST_FILE': 'YES', 'LD_RUNPATH_SEARCH_PATHS': '"$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks"'}
     if name == 'msgblastUITests':
         settings['TEST_TARGET_NAME'] = 'msgblast'
         dependencies.append(obj(name+'dep', '{isa = PBXTargetDependency; target = '+ident('msgblasttarget')+';}'))
     if name == 'msgblastCore':
         settings.update({'DEFINES_MODULE':'YES', 'DYLIB_INSTALL_NAME_BASE':'"@rpath"', 'SKIP_INSTALL':'YES', 'OTHER_LDFLAGS':'"$(inherited) -lsqlite3"'})
     if name == 'msgblast':
-        settings.update({'GENERATE_INFOPLIST_FILE':'NO', 'INFOPLIST_FILE':'msgblast/Info.plist', 'CODE_SIGN_ENTITLEMENTS':'msgblast/msgblast.entitlements', 'MSGBLAST_APP_BUNDLE_IDENTIFIER':'com.msgblast.mac', 'PRODUCT_BUNDLE_IDENTIFIER':'"$(MSGBLAST_APP_BUNDLE_IDENTIFIER)"', 'ASSETCATALOG_COMPILER_APPICON_NAME':'AppIcon', 'MARKETING_VERSION':'0.1.0', 'CURRENT_PROJECT_VERSION':'1', 'SPARKLE_FEED_URL':'""', 'SPARKLE_PUBLIC_ED_KEY':'""'})
+        settings.update({'GENERATE_INFOPLIST_FILE':'NO', 'INFOPLIST_FILE':'msgblast/Info.plist', 'CODE_SIGN_ENTITLEMENTS':'msgblast/msgblast.entitlements', 'MSGBLAST_APP_BUNDLE_IDENTIFIER':'com.msgblast.mac', 'PRODUCT_BUNDLE_IDENTIFIER':'"$(MSGBLAST_APP_BUNDLE_IDENTIFIER)"', 'ASSETCATALOG_COMPILER_APPICON_NAME':'AppIcon', 'MARKETING_VERSION':'0.3.0', 'CURRENT_PROJECT_VERSION':'1', 'SPARKLE_FEED_URL':'""', 'SPARKLE_PUBLIC_ED_KEY':'""'})
         icon_build = obj('appIconBuild', '{isa = PBXBuildFile; fileRef = '+icon+';}')
         demo_icon_build = obj('demoAppIconBuild', '{isa = PBXBuildFile; fileRef = '+demo_icon+';}')
         notice_build = obj('thirdPartyNoticeBuild', '{isa = PBXBuildFile; fileRef = '+notice+';}')
@@ -67,7 +67,7 @@ for name in products:
     config = configs(name, settings)
     type_ = 'framework' if name == 'msgblastCore' else 'application' if name == 'msgblast' else 'bundle.ui-testing' if name == 'msgblastUITests' else 'bundle.unit-test'
     targets[name] = obj(name+'target', '{isa = PBXNativeTarget; name = '+name+'; productName = '+name+'; productReference = '+products[name]+'; productType = "com.apple.product-type.'+type_+'"; buildConfigurationList = '+config+'; buildPhases = '+seq(phases)+'; buildRules = (); dependencies = '+seq(dependencies)+'; packageProductDependencies = '+seq([sparkle_product] if name == 'msgblast' else [])+';}')
-project_config = configs('project', {'SDKROOT':'macosx', 'CLANG_ENABLE_MODULES':'YES', 'SWIFT_VERSION':'6.0', 'MACOSX_DEPLOYMENT_TARGET':'26.0'})
+project_config = configs('project', {'SDKROOT':'macosx', 'CLANG_ENABLE_MODULES':'YES', 'SWIFT_VERSION':'6.0', 'MACOSX_DEPLOYMENT_TARGET':'15.0'})
 project = obj('project', '{isa = PBXProject; attributes = {LastUpgradeCheck = 2700;}; buildConfigurationList = '+project_config+'; compatibilityVersion = "Xcode 14.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en, Base,); mainGroup = '+main_group+'; productRefGroup = '+product_group+'; projectDirPath = ""; projectRoot = ""; packageReferences = '+seq([sparkle_package])+'; targets = '+seq(list(targets.values()))+';}')
 dest = root / 'msgblast.xcodeproj'; dest.mkdir(exist_ok=True)
 (dest/'project.pbxproj').write_text('// !$*UTF8*$!\n{archiveVersion = 1; classes = {}; objectVersion = 56; objects = {\n'+ '\n'.join(f'{k} = {v};' for k,v in objects.items())+'\n}; rootObject = '+project+';}\n')

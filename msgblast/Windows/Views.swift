@@ -45,7 +45,7 @@ struct ContactHeader: View {
                 Button(action: controls.toggleRecipient) {
                     Text(name).font(.system(size: 13, weight: .semibold)).padding(.horizontal, 11).padding(.vertical, 5)
                 }.buttonStyle(.plain)
-                    .glassEffect(.regular.tint(controls.included ? .blue : .clear).interactive(), in: Capsule())
+                    .background(controls.included ? Color.blue.opacity(0.25) : Color.clear, in: Capsule())
                     .accessibilityLabel("Shared recipient \(agent?.name ?? name)")
                     .accessibilityValue(controls.included ? "Included" : "Excluded")
                     .help(controls.included ? "Exclude from shared sends" : "Include in shared sends")
@@ -53,7 +53,7 @@ struct ContactHeader: View {
                 AgentAvatar(agent: agent, name: name, size: 38)
                 Text(name).font(.system(size: 13, weight: .semibold))
                     .padding(.horizontal, 11).padding(.vertical, 5)
-                    .glassEffect(.regular, in: Capsule())
+                    .background(.regularMaterial, in: Capsule())
             }
         }.frame(height: 78).help(destination)
     }
@@ -117,12 +117,12 @@ struct MessageInput: View {
                     if hasContent {
                         Button(action: send) { Image(systemName: "arrow.up").font(.system(size: 12, weight: .semibold)).frame(width: 22, height: 22) }
                             .buttonStyle(.plain).foregroundStyle(.white)
-                            .glassEffect(.regular.tint(unavailable ? .gray : .blue).interactive(), in: Circle())
+                            .background(unavailable ? Color.gray : Color.blue, in: Circle())
                             .accessibilityLabel(sendLabel).help(sendLabel).disabled(unavailable)
                     }
                 }
                 .padding(.leading, 14).padding(.trailing, 7).padding(.vertical, 5)
-                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 23))
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 23))
             }
         }
         .overlay { if dropTarget { RoundedRectangle(cornerRadius: 18).stroke(.blue, lineWidth: 2) } }
@@ -244,14 +244,19 @@ struct MainView: View {
         } message: { Text(model.error ?? "") }
         .toolbar {
             ToolbarItem {
-                Button { setup = true } label: { Image(systemName: "plus") }
-                    .help("Add agent").accessibilityLabel("Add agent")
+                Button { setup = true } label: {
+                    Label("Add Agent", systemImage: "plus")
+                        .labelStyle(.titleAndIcon)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                }
+                .help("Add agent").accessibilityLabel("Add agent")
             }
         }
     }
     private var demoControls: some View {
         HStack(spacing: 14) {
-            Label("Simulated", systemImage: "testtube.2").foregroundStyle(.orange)
+            Label(model.webAgents.fixture ? "Local fixture · no real sends" : "Live web agents · simulated Messages", systemImage: "testtube.2").foregroundStyle(.orange)
             Toggle("Simulate one failure", isOn: $model.demoFailureOnce).toggleStyle(.checkbox)
             Spacer()
             Button("Reset sample data") { model.resetDemo() }
@@ -487,7 +492,7 @@ struct FloatingComposer: View {
                 HStack(spacing: 6) {
                     ConversationNavigation(comparison: comparison) { memberID in model.coordinator?.focus(comparisonID, memberID: memberID) }
                     Button { model.coordinator?.tile(comparisonID) } label: { Image(systemName: "rectangle.split.3x1") }
-                        .buttonStyle(.glass).help("Tile conversation windows").accessibilityLabel("Tile windows")
+                        .buttonStyle(.bordered).help("Tile conversation windows").accessibilityLabel("Tile windows")
                 }
                 SharedComposer(model: model, comparisonID: comparisonID)
             }.padding(16).frame(minWidth: 440, idealWidth: 520, maxWidth: .infinity)
@@ -505,7 +510,7 @@ struct ConversationNavigation: View {
             HStack(spacing: 8) {
                 ForEach(comparison.members) { member in
                     Button(member.name) { focus(member.id) }
-                        .buttonStyle(.glass).buttonBorderShape(.capsule)
+                        .buttonStyle(.bordered).buttonBorderShape(.capsule)
                         .help("Show \(member.name)'s conversation")
                         .accessibilityLabel("Show \(member.name)'s conversation")
                 }
@@ -608,7 +613,7 @@ struct RecipientPills: View {
                         Text(member.name).font(.system(size: 13, weight: .medium)).fixedSize()
                             .padding(.horizontal, 12).padding(.vertical, 6)
                     }.buttonStyle(.plain)
-                        .glassEffect(.regular.tint(included ? .blue : .clear).interactive(), in: Capsule())
+                        .background(included ? Color.blue.opacity(0.25) : Color.clear, in: Capsule())
                         .accessibilityLabel("Recipient \(member.name)")
                         .accessibilityValue(included ? "Selected" : "Not selected")
                         .help(included ? "Exclude \(member.name) from this message" : "Include \(member.name) in this message")

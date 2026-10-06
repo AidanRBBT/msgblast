@@ -1,0 +1,41 @@
+{
+  "status": "complete",
+  "verdict": "Ready to merge",
+  "scope": {
+    "base": "fe7d1b0f32b9a6cf17e6e648c530a1d212717e5e",
+    "branch": "codex/webkit-services",
+    "head_sha": "fe7d1b0f32b9a6cf17e6e648c530a1d212717e5e",
+    "pr_url": null,
+    "files_changed": 3
+  },
+  "intent": "Recognize signed-in narrow provider panes: nested Muse transcript markers, hidden ChatGPT and Claude account controls, ChatGPT and Grok rich editors, and Grok profile markup. Preserve visible sign-in denial, unique visible editor selection, draft checks, and single-click receipt safeguards.",
+  "intent_confidence": "explicit",
+  "reviewers": [
+    "correctness",
+    "adversarial"
+  ],
+  "findings": [],
+  "actionable_findings": [],
+  "triage_groups": [],
+  "pre_existing_findings": [],
+  "requirements_completeness": null,
+  "learnings": [],
+  "agent_native_gaps": [],
+  "deployment_notes": [],
+  "residual_risks": [
+    "Live ChatGPT Send was not exercised after adding its exact button[aria-label=\"Send\"] selector; the user-authorized live check remained pending at review completion. Local WKWebView fixtures and the 112-test suite passed."
+  ],
+  "testing_gaps": [],
+  "coverage": {
+    "depth": "focused",
+    "scope": "local three-file working-tree diff against the explicit base; current git diff SHA-256 56cfad4fc1a9b0c802c5e93d2d1ce0be22ca4a6aaa5257ca79973751cc4eb301",
+    "criteria": [
+      "AGENTS.md governs all three changed files; no CODING_STANDARDS.md found"
+    ],
+    "independent_adversarial": "Local independent reviewer /root/nav_integration_review completed a bounded final follow-up covering ChatGPT Send selector, fixture listener binding, and observed-layout regression; no substantive findings, residual risks, or testing gaps. Its result was relayed by the parent; no external code export occurred.",
+    "validation": "Read existing logs only: ChatGPT regression failed before the selector fix with notSent and no outgoing message; passed after fix (1 test, 0 failures). /tmp/msgblast-chatgpt-send-full.log reports 112 tests passed with 0 failures. This reviewer did not run builds or tests.",
+    "review_limits": "No validator or other persona ran on this focused path. Live ChatGPT sending after the final selector fix was pending at review completion."
+  },
+  "artifact_path": "/tmp/compound-engineering-501/ce-code-review/20261006-052013-cf9c8f1c",
+  "run_id": "20261006-052013-cf9c8f1c"
+}

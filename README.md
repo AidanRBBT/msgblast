@@ -1,8 +1,8 @@
 # msgblast
 
-msgblast is a Mac app for comparing AI agents through Messages. Send the same prompt to selected agents and read their replies side by side. Attach photos or files, send follow-ups, and reopen saved comparisons.
+msgblast is a Mac app for comparing AI agents in Messages and embedded Muse, ChatGPT, Claude, and Grok chats. Send one prompt to selected agents, read replies side by side, send follow-ups, and reopen saved comparisons. Messages agents also support photos and files.
 
-Requires **macOS 26 or later** and existing one-to-one iMessage conversations with the agents you want to message.
+Requires **macOS Sequoia (15) or later**. Web agents use your existing service accounts. Messages agents require existing one-to-one iMessage conversations.
 
 ## Download and install
 
@@ -37,7 +37,7 @@ On your first send, allow msgblast to control **Messages**. If you previously de
 
 ### 3. Add agents and send a prompt
 
-Find agents in **Discover**, or click **+** to search by name, email or phone number. Start a one-to-one conversation with the agent in Messages first if it does not have one yet.
+Find agents in **Discover**, or click **Add Agent** to search by name, email or phone number. Start a one-to-one conversation with the agent in Messages first if it does not have one yet.
 
 <img src="docs/evidence/readme-onboarding/03-add-agents.png" alt="Actual msgblast Add agent screen with sample contacts" width="680">
 
@@ -55,7 +55,7 @@ Click **Summarize** in a comparison to open a report with a recommended next act
 
 ## Build it yourself
 
-Install **Xcode 27**, then clone this repository and build the app:
+Install **Xcode 16.4 or later**, then clone this repository and build the app:
 
 ```sh
 git clone https://github.com/mgalpert/msgblast.git
@@ -69,27 +69,27 @@ You can also open **msgblast.xcodeproj** in Xcode, select the **msgblast** schem
 
 ## AI agent conversations
 
-Select **Muse, ChatGPT, Claude, or Grok** beside your Messages agents in **My agents**. Use each selected agent's **Open** button to show its conversation. ChatGPT and Claude use native conversation panes through your installed Codex and Claude Code CLIs; Muse and Grok open their pages inside msgblast. Grok is the `grok.com` service, separate from the Grok Bot desktop app.
+Select **Muse, ChatGPT, Claude, or Grok** beside your Messages agents in **My agents**. All four providers start selected; your choices are saved. Press **Send & compare** with a request. If a selected provider needs setup, msgblast opens its pane and explains how to sign in. ChatGPT and Claude use your local Codex and Claude Code accounts, with official CLI sign-in in Terminal. Muse and Grok use embedded pages. Signing in never submits the saved request automatically; press **Send & compare** again when ready. Right-click an agent’s **Open chat** action or reopen a saved comparison to return to its conversation.
 
-Muse creates a **side chat for each new comparison**, then keeps follow-ups in that same chat. Reopen a comparison from the sidebar to return to its saved Muse side chat; choose **New comparison** for a separate conversation. If Muse does not assign a side-chat URL, the send stays unconfirmed and the app does not retry in the main chat.
+Each new comparison gets separate provider conversations. ChatGPT and Claude save transcripts, drafts, and CLI session IDs and resume the same sessions on follow-up. Muse and Grok save their conversation URLs while the website retains history. **New Blast** starts separate conversations. Existing website chats and unrelated CLI sessions are not imported. A missing provider session or unconfirmed send stays visible and is not retried automatically.
 
-Muse and Grok each have a separate persistent WebKit data store. Their Safari, Chrome, and desktop-app logins are separate and cookies are not imported. ChatGPT and Claude use existing local CLI accounts and sign in through the official CLI in Terminal; their browser data is preserved but no longer displayed. The existing Muse file, session identifier, selection, and pending sends migrate in place. New providers start unselected. HTTPS sign-in popups stay in an app sheet with their URL visible.
+**Your local accounts** shows ChatGPT, Claude, OpenClaw, and Hermes together. OpenClaw and Hermes report installation status and offer Terminal setup. Installation does not prove authentication or connectivity. OpenClaw chat is not connected; Hermes retains its comparison-report adapter. msgblast does not import account tokens.
 
-The shared composer submits text concurrently to selected providers and independently to selected Messages agents. Each pane shows its own result and replies. ChatGPT and Claude transcripts, drafts, and CLI session IDs are saved per comparison; reopening the comparison resumes the same sessions. Their individual composers also create saved comparisons. Muse returns to its saved side chat; Grok displays its current browser conversation. The home control on browser panes opens the service’s comparison/new-chat page.
+Muse and Grok have separate persistent WebKit data stores. Safari, Chrome, and desktop-app cookies are not imported. Existing Muse state migrates in place; ChatGPT and Claude’s previous browser stores are preserved. HTTPS sign-in popups stay in an app sheet with their URL visible.
 
-Web sends require an empty site composer, recognizable signed-in UI, and unambiguous controls. Existing drafts are preserved. Intent is saved before clicking Send once, then the app checks for a new outgoing message with matching text. **Appeared in [agent]** is a page observation, not a server delivery acknowledgement. Interrupted or unconfirmed sends are not retried automatically. Native Messages retains its existing attachments and retry workflow; shared sends including web agents are text-only.
+Before a shared submission, all selected conversations must be ready. Missing login or an existing provider draft keeps the request in the composer without sending to any recipient. Once ready, the shared composer submits concurrently to selected AI providers and independently to Messages recipients. Web send confirmations are page observations, not server delivery acknowledgements. Native Messages retains its attachment and retry workflow; shared sends including AI providers are text-only. Progress and errors stay visible; completed sends do not leave a persistent success banner.
 
-Muse still uses the signed-in user's displayed avatar when readable, with the bundled website image as fallback. It stays in memory and clears on sign-out or navigation. ChatGPT and Claude use their iOS app icons; Grok uses the generated artwork bundled with the app.
+Muse uses the signed-in user’s displayed avatar when readable, with bundled artwork as fallback. ChatGPT and Claude use their iOS app icons; Grok uses bundled generated artwork.
 
 ### Verification status
 
-**Muse side chats and Grok are browser preview integrations pending authenticated live validation.** Their current English DOM selectors include compatibility assumptions beyond the controls inspected on October 5, 2026. ChatGPT and Claude are native CLI integrations validated with local executable fixtures; live CLI sign-in, inference, and resume remain unverified. An unrecognized layout disables shared sending and leaves the embedded page available. Fixtures do not prove a site's authentication, anti-automation behavior, long-running background operation, or future compatibility. No website integration can promise that every future site version will work unchanged.
+Native ChatGPT and Claude authentication, session persistence, and resumption are tested with local executable fixtures; live CLI login, inference, and resume remain unverified. Prior authenticated Muse/Grok browser sends and saved-chat checks are recorded in the browser evidence. Current English layouts use DOM selectors; an unrecognized layout blocks shared submission and leaves the embedded page usable. Fixtures do not prove future website or CLI compatibility.
 
 Run `zsh scripts/build_web_preview.sh` and open `build/msgblast Web Preview.app` for live sign-in checks. It has a separate bundle identifier, blue demo icon, and `~/Library/Application Support/MsgBlast-WebPreview` state. **All web services are live; Messages are synthetic.** This does not install over the development app.
 
 Run `zsh scripts/build_web_preview.sh --fixture` and open `build/msgblast Muse Fixture.app` for an entirely local test of all four providers. The historical fixture app name is retained. Every launch uses temporary state and no destination sends externally. [Multi-agent verification and evidence](docs/evidence/multi-web-agents/validation.md) distinguishes fixture results from live checks.
 
-Core tests exercise the real WebKit engine for concurrent sends, replies, textarea/contenteditable inputs, first-message URL transitions, repeated identical prompts, existing drafts, expired sessions, ambiguous controls, storage failures, session isolation, Muse migration, and avatar lifecycle. Direct native UI checks cover agent selection and the shared composer. Run the isolated core suite without launching the user's development app:
+Core tests exercise the real WebKit engine for concurrent sends, replies, textarea/contenteditable inputs, first-message URL transitions, repeated identical prompts, existing drafts, expired sessions, ambiguous controls, storage failures, session isolation, Muse migration, and avatar lifecycle. Direct native UI checks cover agent selection, the shared composer, restored conversations and the removal of redundant success banners. [Latest verification and limits](docs/evidence/quiet-success-banners/validation.md) and [Grok follow-up verification](docs/evidence/toolbar-and-grok-followups/validation.md) distinguish live checks from local fixtures. Run the isolated core suite without launching the user's development app:
 
 ```sh
 xcodebuild -project msgblast.xcodeproj -scheme msgblast \
@@ -98,4 +98,19 @@ xcodebuild -project msgblast.xcodeproj -scheme msgblast \
   -only-testing:msgblastTests test
 ```
 
-After building, `bash scripts/test_web_comparisons.sh build/webkit-validation` checks production comparison reopening, native attachment follow-ups, retry isolation, and quit/update deferral with controlled local fixtures. [Muse side-chat validation](docs/evidence/muse-side-chats/validation.md) records the current results and live-test boundary.
+After building, `bash scripts/test_web_comparisons.sh build/webkit-validation` checks production comparison reopening, native attachment follow-ups, retry isolation, and quit/update deferral with controlled local fixtures. [Saved-chat validation](docs/evidence/dedicated-web-chats/validation.md) records the current results and live-test boundary.
+
+## License
+
+Copyright (C) 2026 Michael Galpert and contributors.
+
+Except where separately licensed or attributed, msgblast is licensed under the
+[GNU General Public License, version 3 only](LICENSE) (`GPL-3.0-only`). You may
+use, modify, and redistribute it, including commercially, under those terms.
+Distributed modified versions must remain under GPLv3 and include the
+corresponding source as required by the license. The software comes without
+any warranty.
+
+Third-party dependencies, service icons, logos, and other attributed assets
+retain their respective licenses and rights; this license does not relicense
+third-party material or grant trademark rights.

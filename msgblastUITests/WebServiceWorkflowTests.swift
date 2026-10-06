@@ -8,7 +8,7 @@ final class WebServiceWorkflowTests: XCTestCase {
         app.launch()
         defer { app.terminate() }
         for name in ["Cedar", "Lumen", "Orbit", "Maple", "Echo", "Flint"] { app.buttons[name].click() }
-        app.buttons["ChatGPT"].click(); app.buttons["Claude"].click()
+        app.buttons["Muse"].click(); app.buttons["Grok"].click()
         let editor = app.textViews["Shared prompt"]
         editor.click(); editor.typeKey("a", modifierFlags: .command); editor.typeText("Native conversation fixture")
         app.buttons["Send & compare"].click()
@@ -16,7 +16,7 @@ final class WebServiceWorkflowTests: XCTestCase {
         XCTAssertTrue(reply.waitForExistence(timeout: 10))
         XCTAssertEqual(app.webViews.count, 0)
         capture(app, name: "Native ChatGPT and Claude panes — simulated replies")
-        app.buttons["My agents"].click()
+        app.buttons["New Blast"].click()
         let comparison = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", "Native conversation fixture", "Native conversation fixture")).firstMatch
         XCTAssertTrue(comparison.waitForExistence(timeout: 5))
         comparison.click()
@@ -26,6 +26,38 @@ final class WebServiceWorkflowTests: XCTestCase {
         XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", "ChatGPT fixture reply: Continue the same conversation", "ChatGPT fixture reply: Continue the same conversation")).firstMatch.waitForExistence(timeout: 10))
         XCTAssertTrue(reply.exists)
         XCTAssertEqual(app.webViews.count, 0)
+    }
+
+    @MainActor
+    func testSignedOutAgentOpensSetupAndKeepsPromptUntilUserSubmitsAgain() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--demo", "--isolated-demo"]
+        app.launch()
+        defer { app.terminate() }
+        for name in ["Cedar", "Lumen", "Orbit", "Maple", "Echo", "Flint", "ChatGPT", "Claude", "Grok"] { app.buttons[name].click() }
+        app.buttons["Muse"].rightClick()
+        app.menuItems["Open chat"].click()
+        let signOut = app.buttons["Sign out of fixture"]
+        XCTAssertTrue(signOut.waitForExistence(timeout: 10))
+        signOut.click()
+        XCTAssertTrue(app.buttons["Sign in to fixture"].waitForExistence(timeout: 10))
+        app.buttons["New Blast"].click()
+        let editor = app.textViews["Shared prompt"]
+        editor.click(); editor.typeKey("a", modifierFlags: .command); editor.typeText("Keep this comparison request")
+        let send = app.buttons["Send & compare"]
+        XCTAssertTrue(send.isEnabled, "A signed-out agent must lead to setup, not a disabled send button")
+        send.click()
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "Connect your accounts")).firstMatch.waitForExistence(timeout: 10))
+        app.buttons["Start signing in"].click()
+        XCTAssertEqual(editor.value as? String, "Keep this comparison request")
+        XCTAssertFalse(app.staticTexts.containing(NSPredicate(format: "value CONTAINS %@", "Fixture reply: Keep this comparison request")).firstMatch.exists)
+        app.buttons["Sign in to fixture"].click()
+        XCTAssertTrue(app.buttons["Sign out of fixture"].waitForExistence(timeout: 10))
+        XCTAssertEqual(editor.value as? String, "Keep this comparison request")
+        XCTAssertFalse(app.staticTexts.containing(NSPredicate(format: "value CONTAINS %@", "Fixture reply: Keep this comparison request")).firstMatch.exists, "Signing in must not submit automatically")
+        send.click()
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "value CONTAINS %@", "Fixture reply: Keep this comparison request")).firstMatch.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["Appeared in Muse"].exists)
     }
 
     @MainActor
@@ -81,7 +113,7 @@ final class WebServiceWorkflowTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Cedar (Demo)"].firstMatch.waitForExistence(timeout: 10))
         capture(app, name: "Embedded Muse and Messages replies — synthetic content")
         editor.click(); editor.typeText("Keep this shared draft")
-        app.buttons["My agents"].click()
+        app.buttons["New Blast"].click()
         XCTAssertEqual(app.buttons["Muse"].value as? String, "Selected")
         XCTAssertEqual(app.buttons["Cedar"].value as? String, "Selected")
         XCTAssertEqual(app.textViews["Shared prompt"].value as? String, "Keep this shared draft")

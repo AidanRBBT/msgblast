@@ -1,0 +1,48 @@
+{
+  "status": "complete",
+  "verdict": "Ready to merge",
+  "scope": {
+    "base": "ec8cd1ab2443181ac19ecd0eed9ac5878903d076",
+    "branch": "codex/webkit-services",
+    "head_sha": "ec8cd1ab2443181ac19ecd0eed9ac5878903d076",
+    "pr_url": "https://github.com/mgalpert/msgblast/pull/3",
+    "files_changed": 2
+  },
+  "intent": "Move New comparison into the leading window toolbar as New Blast, alongside the Add agent control. Remove its content row while preserving drafts, selections, busy guards and saved comparisons.",
+  "intent_confidence": "explicit",
+  "reviewers": [
+    "correctness"
+  ],
+  "findings": [],
+  "actionable_findings": [],
+  "triage_groups": [],
+  "pre_existing_findings": [],
+  "requirements_completeness": null,
+  "learnings": [],
+  "agent_native_gaps": [],
+  "deployment_notes": [],
+  "residual_risks": [],
+  "testing_gaps": [],
+  "coverage": {
+    "depth": "lite",
+    "scope": "base:ec8cd1a versus working tree",
+    "criteria": [
+      "AGENTS.md (instruction-file fallback; both changed files)"
+    ],
+    "not_assessed": [
+      "independent reviewer agents",
+      "declared Compound Packs",
+      "learnings",
+      "agent-native gaps",
+      "deployment notes"
+    ],
+    "verification": [
+      "Build-for-testing succeeded",
+      "Native fixture: toolbar placement, four-agent comparison, busy disabled action, new blast preserves draft and selection",
+      "No new automated tests for this local layout/label change; existing UI tests inspected, manual interaction used instead"
+    ],
+    "plan": "No matching plan discovered; latest explicit user request defines scope"
+  },
+  "artifact_path": "/tmp/compound-engineering-501/ce-code-review/new-blast-ba596acd",
+  "run_id": "new-blast-ba596acd"
+}

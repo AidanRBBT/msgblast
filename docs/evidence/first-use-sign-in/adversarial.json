@@ -1,0 +1,49 @@
+{
+  "reviewer": "adversarial",
+  "findings": [
+    {
+      "title": "Failed setup sends a new request into an old comparison",
+      "severity": "P1",
+      "file": "msgblast/Windows/WebServicesView.swift",
+      "line": 207,
+      "why_it_matters": "A user starting a new comparison with Muse deselected can have a failed setup turn the next Send into a follow-up to the previous comparison. The preflight clears only the selected sessions' comparison IDs, while the workspace ID still comes from deselected Muse; the early return leaves showingComparison true, so retry interprets that stale ID as the intended destination. Synchronizing the workspace ID, including deselected providers, before setup preserves the new-comparison intent across failure without deleting the old saved conversation URLs.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "confidence": 100,
+      "evidence": [
+        "msgblast/Windows/WebServicesView.swift:207 -- guard await WebAgents.prepareComparison(existingID, for: sessions) else { return }",
+        "msgblast/Core/WebAgents.swift:11 -- public var comparisonID: UUID? { workspaceSession.state.comparisonID }; line 15 chooses Muse as workspaceSession, while lines 36-39 prepare only the supplied sessions.",
+        "msgblast/Windows/Views.swift:202 -- Button { selection = .agents; showingComparison = false } label: { ; returning to My agents preserves the previous workspace comparison ID.",
+        "Constructed sequence: first-use intro has already appeared; comparison A has saved chats; Muse is deselected; the user returns to My agents and attempts a new request with a signed-out selected provider. WebServicesView lines 201-204 capture selected sessions, calculate existingID=nil, and set showingComparison=true. WebAgentSession.swift:109 changes only those sessions to nil, and the failed setup returns at line 207. Muse and therefore web.comparisonID still identify A.",
+        "After signing in, the retry evaluates WebServicesView.swift:202 -- let existingID = showingComparison ? nativeComparison?.id : nil ; nativeComparison at line 77 resolves A through web.comparisonID. Lines 209 and 222 then reuse A and send to its saved provider conversation instead of creating the requested new comparison. Any selected native members of A are also treated as follow-up recipients at lines 225-229."
+      ],
+      "pre_existing": false,
+      "suggested_fix": "Make comparison preparation synchronize the requested comparison ID across every session before preparing the selected sessions, using WebAgents.setComparison(id). An instance prepareComparison method can own that synchronization. Add a regression beginning at a saved comparison with Muse deselected and another selected provider signed out: a failed nil preflight must leave the workspace ID and every session ID nil, preserve the old URL mappings, and make retry create a new comparison."
+    },
+    {
+      "title": "Finishing sign-in can submit without another Send",
+      "severity": "P1",
+      "file": "msgblast/Windows/WebServicesView.swift",
+      "line": 190,
+      "why_it_matters": "After the first-use overlay has been dismissed, pressing Send while a selected page is still loading or completing sign-in can leave a submission waiting for readiness. If the page becomes ready during preflight, the same action continues directly into the broadcast, so finishing login can send the shared draft without the promised new explicit Send after setup. The setup decision must remain attached to the readiness state at the original button press rather than being erased by later readiness.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "confidence": 75,
+      "evidence": [
+        "msgblast/Windows/WebServicesView.swift:190 -- if !hasPresentedConnectionIntro && web.selected.contains(where: { !$0.snapshot.ready }) {",
+        "The first setup attempt sets hasPresentedConnectionIntro=true at WebServicesView.swift:194. The revised canSend at lines 29-32 no longer requires snapshot.ready, and busy at line 17 does not include session.loading, so a later Send during loading is accepted and skips the setup-only return.",
+        "msgblast/Windows/WebServicesView.swift:207 -- guard await WebAgents.prepareComparison(existingID, for: sessions) else { return } ; a successful asynchronous preflight proceeds to AgentBroadcast.send at line 219 with the original draft.",
+        "msgblast/Core/WebAgentSession.swift:138 -- if !loading, snapshot.url == target.absoluteString, !snapshot.ready { ; this immediate failure is skipped when the page is loading. Lines 151-156 poll for up to 20 seconds and return successfully once snapshot.ready and the target URL match.",
+        "Constructed sequence: dismiss the intro, begin or reload the embedded sign-in flow, press Send while the selected page is loading, then complete login before its preflight timeout. The polling loop returns true after login and line 219 broadcasts without another button press. The same state transition is possible when setup loading simply finishes during that later Send."
+      ],
+      "pre_existing": false,
+      "suggested_fix": "Capture whether any selected session is unready at the start of each Send action. For such an action, open or prepare the selected pages and retain the draft, but return without broadcasting even if preparation becomes successful while awaiting. Keep hasPresentedConnectionIntro only as the decision to display the explanation once. Add a regression where an unready page becomes ready during preflight after the intro was dismissed, asserting that both web and native sends remain untouched until a subsequent explicit Send."
+    }
+  ],
+  "residual_risks": [
+    "This was a source-only adversarial review of the tracked diff and surrounding callers. Existing fixture success does not establish live-provider sign-in redirects, authentication popup behavior, or provider DOM compatibility."
+  ],
+  "testing_gaps": []
+}

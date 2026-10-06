@@ -1,0 +1,107 @@
+{
+  "status": "complete",
+  "verdict": "Ready to merge",
+  "verdict_scope": "Bounded follow-up of the two confirmed review findings and adjacent test changes only; no broad review or release approval.",
+  "original_receipt": "/tmp/compound-engineering-501/ce-code-review/20261005-213821-2b664edc/review.json",
+  "original_verdict": "Ready with fixes",
+  "run_id": "20261005-213821-2b664edc",
+  "scope": {
+    "repository": "/Users/contains/.codex/worktrees/webkit-services/msgblast",
+    "base": "f9b05275a501d170626879f71c0f14f52795689a",
+    "head_sha": "f9b05275a501d170626879f71c0f14f52795689a",
+    "branch": "codex/webkit-services",
+    "snapshot": "Current staged and unstaged tree after caller fixes",
+    "reviewed_diff": "/tmp/compound-engineering-501/ce-code-review/20261005-213821-2b664edc/recheck.diff",
+    "diff_sha256": "f4403f77caf32cd5c70bb577981c29e5519170df2f65abd507e3eabe8d454385",
+    "checked_files": [
+      "msgblast/App/msgblastApp.swift",
+      "msgblast/Core/WebAgentSession.swift",
+      "msgblastTests/MultiWebAgentTests.swift"
+    ],
+    "file_sha256": {
+      "msgblast/App/msgblastApp.swift": "e80ab14f0a797a07bb32db4498524781eeab37fd4abeb778bf00db2fd90b2673",
+      "msgblast/Core/WebAgentSession.swift": "f19cdc24878a550af198be72440902975970ad0d7af93c7eb291176a0f09eb9d",
+      "msgblastTests/MultiWebAgentTests.swift": "1a5ca998a46ca4df40a7b8f461f93c10fc86bb8f6ce40ddcaa5a59b9889f7244"
+    }
+  },
+  "finding_dispositions": [
+    {
+      "#": 1,
+      "title": "Size restored windows using their actual screen",
+      "status": "resolved",
+      "basis": "source inspection plus reported successful fixture build",
+      "evidence": [
+        "msgblast/App/msgblastApp.swift:10 -- private let preferredWindowSize = NSSize(width: 1600, height: 1100)",
+        "msgblast/App/msgblastApp.swift:22 -- }.background(InitialWindowFrame(size: preferredWindowSize))",
+        "msgblast/App/msgblastApp.swift:100 -- guard let window, let screen = window.screen ?? NSScreen.main else { return }",
+        "msgblast/App/msgblastApp.swift:102 -- let width = min(size.width, bounds.width), height = min(size.height, bounds.height)"
+      ],
+      "reason": "The frame bridge now receives the uncapped target and clamps against the actual restored window screen at application time. The default scene size remains separately capped. This removes the previous smaller-display cap from the final frame calculation.",
+      "limits": "Physical two-display restoration was not exercised by this reviewer."
+    },
+    {
+      "#": 2,
+      "title": "Preserve storage failures across navigation recovery",
+      "status": "resolved",
+      "basis": "source inspection and inspected red/green test logs",
+      "evidence": [
+        "msgblast/Core/WebAgentSession.swift:354 -- if (error as NSError).code != NSURLErrorCancelled, !storageFailed {",
+        "msgblast/Core/WebAgentSession.swift:373 -- if !allowed, mainFrame, navigationAction.navigationType == .linkActivated, !storageFailed {",
+        "msgblastTests/MultiWebAgentTests.swift:61 injects NSURLErrorNotConnectedToInternet into the already storage-failed session; line 62 asserts the original storage diagnostic before recovery and line 65 after successful loading.",
+        "/tmp/msgblast-navigation-red.log: same test failed before fix with overwritten error and nil error (1 test, 2 failures).",
+        "/tmp/msgblast-navigation-verified-tests.log: testSuccessfulPageLoadClearsOnlyNavigationErrors passed; all 111 tests passed with zero failures at 2026-10-05 21:55:56.503."
+      ],
+      "reason": "Both navigation warning writers preserve existing persistent-storage diagnostics. On successful loading didFinish can clear a transient navigation error but cannot clear the untouched storage warning. The strengthened regression discriminates the original failure sequence."
+    },
+    {
+      "#": 3,
+      "title": "Frame regression asserts load events instead of content",
+      "status": "rejected_in_original_review",
+      "reason": "The validator did not establish that WebKit cancellation could false-pass the original fixture. The caller nevertheless strengthened it: both data and blob child documents now post distinct payloads and the about:blank child document URL is asserted. The updated regression passed; no new test defect found."
+    }
+  ],
+  "adjacent_changes": [
+    {
+      "subject": "WebKit store teardown",
+      "status": "removed",
+      "evidence": "Current MultiWebAgentTests.swift uses direct WebAgentSession constructions; liveNavigationSession and its async WKWebsiteDataStore.remove teardown are absent.",
+      "reason": "The caller reported the added teardown run exited 137 while stuck at teardown. Its removal preserves imported live navigation policy; updated suite completed."
+    },
+    {
+      "subject": "Frame test assertions",
+      "status": "verified",
+      "evidence": "MultiWebAgentTests.swift:13-35 waits for child-executed data-frame and blob-frame messages and asserts exactly both plus about:blank document URL. /tmp/msgblast-navigation-verified-tests.log:127-128 shows the test passed."
+    }
+  ],
+  "validation": {
+    "reviewer_ran_builds_or_tests": false,
+    "inspected_logs": [
+      {
+        "path": "/tmp/msgblast-navigation-red.log",
+        "result": "1 test, 2 failures before fix; error overwritten then cleared"
+      },
+      {
+        "path": "/tmp/msgblast-navigation-verified-tests.log",
+        "result": "111 tests, 0 failures; all four imported navigation regressions pass"
+      },
+      {
+        "path": "/tmp/msgblast-navigation-controllers.log",
+        "result": "PASS for native draft follow-ups, actual AppModel/WindowCoordinator comparison restoration, and lifecycle deferral; local fixture inputs"
+      },
+      {
+        "path": "/tmp/msgblast-navigation-final-fixture-build.log",
+        "result": "Log inspected; shows build warnings only. Successful final fixture build and signature reported by caller."
+      }
+    ],
+    "caller_reported_visual_check": "Final fixture app includes screen fix; native four-agent synthetic send completed, web headers show reload only, New Blast retained. Reviewer did not operate the app or independently inspect that visual evidence."
+  },
+  "remaining_actionable_findings": [],
+  "coverage_limits": [
+    "Physical multi-display restoration not exercised; sizing fix verified from source.",
+    "Authenticated live-provider login/redirect completion remains unverified; tested pages and sends are local fixtures.",
+    "Tests still use persistent named WebKit stores after removal of the hanging cleanup helper; this follow-up does not claim that fixture store cleanup was solved.",
+    "PR Screenshots and Video publication and production release are outside this recheck.",
+    "External cross-model review remains not run because earlier automatic approval rejected private code export; no export retried."
+  ],
+  "completed_at": "2026-10-06T04:58:41.246112+00:00"
+}

@@ -1,0 +1,11 @@
+Test Suite 'Selected tests' started at 2026-10-05 22:29:03.113.
+Test Suite 'msgblastTests.xctest' started at 2026-10-05 22:29:03.114.
+Test Suite 'MultiWebAgentTests' started at 2026-10-05 22:29:03.114.
+Test Case '-[msgblastTests.MultiWebAgentTests testSignedInNarrowLayoutsCanSendWithHiddenAccountControlsAndRichEditors]' started.
+Test Case '-[msgblastTests.MultiWebAgentTests testSignedInNarrowLayoutsCanSendWithHiddenAccountControlsAndRichEditors]' passed (3.139 seconds).
+Test Suite 'MultiWebAgentTests' passed at 2026-10-05 22:29:06.253.
+	 Executed 1 test, with 0 failures (0 unexpected) in 3.139 (3.139) seconds
+Test Suite 'msgblastTests.xctest' passed at 2026-10-05 22:29:06.253.
+	 Executed 1 test, with 0 failures (0 unexpected) in 3.139 (3.139) seconds
+Test Suite 'Selected tests' passed at 2026-10-05 22:29:06.253.
+	 Executed 1 test, with 0 failures (0 unexpected) in 3.139 (3.140) seconds

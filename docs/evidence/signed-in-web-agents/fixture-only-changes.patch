@@ -1,0 +1,33 @@
+--- msgblast/Core/WebAgentSession.swift	2026-10-05 21:53:44
++++ build/signed-in-fixture-source/msgblast/Core/WebAgentSession.swift	2026-10-05 22:30:47
+@@ -90,7 +90,29 @@
+         return provider.newChatURL
+     }
+     private func loadComparisonChat() {
+-        if fixture { webView.loadHTMLString(script.fixture, baseURL: comparisonURL) }
++        if fixture {
++            var html = script.fixture
++            switch provider {
++            case .muse:
++                html = html.replacingOccurrences(of: #"<div id="hatch-chat-scroll" aria-label="Chat messages">"#,
++                    with: #"<div id="hatch-chat-scroll"><div aria-label="Chat messages" role="log"></div>"#)
++            case .chatgpt:
++                html = html.replacingOccurrences(of: #"<button data-testid="accounts-profile-button">"#,
++                    with: #"<button aria-label="Open profile menu" style="display:none">"#)
++                html = html.replacingOccurrences(of: #"<textarea aria-label="Chat with ChatGPT"></textarea>"#,
++                    with: #"<div class="ProseMirror" contenteditable="true" role="textbox" aria-label="Ask ChatGPT"></div>"#)
++                html = html.replacingOccurrences(of: #"aria-label="Send message""#, with: #"aria-label="Send""#)
++            case .claude:
++                html = html.replacingOccurrences(of: #"<button data-testid="user-menu-button">"#,
++                    with: #"<button data-testid="user-menu-button" style="display:none">"#)
++            case .grok:
++                html = html.replacingOccurrences(of: #"<button data-testid="user-menu-button">Fixture account</button>"#,
++                    with: #"<button aria-haspopup="menu"><img alt="pfp"></button>"#)
++                html = html.replacingOccurrences(of: #"<textarea aria-label="Ask Grok anything"></textarea>"#,
++                    with: #"<div class="tiptap ProseMirror" contenteditable="true" role="textbox" aria-label="Ask Grok anything"></div>"#)
++            }
++            webView.loadHTMLString(html, baseURL: comparisonURL)
++        }
+         else { webView.load(URLRequest(url: comparisonURL)) }
+     }
+ 

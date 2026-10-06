@@ -1,0 +1,15 @@
+Test Suite 'Selected tests' started at 2026-10-05 22:13:10.734.
+Test Suite 'msgblastTests.xctest' started at 2026-10-05 22:13:10.736.
+Test Suite 'MultiWebAgentTests' started at 2026-10-05 22:13:10.736.
+Test Case '-[msgblastTests.MultiWebAgentTests testSignedInNarrowLayoutsCanSendWithHiddenAccountControlsAndRichEditors]' started.
+<worktree>/msgblastTests/MultiWebAgentTests.swift:36: error: -[msgblastTests.MultiWebAgentTests testSignedInNarrowLayoutsCanSendWithHiddenAccountControlsAndRichEditors] : XCTAssertEqual failed: ("Optional(false)") is not equal to ("Optional(true)") - Muse: Sign in to Muse and open a side chat.
+<worktree>/msgblastTests/MultiWebAgentTests.swift:36: error: -[msgblastTests.MultiWebAgentTests testSignedInNarrowLayoutsCanSendWithHiddenAccountControlsAndRichEditors] : XCTAssertEqual failed: ("Optional(false)") is not equal to ("Optional(true)") - ChatGPT: Sign in to ChatGPT and open a chat. If already signed in, use the page while its layout is unsupported.
+<worktree>/msgblastTests/MultiWebAgentTests.swift:36: error: -[msgblastTests.MultiWebAgentTests testSignedInNarrowLayoutsCanSendWithHiddenAccountControlsAndRichEditors] : XCTAssertEqual failed: ("Optional(false)") is not equal to ("Optional(true)") - Claude: Sign in to Claude and open a chat. If already signed in, use the page while its layout is unsupported.
+<worktree>/msgblastTests/MultiWebAgentTests.swift:36: error: -[msgblastTests.MultiWebAgentTests testSignedInNarrowLayoutsCanSendWithHiddenAccountControlsAndRichEditors] : XCTAssertEqual failed: ("Optional(false)") is not equal to ("Optional(true)") - Grok: Sign in to Grok and open a chat. If already signed in, use the page while its layout is unsupported.
+Test Case '-[msgblastTests.MultiWebAgentTests testSignedInNarrowLayoutsCanSendWithHiddenAccountControlsAndRichEditors]' failed (1.906 seconds).
+Test Suite 'MultiWebAgentTests' failed at 2026-10-05 22:13:12.642.
+	 Executed 1 test, with 4 failures (0 unexpected) in 1.906 (1.906) seconds
+Test Suite 'msgblastTests.xctest' failed at 2026-10-05 22:13:12.642.
+	 Executed 1 test, with 4 failures (0 unexpected) in 1.906 (1.907) seconds
+Test Suite 'Selected tests' failed at 2026-10-05 22:13:12.642.
+	 Executed 1 test, with 4 failures (0 unexpected) in 1.906 (1.908) seconds

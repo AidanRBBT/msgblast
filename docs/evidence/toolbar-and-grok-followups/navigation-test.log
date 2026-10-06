@@ -1,0 +1,11 @@
+Test Suite 'Selected tests' started at 2026-10-05 23:53:08.293.
+Test Suite 'msgblastTests.xctest' started at 2026-10-05 23:53:08.294.
+Test Suite 'MultiWebAgentTests' started at 2026-10-05 23:53:08.294.
+Test Case '-[msgblastTests.MultiWebAgentTests testNavigationWhileWaitingForSubmitStopsBeforeAttempting]' started.
+Test Case '-[msgblastTests.MultiWebAgentTests testNavigationWhileWaitingForSubmitStopsBeforeAttempting]' passed (1.666 seconds).
+Test Suite 'MultiWebAgentTests' passed at 2026-10-05 23:53:09.960.
+	 Executed 1 test, with 0 failures (0 unexpected) in 1.666 (1.666) seconds
+Test Suite 'msgblastTests.xctest' passed at 2026-10-05 23:53:09.960.
+	 Executed 1 test, with 0 failures (0 unexpected) in 1.666 (1.666) seconds
+Test Suite 'Selected tests' passed at 2026-10-05 23:53:09.960.
+	 Executed 1 test, with 0 failures (0 unexpected) in 1.666 (1.667) seconds

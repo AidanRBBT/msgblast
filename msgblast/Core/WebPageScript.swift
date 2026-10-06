@@ -9,9 +9,9 @@ struct WebPageScript {
         switch provider {
         case .muse: return MusePageScript.helpers
         case .chatgpt:
-            selectors = (#"textarea[aria-label="Chat with ChatGPT"],#prompt-textarea[contenteditable="true"]"#,
-                         #"button[data-testid="send-button"],button[aria-label="Send message"],button[aria-label="Send prompt"]"#,
-                         #"[data-message-author-role][data-message-id]"#,
+            selectors = (#"textarea[aria-label="Chat with ChatGPT"],#prompt-textarea[contenteditable="true"],[contenteditable="true"][role="textbox"][aria-label="Ask ChatGPT"]"#,
+                         #"button[data-testid="send-button"],button[aria-label="Send message"],button[aria-label="Send prompt"],button[aria-label="Send"]"#,
+                         #"[data-message-author-role][data-message-id],[data-chatgpt-search-unit-key][data-chatgpt-search-message-ids]"#,
                          #"button[data-testid="accounts-profile-button"],button[aria-label="Open profile menu"]"#)
         case .claude:
             selectors = (#"[contenteditable="true"][data-testid="chat-input"],div[contenteditable="true"].ProseMirror"#,
@@ -19,10 +19,10 @@ struct WebPageScript {
                          #"[data-testid="user-message"],[data-testid="assistant-message"],.font-claude-message"#,
                          #"button[data-testid="user-menu-button"],button[aria-label="User menu"],button[aria-label="Open user menu"]"#)
         case .grok:
-            selectors = (#"textarea[aria-label="Ask Grok anything"],textarea[placeholder="What do you want to know?"]"#,
+            selectors = (#"textarea[aria-label="Ask Grok anything"],textarea[placeholder="What do you want to know?"],[contenteditable="true"][role="textbox"][aria-label="Ask Grok anything"]"#,
                          #"button[data-testid="chat-submit"],button[aria-label="Submit"]"#,
                          #"[data-message-id][data-message-role],.message-bubble"#,
-                         #"button[data-testid="user-menu-button"],button[aria-label="User menu"],button[aria-label="Open user menu"],button[aria-label="Account menu"]"#)
+                         #"button[data-testid="user-menu-button"],button[aria-label="User menu"],button[aria-label="Open user menu"],button[aria-label="Account menu"],button[aria-haspopup="menu"]:has(img[alt="pfp"])"#)
         }
         let config: [String: String] = ["name":provider.name,"provider":provider.rawValue,"host":provider.homeURL.host!,"editor":selectors.editor,"send":selectors.send,"messages":selectors.messages,"account":selectors.account]
         let json = String(data: try! JSONSerialization.data(withJSONObject: config, options: [.sortedKeys]), encoding: .utf8)!
@@ -45,29 +45,76 @@ struct WebPageScript {
             (config.provider==='claude' ? /^\/(new|chat\/[a-zA-Z0-9-]+)\/?$/.test(location.pathname) : /^(\/|\/c\/[a-zA-Z0-9-]+\/?)$/.test(location.pathname));
         const messages = () => [...document.querySelectorAll(config.messages)].filter(e => !e.parentElement?.closest(config.messages)).map(e => {
             let role=e.getAttribute('data-message-author-role') || e.getAttribute('data-message-role');
+            let id=e.getAttribute('data-message-id') || e.closest('[data-message-id]')?.getAttribute('data-message-id');
+            if (!role && config.provider==='chatgpt') {
+                const roleMatch=e.getAttribute('data-chatgpt-search-unit-key')?.match(/:(user|assistant)$/);
+                const ids=[...new Set((e.getAttribute('data-chatgpt-search-message-ids')||'').split(/\s+/).filter(Boolean))];
+                if (roleMatch && ids.length===1) { role=roleMatch[1]; id=ids[0]; }
+            }
             if (!role && config.provider==='claude') role=e.getAttribute('data-testid')==='user-message' ? 'user' : 'assistant';
             if (!role && config.provider==='grok') role=e.classList.contains('items-end') || e.closest('[data-role="user"],.items-end') ? 'user' : 'assistant';
             const copy=e.cloneNode(true); copy.querySelectorAll('button,[role="button"],time').forEach(n=>n.remove());
+            if (config.provider==='chatgpt') copy.querySelectorAll('h4[data-conversation-role]').forEach(n=>n.remove());
             copy.querySelectorAll('br,p,div,li,pre,blockquote').forEach(n=>n.append(document.createTextNode(' ')));
             if (!observation.ids.has(e)) observation.ids.set(e,`node-${++observation.nextID}`);
-            return {id:e.getAttribute('data-message-id') || e.closest('[data-message-id]')?.getAttribute('data-message-id') || observation.ids.get(e),role:role||'unknown',text:normalized(copy.textContent||'')};
+            return {id:id||observation.ids.get(e),role:role||'unknown',text:normalized(copy.textContent||'')};
         });
+        const conversationLocation = () => {
+            const url=new URL(location.href),params=[...url.searchParams];
+            // Grok appends a response ID while staying in the same conversation.
+            if (config.provider==='grok' && /^\/c\/[a-zA-Z0-9-]+\/?$/.test(url.pathname) && !url.hash &&
+                params.length===1 && params[0][0]==='rid' && /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(params[0][1])) url.search='';
+            return url.href;
+        };
         const status = () => {
             const input=editor(); let reason='';
             const login=all('button,a').some(e=>/^(log in|sign in|sign up|sign up for free)$/i.test(normalized(e.innerText||e.getAttribute('aria-label')||'')));
             const modal=all('[role="dialog"],[aria-modal="true"]').length>0;
             const generating=all('button[data-testid="stop-button"],button[aria-label="Stop generating"],button[aria-label="Stop response"],button[aria-label="Stop"] ').length>0;
             if (!pathAllowed()) reason=`Open a ${config.name} chat to send from MsgBlast.`;
-            else if (login || !all(config.account).length) reason=`Sign in to ${config.name} and open a chat. If already signed in, use the page while its layout is unsupported.`;
+            else if (login) reason=`Sign in to ${config.name} to send this request.`;
+            // Responsive sidebars hide their account control without ending the session.
+            // Still require known account markup and a visible, unique editor below.
+            else if (!document.querySelector(config.account)) reason=`${config.name}’s page layout is not recognized yet. Reload the page and try again.`;
             else if (modal) reason=`Finish the open dialog in ${config.name} first.`;
             else if (generating) reason=`Wait for ${config.name} to finish its current reply.`;
             else if (!input || input.disabled || input.readOnly || input.getAttribute('aria-disabled')==='true') reason=`Waiting for ${config.name}’s message field.`;
-            return {url:location.href,ready:!reason,reason:reason||`${config.name} chat ready`,draft:draft(input)};
+            return {url:conversationLocation(),ready:!reason,reason:reason||`${config.name} chat ready`,draft:draft(input)};
+        };
+        const submissionStatus = () => {
+            const current=status();
+            if (!current.ready || current.url!==expectedURL || current.draft!==text || observation.interrupted)
+                return {ready:false,retryable:false,reason:`${config.name} changed during preparation. Review its draft; nothing was clicked.`};
+            const candidates=all(config.send),send=candidates.length===1?candidates[0]:null;
+            const ready=!!send && !send.disabled && send.getAttribute('aria-disabled')!=='true';
+            return {ready,retryable:candidates.length<2,reason:`${config.name}’s Send control is unavailable. Review the prepared draft.`};
         };
         const inspect = () => ({...status(),messages:pathAllowed()?messages():[],submissionInterrupted:observation.interrupted});
         """#
     }
     var inspect: String { provider == .muse ? MusePageScript.inspect : helpers + "\nreturn inspect();" }
+    // Apply the initial pane layout once per document. A user's later choice wins.
+    var configureInitialLayout: String {
+        guard provider == .chatgpt else { return "return;" }
+        return helpers + #"""
+        if (observation.layoutConfigured) return;
+        if (observation.interrupted) { observation.layoutConfigured=true; return; }
+        if (!pathAllowed() || !editor() || !document.querySelector(config.account)) return;
+        const close=all('button[aria-label="Close sidebar"][aria-expanded="true"]');
+        const expanded=close.length ? close : all('button[aria-label="Toggle sidebar"][aria-expanded="true"],button[aria-label="Hide sidebar"][aria-expanded="true"]');
+        if (!expanded.length) {
+            if (all('button[aria-label="Show sidebar"],button[aria-label="Toggle sidebar"][aria-expanded="false"]').length) observation.layoutConfigured=true;
+            return;
+        }
+        if (expanded.length!==1) return;
+        const toggle=expanded[0];
+        // In narrow panes the sidebar itself is a dialog. Leave other dialogs alone.
+        if (all('[role="dialog"],[aria-modal="true"]').some(d=>!d.contains(toggle))) return;
+        if (toggle.disabled || toggle.getAttribute('aria-disabled')==='true') return;
+        observation.layoutConfigured=true;
+        toggle.click();
+        """#
+    }
     var prepare: String {
         if provider == .muse { return MusePageScript.prepare }
         return helpers + #"""
@@ -83,22 +130,25 @@ struct WebPageScript {
         } else {
             // Let contenteditable/ProseMirror process a browser editing operation.
             input.focus();
+            // Cocoa's shared composer can clear WebKit's selection while the DOM
+            // still reports this editor as focused. Restore its empty insertion point.
+            const selection=window.getSelection(),range=document.createRange();
+            range.selectNodeContents(input);range.collapse(false);
+            selection.removeAllRanges();selection.addRange(range);
             if (!document.execCommand('insertText',false,text)) return {ok:false,reason:'The page did not accept text. Use its composer directly.'};
         }
+        observation.interrupted=false;
         return {ok:true,messageIDs:baseline.map(m=>m.id),messages:baseline,existingConversationPaths};
         """#
     }
+    var sendReadiness: String { helpers + "\nreturn submissionStatus();" }
     var clickSend: String {
         if provider == .muse { return MusePageScript.clickSend }
         return helpers + #"""
-        const current=status();
-        if (!current.ready || current.url!==expectedURL || current.draft!==text)
-            return {clicked:false,reason:`${config.name} changed during preparation. Review its draft; nothing was clicked.`};
-        const send=unique(config.send);
-        if (!send || send.disabled || send.getAttribute('aria-disabled')==='true')
-            return {clicked:false,reason:`${config.name}’s Send control is unavailable. Review the prepared draft.`};
+        const check=submissionStatus();
+        if (!check.ready) return {clicked:false,reason:check.reason};
         observation.interrupted=false;
-        send.click(); return {clicked:true};
+        unique(config.send).click(); return {clicked:true};
         """#
     }
 
@@ -110,11 +160,20 @@ struct WebPageScript {
         return """
         <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>
         :root{color-scheme:light dark;font:15px -apple-system,sans-serif}body{margin:0;padding:22px;background:Canvas;color:CanvasText}header{display:flex;gap:12px;align-items:center;border-bottom:1px solid #8884;padding-bottom:16px}small{color:#888}#transcript{min-height:150px;padding:20px 0}article{background:#8882;border-radius:16px;margin:12px 0;padding:14px}textarea,[contenteditable]{box-sizing:border-box;width:100%;min-height:70px;padding:12px;font:inherit;border:1px solid #8885;border-radius:14px}button{font:inherit;margin:8px 0;padding:8px 14px;border-radius:10px;border:1px solid #8885}[hidden]{display:none!important}
-        </style></head><body><header><strong>\(provider.name)</strong><small>Local fixture · no real sends</small></header>
+        </style></head><body><header><strong id="thread-title">New \(provider.name) chat</strong><small>Local fixture · no real sends</small></header>
         <div id="login" hidden><p>Sign in to continue.</p><button onclick="chat.hidden=false;login.hidden=true">Sign in to fixture</button></div>
-        <main id="chat"><button \(account)>Fixture account</button><div id="transcript"></div>\(input)<button \(send) disabled>Send</button><button onclick="chat.hidden=true;login.hidden=false">Sign out of fixture</button></main>
+        <main id="chat"><button \(account)>Fixture account</button><div id="transcript"></div>\(input)<button id="fixture-send" \(send) disabled>Send</button><button onclick="chat.hidden=true;login.hidden=false">Sign out of fixture</button></main>
         <script>
-        const provider='\(provider.rawValue)',input=document.querySelector('textarea,[contenteditable]'),send=document.querySelector('button[aria-label]');
+        const provider='\(provider.rawValue)',input=document.querySelector('textarea,[contenteditable]'),send=document.getElementById('fixture-send');
+        const fixtureThreads = {},newPath='\(provider.newChatURL.path)';
+        function updateFixtureTitle(){document.getElementById('thread-title').textContent=location.pathname===newPath?'New \(provider.name) chat':'\(provider.name) chat · '+location.pathname.slice(-6);}
+        function navigateFixtureThread(url){
+          fixtureThreads[location.pathname]=document.getElementById('transcript').innerHTML;
+          history.replaceState({},'',url);
+          document.getElementById('transcript').innerHTML=location.pathname===newPath?'':(fixtureThreads[location.pathname]||'');
+          updateFixtureTitle();
+        }
+        updateFixtureTitle();
         const value=()=>input.tagName==='TEXTAREA'?input.value:input.innerText;
         input.addEventListener('input',()=>send.disabled=!value().trim());
         send.addEventListener('click',()=>{const text=value();if(!text.trim())return;
@@ -124,7 +183,7 @@ struct WebPageScript {
         if(provider==='grok'){a.dataset.messageRole=role;a.dataset.messageId=crypto.randomUUID();a.className='message-bubble';}
         a.textContent=text;document.getElementById('transcript').append(a);a.scrollIntoView({block:'nearest'});}
         add('user',text);if(input.tagName==='TEXTAREA')input.value='';else input.textContent='';send.disabled=true;
-        history.replaceState(null,'',provider==='claude'?'/chat/fixture-conversation':'/c/fixture-conversation');
+        if(location.pathname===newPath){history.replaceState(null,'',(provider==='claude'?'/chat/':'/c/')+crypto.randomUUID());updateFixtureTitle();}
         setTimeout(()=>add('assistant','\(provider.name) fixture reply: '+text),350);});
         </script></body></html>
         """

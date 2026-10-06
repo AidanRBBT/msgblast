@@ -1,0 +1,16 @@
+Test Suite 'Selected tests' started at 2026-10-05 20:51:31.087.
+Test Suite 'msgblastTests.xctest' started at 2026-10-05 20:51:31.088.
+Test Suite 'MultiWebAgentTests' started at 2026-10-05 20:51:31.088.
+Test Case '-[msgblastTests.MultiWebAgentTests testFailedNewComparisonSetupClearsDeselectedWorkspaceIdentity]' started.
+$REPO/msgblastTests/MultiWebAgentTests.swift:219: error: -[msgblastTests.MultiWebAgentTests testFailedNewComparisonSetupClearsDeselectedWorkspaceIdentity] : XCTAssertNil failed: "CFE27C12-458E-4C88-B524-C4B67A1A66F4" - Failed setup must not restore an old comparison on retry
+$REPO/msgblastTests/MultiWebAgentTests.swift:220: error: -[msgblastTests.MultiWebAgentTests testFailedNewComparisonSetupClearsDeselectedWorkspaceIdentity] : XCTAssertTrue failed
+Test Case '-[msgblastTests.MultiWebAgentTests testFailedNewComparisonSetupClearsDeselectedWorkspaceIdentity]' failed (22.542 seconds).
+Test Case '-[msgblastTests.MultiWebAgentTests testLoginCompletingDuringSetupRequiresAnotherExplicitSubmission]' started.
+$REPO/msgblastTests/MultiWebAgentTests.swift:241: error: -[msgblastTests.MultiWebAgentTests testLoginCompletingDuringSetupRequiresAnotherExplicitSubmission] : XCTAssertFalse failed - An unready click must never become a queued send after sign-in
+Test Case '-[msgblastTests.MultiWebAgentTests testLoginCompletingDuringSetupRequiresAnotherExplicitSubmission]' failed (1.114 seconds).
+Test Suite 'MultiWebAgentTests' failed at 2026-10-05 20:51:54.746.
+	 Executed 2 tests, with 3 failures (0 unexpected) in 23.657 (23.657) seconds
+Test Suite 'msgblastTests.xctest' failed at 2026-10-05 20:51:54.746.
+	 Executed 2 tests, with 3 failures (0 unexpected) in 23.657 (23.658) seconds
+Test Suite 'Selected tests' failed at 2026-10-05 20:51:54.746.
+	 Executed 2 tests, with 3 failures (0 unexpected) in 23.657 (23.659) seconds

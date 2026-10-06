@@ -17,7 +17,7 @@
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSMinimumSystemVersion</key>
-	<string>26.0</string>
+	<string>15.0</string>
 	<key>NSContactsUsageDescription</key>
 	<string>Find agent contacts and save accounts you add manually to Contacts for use with their existing Messages chats.</string>
 	<key>NSAppleEventsUsageDescription</key>

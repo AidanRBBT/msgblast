@@ -36,6 +36,8 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
     private var navigationGeneration = 0
     private var comparisonGeneration = 0
     private var avatarKey: String?
+    private var navigationError: String?
+    private var readinessError: String?
     public let provider: WebProvider
     private var script: WebPageScript { WebPageScript(provider: provider) }
 
@@ -111,8 +113,8 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
     }
 
     private var comparisonURL: URL {
-        if provider == .muse, let id = state.comparisonID,
-           let url = state.museConversations[id.uuidString], provider.isSavedMuseChat(url) { return url }
+        if let id = state.comparisonID,
+           let url = state.conversationURLs[id.uuidString], provider.isSavedConversation(url) { return url }
         return provider.newChatURL
     }
     private func loadComparisonChat() {
@@ -121,9 +123,8 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
     }
 
     public var latestComparisonAttempt: WebSendAttempt? {
-        let scoped = provider == .muse || provider.personalAgentProvider != nil
-        guard !scoped || state.comparisonID != nil else { return nil }
-        return state.attempts.first { !scoped || $0.comparisonID == state.comparisonID }
+        guard state.comparisonID != nil else { return nil }
+        return state.attempts.first { $0.comparisonID == state.comparisonID }
     }
 
     public var locationLabel: String {
@@ -132,18 +133,37 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
         return provider == .muse && webView.url.map(provider.isChatURL) == true ? "\(host) · Side chat" : host
     }
 
-    public func openMuseComparison(_ id: UUID?) async {
-        guard provider == .muse, !isSending else { return }
-        updateState { $0.comparisonID = id }
+    @discardableResult
+    public func openComparison(_ id: UUID?) async -> Bool {
+        guard !isSending else { return false }
+        if state.comparisonID != id { updateState { $0.comparisonID = id } }
         connect()
-        do { try await prepareMuseConversation(); self.error = nil }
-        catch is CancellationError { }
-        catch { self.error = error.localizedDescription }
+        if provider.personalAgentProvider != nil {
+            await refresh()
+            return snapshot.ready && snapshot.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !hasIncompleteNativeRequest(for: id)
+        }
+        do {
+            let readyBeforeSetup = try await prepareConversation()
+            self.error = nil
+            readinessError = nil
+            return readyBeforeSetup
+        }
+        catch is CancellationError { return false }
+        catch WebSessionFailure.notReady(let message) {
+            readinessError = message
+            error = message
+            return false
+        }
+        catch { self.error = error.localizedDescription; return false }
     }
 
-    private func prepareMuseConversation() async throws {
-        if let id = state.comparisonID, let saved = state.museConversations[id.uuidString], !provider.isSavedMuseChat(saved) {
-            throw WebSessionFailure.notSent("This comparison’s saved Muse side chat is invalid. Nothing was sent; its saved address has been preserved.")
+    @discardableResult
+    private func prepareConversation() async throws -> Bool {
+        // Readiness must come from this click's inspection, not the polling cache.
+        // A page that becomes ready during setup needs another explicit submission.
+        var readyBeforeSetup = false
+        if let id = state.comparisonID, let saved = state.conversationURLs[id.uuidString], !provider.isSavedConversation(saved) {
+            throw WebSessionFailure.notSent("This comparison’s saved \(provider.name) chat is invalid. Nothing was sent; its saved address has been preserved.")
         }
         let target = comparisonURL
         let request = comparisonGeneration
@@ -156,21 +176,23 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
         if !loading, let url = webView.url, provider.isChatURL(url) {
             let result = try await webView.callAsyncJavaScript(script.inspect, arguments: [:], in: nil, contentWorld: .defaultClient)
             try checkCurrent()
-            guard let result else { throw WebSessionFailure.notSent("Muse’s page could not be checked before switching side chats.") }
+            guard let result else { throw WebSessionFailure.notSent("\(provider.name)’s page could not be checked before switching chats.") }
             snapshot = try JSONDecoder().decode(WebPageSnapshot.self, from: JSONSerialization.data(withJSONObject: result))
+            readyBeforeSetup = snapshot.ready
         }
         try checkCurrent()
         guard snapshot.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            throw WebSessionFailure.notSent("Muse has a draft. Send or clear it before switching side chats.")
+            throw WebSessionFailure.notSent("\(provider.name) has a draft. Send or clear it before switching chats.")
         }
         if !loading, snapshot.url == target.absoluteString, !snapshot.ready {
-            throw WebSessionFailure.notSent(snapshot.reason)
+            throw WebSessionFailure.notReady(snapshot.reason)
         }
         if target == provider.newChatURL, snapshot.url == target.absoluteString,
            snapshot.messages.contains(where: { $0.role == "user" }) {
-            throw WebSessionFailure.notSent("Muse has an unfinished side-chat submission. Check its page before starting another comparison.")
+            throw WebSessionFailure.notSent("\(provider.name) has an unfinished conversation submission. Check its page before starting another comparison.")
         }
-        if !loading, snapshot.ready, snapshot.url == target.absoluteString, webView.url == target { return }
+        if !loading, snapshot.ready, snapshot.url == target.absoluteString,
+           webView.url == target || webView.url.flatMap(provider.canonicalConversationURL) == target { return readyBeforeSetup }
         if webView.url != target {
             if fixture, webView.url != nil {
                 _ = try await webView.callAsyncJavaScript("navigateFixtureThread(url)", arguments: ["url":target.absoluteString], in: nil, contentWorld: .page)
@@ -181,9 +203,9 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
             try checkCurrent()
             await refresh()
             try checkCurrent()
-            if !loading, snapshot.ready, snapshot.url == target.absoluteString { return }
+            if !loading, snapshot.ready, snapshot.url == target.absoluteString { return readyBeforeSetup }
         }
-        throw WebSessionFailure.notSent("Muse’s side chat could not open. Open it in this pane and sign in if needed. Nothing was sent to the main chat.")
+        throw WebSessionFailure.notReady("\(provider.name)’s comparison chat could not open. Open it in this pane and sign in if needed. Nothing was sent.")
     }
 
     public func closePopup() { popup = nil; popupURL = ""; Task { await refresh() } }
@@ -214,10 +236,19 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
         defer { refreshing = false }
         let generation = navigationGeneration
         do {
+            if provider == .chatgpt && !isSending {
+                _ = try await webView.callAsyncJavaScript(script.configureInitialLayout, arguments: [:], in: nil, contentWorld: .defaultClient)
+                guard generation == navigationGeneration else { return }
+            }
             let result = try await webView.callAsyncJavaScript(script.inspect, arguments: [:], in: nil, contentWorld: .defaultClient)
             guard generation == navigationGeneration, let result else { return }
             let fresh = try JSONDecoder().decode(WebPageSnapshot.self, from: JSONSerialization.data(withJSONObject: result))
             if snapshot != fresh { snapshot = fresh }
+            if fresh.ready, fresh.url == comparisonURL.absoluteString, !storageFailed,
+               let readinessError, error == readinessError {
+                error = nil
+                self.readinessError = nil
+            }
             await refreshAvatar(generation: generation)
         } catch {
             guard generation == navigationGeneration else { return }
@@ -259,23 +290,20 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
         isSending = true
         defer { isSending = false }
         var attempt = WebSendAttempt(text: text)
-        if provider == .muse {
-            attempt.comparisonID = comparisonID ?? state.comparisonID ?? UUID()
-        }
+        let id = comparisonID ?? state.comparisonID ?? UUID()
+        attempt.comparisonID = id
         var submissionWasPossible = false
         state.attempts.insert(attempt, at: 0)
         do {
             try save()
-            if provider == .muse, let id = attempt.comparisonID {
-                guard !state.attempts.contains(where: { $0.comparisonID == id && [.attempting, .uncertain].contains($0.status) }) else {
-                    throw WebSessionFailure.notSent("This comparison has an unconfirmed Muse send. Check the side chat before continuing; no new chat or resend was attempted.")
-                }
-                if state.comparisonID != id { comparisonGeneration += 1 }
-                state.comparisonID = id
-                try save()
-                connect()
-                try await prepareMuseConversation()
+            guard !state.attempts.contains(where: { $0.comparisonID == id && [.attempting, .uncertain].contains($0.status) }) else {
+                throw WebSessionFailure.notSent("This comparison has an unconfirmed \(provider.name) send. Check its chat before continuing; no new chat or resend was attempted.")
             }
+            if state.comparisonID != id { comparisonGeneration += 1 }
+            state.comparisonID = id
+            try save()
+            connect()
+            try await prepareConversation()
             await refresh()
             guard let url = webView.url, provider.isChatURL(url), snapshot.ready, !loading else {
                 throw WebSessionFailure.notSent(snapshot.reason)
@@ -292,8 +320,8 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
             }
             let baseline = try JSONDecoder().decode([WebPageMessage].self, from: JSONSerialization.data(withJSONObject: messages))
             let existingPaths = Set(paths)
-            // Allow React's input handler to enable its own Send control.
-            try await Task.sleep(for: .milliseconds(150))
+            if provider == .muse { try await Task.sleep(for: .milliseconds(150)) }
+            else { try await waitForSendControl(text, expectedURL: expectedURL, generation: generation) }
             guard generation == navigationGeneration, !loading else { throw WebSessionFailure.notSent("\(provider.name) navigated before submission. Review its draft.") }
             attempt.status = .attempting
             try store(attempt) // The possible external side effect is durably recorded first.
@@ -309,25 +337,24 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
                 try await Task.sleep(for: .milliseconds(250))
                 await refresh()
                 guard generation == navigationGeneration, let currentURL = URL(string: snapshot.url) else { break }
-                // Draft routes are optimistic: wait for Muse to assign the real side-chat ID.
-                if provider == .muse, url == provider.newChatURL, currentURL == url {
+                // Draft routes are optimistic: require an assigned conversation URL before saving.
+                if url == provider.newChatURL, currentURL == url {
                     if snapshot.submissionInterrupted == true { break }
                     continue
                 }
-                guard provider.acceptsReceipt(from: url, at: currentURL) else { break }
+                guard provider.acceptsReceipt(from: url, at: currentURL),
+                      let savedURL = provider.canonicalConversationURL(currentURL) else { break }
                 // A user edit/navigation or changed history makes attribution ambiguous.
                 // First sends may create a URL, but cannot reuse an already linked chat.
                 guard snapshot.submissionInterrupted != true,
-                      currentURL.path == url.path || !existingPaths.contains(currentURL.path),
+                      currentURL.path == url.path || (!existingPaths.contains(currentURL.path) && !state.conversationURLs.values.contains(currentURL)),
                       snapshot.messages.starts(with: baseline) else { break }
                 let matches = snapshot.messages.filter { !before.contains($0.id) && $0.role == "user" && Self.normalized($0.text) == normalizedText }
                 if matches.count == 1 {
                     attempt.status = .observed
                     attempt.messageID = matches[0].id
-                    attempt.conversationURL = currentURL
-                    if provider == .muse, let id = attempt.comparisonID {
-                        state.museConversations[id.uuidString] = currentURL
-                    }
+                    attempt.conversationURL = savedURL
+                    state.conversationURLs[id.uuidString] = savedURL
                     attempt.detail = "The outgoing message appeared in \(provider.name). This is a page observation, not a server delivery receipt."
                     try store(attempt)
                     return attempt
@@ -441,6 +468,26 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
         return attempt
     }
 
+    private func waitForSendControl(_ text: String, expectedURL: String, generation: Int) async throws {
+        let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+        while true {
+            try Task.checkCancellation()
+            guard generation == navigationGeneration, !loading else {
+                throw WebSessionFailure.notSent("\(provider.name) navigated before submission. Review its draft.")
+            }
+            // Read-only polling leaves the attempt in .preparing until a click is possible.
+            let result = try await webView.callAsyncJavaScript(script.sendReadiness, arguments: ["text": text, "expectedURL": expectedURL], in: nil, contentWorld: .defaultClient) as? [String: Any]
+            guard ContinuousClock.now < deadline else {
+                throw WebSessionFailure.notSent("\(provider.name)’s Send control is unavailable. Review the prepared draft.")
+            }
+            if result?["ready"] as? Bool == true { return }
+            guard result?["retryable"] as? Bool == true else {
+                throw WebSessionFailure.notSent(result?["reason"] as? String ?? "Could not check \(provider.name)’s Send control.")
+            }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+    }
+
     private static func normalized(_ text: String) -> String { text.split(whereSeparator: \.isWhitespace).joined(separator: " ") }
     private func store(_ attempt: WebSendAttempt) throws {
         if let index = state.attempts.firstIndex(where: { $0.id == attempt.id }) { state.attempts[index] = attempt }
@@ -467,7 +514,12 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
         }
     }
     public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        if webView === self.webView { loading = false; Task { await refresh() } }
+        if webView === self.webView {
+            loading = false
+            if let navigationError, error == navigationError { error = nil }
+            navigationError = nil
+            Task { await refresh() }
+        }
         else { popupURL = webView.url?.absoluteString ?? "" }
     }
     public func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { failedNavigation(webView, error: error) }
@@ -475,7 +527,10 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
     private func failedNavigation(_ view: WKWebView, error: Error) {
         guard view === webView else { return }
         loading = false
-        if (error as NSError).code != NSURLErrorCancelled { self.error = "\(provider.name) could not load: \(error.localizedDescription)" }
+        if (error as NSError).code != NSURLErrorCancelled, !storageFailed {
+            navigationError = "\(provider.name) could not load: \(error.localizedDescription)"
+            self.error = navigationError
+        }
     }
     public func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
         if webView === self.webView {
@@ -485,15 +540,22 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
     }
     public func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction) async -> WKNavigationActionPolicy {
         guard let url = navigationAction.request.url else { return .cancel }
-        let allowed = fixture ? (url.absoluteString == "about:blank" || provider.isChatURL(url)) : url.scheme == "https"
-        if !allowed {
-            error = "This link cannot open inside MsgBlast. Stay on \(provider.name)’s website to continue."
+        let mainFrame = navigationAction.targetFrame?.isMainFrame ?? true
+        let blankPage = url.scheme == "about" && ["blank", "srcdoc"].contains(url.path)
+        // WebKit and sign-in pages use empty windows and inline child frames.
+        // These load inside the browser; they never open another app or read local files.
+        let allowed = fixture ? (url.absoluteString == "about:blank" || provider.isChatURL(url))
+            : url.scheme == "https" || blankPage || (!mainFrame && ["blob", "data"].contains(url.scheme ?? ""))
+        if !allowed, mainFrame, navigationAction.navigationType == .linkActivated, !storageFailed {
+            navigationError = "This link cannot open inside MsgBlast. Stay on \(provider.name)’s website to continue."
+            error = navigationError
         }
         if webView === popup { popupURL = url.absoluteString }
         return allowed ? .allow : .cancel
     }
     public func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
-        guard !fixture, navigationAction.targetFrame == nil, navigationAction.request.url?.scheme == "https", popup == nil else { return nil }
+        guard !fixture, navigationAction.targetFrame == nil, let url = navigationAction.request.url,
+              url.scheme == "https" || url.absoluteString == "about:blank", popup == nil else { return nil }
         let view = WKWebView(frame: .zero, configuration: configuration)
         view.navigationDelegate = self; view.uiDelegate = self
         popupURL = navigationAction.request.url?.absoluteString ?? ""
@@ -504,10 +566,10 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
 }
 
 private enum WebSessionFailure: LocalizedError {
-    case notSent(String), unconfirmed
+    case notSent(String), notReady(String), unconfirmed
     var errorDescription: String? {
         switch self {
-        case .notSent(let message): message
+        case .notSent(let message), .notReady(let message): message
         case .unconfirmed: "The page did not return a reliable result after Send. Check its page; no automatic resend."
         }
     }

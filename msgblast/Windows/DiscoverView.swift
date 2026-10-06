@@ -82,11 +82,6 @@ struct DiscoverView: View {
                         }.padding(2)
                     }
                 }
-                HStack {
-                    Link("Agent directory", destination: URL(string: "https://www.imessage.store/")!)
-                    Spacer()
-                    Text("Directory snapshot · \(catalog.importedOn)").foregroundStyle(.secondary)
-                }.font(.caption)
             }.padding(24)
                 .alert("Could not add agent", isPresented: Binding(get: { actionError != nil }, set: { if !$0 { actionError = nil } })) {
                     Button("OK") { actionError = nil }

@@ -12,28 +12,23 @@ struct AgentsWorkspaceView: View {
     @ObservedObject var model: AppModel
     @ObservedObject var web: WebAgents
     @Binding var showingComparison: Bool
+    @State private var showingConnectionIntro = false
+    @State private var hasPresentedConnectionIntro = false
     private var busy: Bool { model.busy || model.webBroadcastBusy || web.sessions.contains { $0.isSending } }
     private var nativeRecipients: [Agent] { model.state.agents.filter { model.state.selection.contains($0.id) } }
     private var attachmentComparisonID: UUID? { showingComparison ? nativeComparison?.id : nil }
     private var attachments: [MessageAttachment] { model.attachmentDraft(comparisonID: attachmentComparisonID) }
     private var canSend: Bool {
         let text = model.state.draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        return !busy && (!web.selected.isEmpty || !nativeRecipients.isEmpty)
+        return !busy && !showingConnectionIntro && (!web.selected.isEmpty || !nativeRecipients.isEmpty)
             && (web.selected.isEmpty || (!text.isEmpty && attachments.isEmpty))
-            && web.selected.allSatisfy { $0.snapshot.ready && $0.snapshot.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !$0.hasUnresolvedSend(text) }
+            && web.selected.allSatisfy { $0.snapshot.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !$0.hasUnresolvedSend(text) }
             && (nativeRecipients.isEmpty || (model.databaseAvailable && nativeRecipients.allSatisfy { model.route($0) != nil }))
     }
 
     var body: some View {
         VStack(spacing: 0) {
             if showingComparison {
-                HStack {
-                    Button { showingComparison = false; web.setComparison(nil) } label: { Label("New comparison", systemImage: "plus") }
-                        .accessibilityLabel("New comparison").disabled(busy)
-                    Spacer()
-                    Text(web.fixture ? "Local fixture · no real sends" : model.demo ? "Live web agents · simulated Messages" : "")
-                        .font(.caption).foregroundStyle(.secondary)
-                }.padding(10)
                 comparisonPanes
             } else {
                 agentPicker
@@ -42,7 +37,43 @@ struct AgentsWorkspaceView: View {
             composer
         }
         .background(Color(nsColor: .textBackgroundColor))
+        .overlay { if showingConnectionIntro { connectionIntro } }
         .task { web.connectSelected() }
+        .toolbar {
+            ToolbarItem(placement: .navigation) {
+                Button {
+                    showingConnectionIntro = false
+                    showingComparison = false
+                    web.setComparison(nil)
+                } label: {
+                    Label("New Blast", systemImage: "square.and.pencil")
+                        .labelStyle(.titleAndIcon)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                }
+                .accessibilityLabel("New Blast").disabled(busy)
+            }
+        }
+    }
+
+    private var connectionIntro: some View {
+        ZStack {
+            Color.black.opacity(0.35)
+            VStack(spacing: 18) {
+                Image(systemName: "person.crop.circle.badge.checkmark")
+                    .font(.system(size: 34)).foregroundStyle(Color.accentColor)
+                Text("Connect your accounts").font(.title2.weight(.semibold))
+                Text("Use the sign-in action in each selected agent’s pane. ChatGPT and Claude sign in through their local CLI in Terminal; Muse and Grok sign in here. Then press Send & compare again.")
+                    .multilineTextAlignment(.center)
+                Text("Your request is saved in the message box below. Signing in won’t send it.")
+                    .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                Button("Start signing in") { showingConnectionIntro = false }
+                    .buttonStyle(.borderedProminent).controlSize(.large).keyboardShortcut(.defaultAction)
+            }
+            .padding(28).frame(maxWidth: 420)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
+            .padding(20).accessibilityElement(children: .contain)
+        }
     }
 
     private var nativeComparison: Comparison? { web.comparisonID.flatMap { model.comparison($0) } }
@@ -56,6 +87,11 @@ struct AgentsWorkspaceView: View {
                         PinnedAgentTile(agent: webAgent(session), selected: session.state.selected, size: tileSize(geometry)) {
                             web.toggle(session)
                         }.disabled(busy).help("\(session.provider.name) · \(session.provider.homeURL.host!)")
+                            .contextMenu {
+                                Button("Open chat") {
+                                    session.connect(); showingComparison = true
+                                }.disabled(busy || !session.state.selected)
+                            }
                     }
                     ForEach(model.state.agents) { agent in
                         PinnedAgentTile(agent: agent, selected: model.state.selection.contains(agent.id), size: tileSize(geometry)) {
@@ -96,21 +132,6 @@ struct AgentsWorkspaceView: View {
 
     private var composer: some View {
         VStack(alignment: .leading, spacing: 10) {
-            if !showingComparison {
-                ForEach(web.selected, id: \.provider) { session in
-                    HStack {
-                        Button("Open \(session.provider.name)") {
-                            session.connect(); showingComparison = true
-                        }.disabled(busy)
-                        Spacer()
-                    }
-                }
-            }
-            let unavailable = web.selected.filter { !$0.snapshot.ready && !$0.loading }.map { $0.provider.name }
-            if !unavailable.isEmpty && !model.state.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !busy {
-                Text("Connect \(unavailable.formatted(.list(type: .and))) in their panes before sending.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
             if !web.selected.isEmpty && !attachments.isEmpty {
                 Text("Web agents support text here. Remove the attachments or deselect them to send.")
                     .font(.caption).foregroundStyle(.orange)
@@ -161,6 +182,14 @@ struct AgentsWorkspaceView: View {
             Task { await model.start() }
             return
         }
+        if !hasPresentedConnectionIntro && web.selected.contains(where: { !$0.snapshot.ready }) {
+            if !showingComparison { web.setComparison(nil) }
+            web.connectSelected()
+            showingComparison = true
+            hasPresentedConnectionIntro = true
+            showingConnectionIntro = true
+            return
+        }
         let originalDraft = model.state.draft
         let recipients = Set(nativeRecipients.map(\.id))
         let model = model
@@ -170,6 +199,7 @@ struct AgentsWorkspaceView: View {
         showingComparison = true
         Task { @MainActor in
             defer { model.webBroadcastBusy = false }
+            guard await web.prepareComparison(existingID, for: sessions) else { return }
             let comparisonID: UUID
             if let existingID { comparisonID = existingID }
             else {
@@ -367,17 +397,14 @@ private struct WebAgentPane: View {
                 }
                 Spacer()
                 if session.loading { ProgressView().controlSize(.small) }
-                if session.provider.personalAgentProvider == nil {
-                    Button { session.openComparisonChat() } label: { Image(systemName: "house") }.help("\(session.provider.name) comparison chat").accessibilityLabel("\(session.provider.name) comparison chat").disabled(busy)
-                }
                 Button { session.reload() } label: { Image(systemName: "arrow.clockwise") }.help("Reload \(session.provider.name)").accessibilityLabel("Reload \(session.provider.name)").disabled(busy)
             }.padding(14).background(.bar)
-            if let latest = session.latestComparisonAttempt {
+            if let latest = session.latestComparisonAttempt, latest.status != .observed {
                 VStack(alignment: .leading, spacing: 3) {
-                    Label(latest.status.label(for: session.provider), systemImage: latest.status == .observed ? "checkmark.circle" : "info.circle")
+                    Label(latest.status.label(for: session.provider), systemImage: "info.circle")
                         .font(.caption.weight(.semibold))
                     Text(latest.text).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                    if latest.status != .observed, let detail = latest.detail { Text(detail).font(.caption).foregroundStyle(.secondary) }
+                    if let detail = latest.detail { Text(detail).font(.caption).foregroundStyle(.secondary) }
                 }.padding(10).frame(maxWidth: .infinity, alignment: .leading)
                     .accessibilityElement(children: .contain)
             }

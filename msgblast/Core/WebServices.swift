@@ -31,24 +31,25 @@ public struct WebSendAttempt: Codable, Identifiable, Sendable {
 public struct WebWorkspaceState: Codable, Sendable {
     public var sessionID = UUID()
     public var draft = ""
-    public var selected = false
+    public var selected = true
     public var messageRecipients: Set<UUID> = []
     public var comparisonID: UUID?
     public var attempts: [WebSendAttempt] = []
-    public var museConversations: [String: URL] = [:]
+    public var conversationURLs: [String: URL] = [:]
     public var localConversations: [String: [WebPageMessage]] = [:]
     public var localSessionIDs: [String: String] = [:]
     public var localDrafts: [String: String] = [:]
     public init() {}
-    private enum CodingKeys: String, CodingKey { case sessionID, draft, selected, includeMuse, messageRecipients, comparisonID, attempts, museConversations, localConversations, localSessionIDs, localDrafts }
+    private enum CodingKeys: String, CodingKey { case sessionID, draft, selected, includeMuse, messageRecipients, comparisonID, attempts, conversationURLs, museConversations, localConversations, localSessionIDs, localDrafts }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         sessionID = try c.decode(UUID.self, forKey: .sessionID)
         draft = try c.decodeIfPresent(String.self, forKey: .draft) ?? ""
-        selected = try c.decodeIfPresent(Bool.self, forKey: .selected) ?? c.decodeIfPresent(Bool.self, forKey: .includeMuse) ?? false
+        selected = try c.decodeIfPresent(Bool.self, forKey: .selected) ?? c.decodeIfPresent(Bool.self, forKey: .includeMuse) ?? true
         messageRecipients = try c.decodeIfPresent(Set<UUID>.self, forKey: .messageRecipients) ?? []
         comparisonID = try c.decodeIfPresent(UUID.self, forKey: .comparisonID)
-        museConversations = try c.decodeIfPresent([String: URL].self, forKey: .museConversations) ?? [:]
+        conversationURLs = try c.decodeIfPresent([String: URL].self, forKey: .conversationURLs)
+            ?? c.decodeIfPresent([String: URL].self, forKey: .museConversations) ?? [:]
         localConversations = try c.decodeIfPresent([String: [WebPageMessage]].self, forKey: .localConversations) ?? [:]
         localSessionIDs = try c.decodeIfPresent([String: String].self, forKey: .localSessionIDs) ?? [:]
         localDrafts = try c.decodeIfPresent([String: String].self, forKey: .localDrafts) ?? [:]
@@ -62,7 +63,7 @@ public struct WebWorkspaceState: Codable, Sendable {
         try c.encode(messageRecipients, forKey: .messageRecipients)
         try c.encodeIfPresent(comparisonID, forKey: .comparisonID)
         try c.encode(attempts, forKey: .attempts)
-        try c.encode(museConversations, forKey: .museConversations)
+        try c.encode(conversationURLs, forKey: .conversationURLs)
         try c.encode(localConversations, forKey: .localConversations)
         try c.encode(localSessionIDs, forKey: .localSessionIDs)
         try c.encode(localDrafts, forKey: .localDrafts)
@@ -76,10 +77,10 @@ public struct WebWorkspaceState: Codable, Sendable {
             switch result.attempts[i].status {
             case .attempting:
                 result.attempts[i].status = .uncertain
-                result.attempts[i].detail = "msgblast stopped during submission. Check the conversation before sending this text again."
+                result.attempts[i].detail = "MsgBlast stopped during submission. Check the embedded chat before sending this text again."
             case .preparing:
                 result.attempts[i].status = .notSent
-                result.attempts[i].detail = "msgblast stopped before submission. Review the saved draft before sending again."
+                result.attempts[i].detail = "MsgBlast stopped before clicking Send. Any prepared text remains in the embedded chat."
             default: break
             }
         }

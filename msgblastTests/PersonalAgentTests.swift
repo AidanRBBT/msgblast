@@ -3,6 +3,36 @@ import XCTest
 
 final class PersonalAgentTests: XCTestCase {
     @MainActor
+    func testNativeComparisonPreparationPreservesSessionsAndBlocksIncompleteRequests() async throws {
+        let directory = try fixtureDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let web = WebAgents(directory: directory, fixture: true)
+        let native = web.sessions.filter { $0.provider.personalAgentProvider != nil }
+        let id = UUID()
+        let prepared = await web.prepareComparison(id, for: native)
+        XCTAssertTrue(prepared)
+        let replies = await WebAgents.send("First question", to: native, comparisonID: id)
+        XCTAssertTrue(replies.values.allSatisfy { $0.status == .observed })
+        let sessionIDs = native.map { $0.state.localSessionIDs[id.uuidString] }
+        let reopened = WebAgents(directory: directory, fixture: true)
+        let restoredNative = reopened.sessions.filter { $0.provider.personalAgentProvider != nil }
+        let restored = await reopened.prepareComparison(id, for: restoredNative)
+        XCTAssertTrue(restored)
+        XCTAssertEqual(restoredNative.map { $0.state.localSessionIDs[id.uuidString] }, sessionIDs)
+        XCTAssertTrue(restoredNative.allSatisfy { $0.snapshot.messages.count == 2 })
+        restoredNative[0].updateState {
+            var pending = WebSendAttempt(text: "Interrupted", status: .uncertain)
+            pending.comparisonID = id
+            $0.attempts.insert(pending, at: 0)
+        }
+        let blocked = await reopened.prepareComparison(id, for: restoredNative)
+        XCTAssertFalse(blocked)
+        restoredNative[0].acknowledgeIncompleteRequest()
+        let acknowledged = await reopened.prepareComparison(id, for: restoredNative)
+        XCTAssertTrue(acknowledged)
+    }
+
+    @MainActor
     func testNativeDraftsFollowTheirSavedComparisonAfterReopening() throws {
         let directory = try fixtureDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }

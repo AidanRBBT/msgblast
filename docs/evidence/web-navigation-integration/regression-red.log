@@ -1,0 +1,13 @@
+Test Suite 'Selected tests' started at 2026-10-05 21:53:05.802.
+Test Suite 'msgblastTests.xctest' started at 2026-10-05 21:53:05.803.
+Test Suite 'MultiWebAgentTests' started at 2026-10-05 21:53:05.803.
+Test Case '-[msgblastTests.MultiWebAgentTests testSuccessfulPageLoadClearsOnlyNavigationErrors]' started.
+/Users/contains/.codex/worktrees/webkit-services/msgblast/msgblastTests/MultiWebAgentTests.swift:62: error: -[msgblastTests.MultiWebAgentTests testSuccessfulPageLoadClearsOnlyNavigationErrors] : XCTAssertEqual failed: ("Optional("Claude could not load: The operation couldn’t be completed. (NSURLErrorDomain error -1009.)")") is not equal to ("Optional("Web session state could not be read. The saved file has been preserved: The file “MsgBlast-MultiWeb-C25FDC08-F310-49BB-980F-A1EC0565A1FF” couldn’t be opened.")")
+/Users/contains/.codex/worktrees/webkit-services/msgblast/msgblastTests/MultiWebAgentTests.swift:65: error: -[msgblastTests.MultiWebAgentTests testSuccessfulPageLoadClearsOnlyNavigationErrors] : XCTAssertEqual failed: ("nil") is not equal to ("Optional("Web session state could not be read. The saved file has been preserved: The file “MsgBlast-MultiWeb-C25FDC08-F310-49BB-980F-A1EC0565A1FF” couldn’t be opened.")")
+Test Case '-[msgblastTests.MultiWebAgentTests testSuccessfulPageLoadClearsOnlyNavigationErrors]' failed (1.689 seconds).
+Test Suite 'MultiWebAgentTests' failed at 2026-10-05 21:53:07.493.
+	 Executed 1 test, with 2 failures (0 unexpected) in 1.689 (1.690) seconds
+Test Suite 'msgblastTests.xctest' failed at 2026-10-05 21:53:07.493.
+	 Executed 1 test, with 2 failures (0 unexpected) in 1.689 (1.690) seconds
+Test Suite 'Selected tests' failed at 2026-10-05 21:53:07.493.
+	 Executed 1 test, with 2 failures (0 unexpected) in 1.689 (1.691) seconds

@@ -1,0 +1,7 @@
+{
+  "msgblast/Core/WebAgentSession.swift": "1d02299f615fc53df5e467486094528beb1e9cf2c4c0f865706cfe8861a9dd80",
+  "msgblast/Core/WebPageScript.swift": "2875e2c50bbef20772b840c008dde9244aefe746cf11283a4c30849937177c5d",
+  "msgblast/Windows/WebServicesView.swift": "2e8c3ea52b7f62260a7e31ceed32675e0d227441e8d54b80daac98476d91268a",
+  "msgblastTests/MultiWebAgentTests.swift": "608ffa4b5a6702c9508bb89dffe14e704d3e96687d42b9586387210163e1c1f5",
+  "msgblastUITests/WebServiceWorkflowTests.swift": "63821ad46e6c2e11f066631552f8154b6b8c63d11ea6ed33a70af7f5c825dc1a"
+}
