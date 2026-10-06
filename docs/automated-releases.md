@@ -52,7 +52,7 @@ No coding agent is needed for repetitive build/sign/upload steps once activation
 
 ## Production icon
 
-Release preparation verifies that `msgblast/AppIcon.icon` matches the saved green polished icon at `output/icon-gradients/32-WhiteToClearSoftFade-Polished.icon`, including its layer artwork. It stops before building if development/demo artwork has been substituted. Normal source builds use this green resource; development work can select the saved blue-green variant locally. Updater fixtures continue to select `AppIconDemo`.
+Release preparation verifies that `msgblast/AppIcon.icon` matches the canonical green icon at `output/app-icons/msgblast.icon`, including its layer artwork. It stops before building if development/demo artwork has been substituted. Normal source builds use this green resource; development work can select the canonical `output/app-icons/msgblast-dev.icon` variant in an isolated workspace. Updater fixtures continue to select `AppIconDemo`.
 
 ## Fixed README download link
 
