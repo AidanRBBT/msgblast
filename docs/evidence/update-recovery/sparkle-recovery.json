@@ -1,0 +1,8 @@
+{
+  "name": "unreadable-state-recovery",
+  "passed": true,
+  "exit_code": 0,
+  "build": "2",
+  "draft_and_attachment_preserved": true,
+  "stdout": "update-probe: starting\nupdate-probe: app initialized\nupdate-probe: model initialized\nupdate-probe: unreadable-state fixture; new in-memory draft entered\nupdate-probe: checking\nupdate-probe: found build 2\nupdate-probe: downloading\nupdate-probe: extracting update\nupdate-probe: ready; install and quit\nupdate-probe: installing; terminated: false\nupdate-probe: safe quit requested"
+}

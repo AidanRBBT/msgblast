@@ -30,14 +30,14 @@ class QuietHandler(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *args):
         pass
 
-def bundle(source, destination, build, feed, key, store, probe=False):
+def bundle(source, destination, build, feed, key, store, probe=False, recovery=False):
     run(["ditto", source, destination])
     path = destination / "Contents/Info.plist"
     info = plistlib.loads(path.read_bytes())
     info.update(CFBundleIdentifier="com.msgblast.update-fixture", CFBundleName="msgblast Update Fixture",
                 CFBundleShortVersionString="0.1." + str(build), CFBundleVersion=str(build),
                 SUFeedURL=feed, SUPublicEDKey=key, msgblastDemo=True, msgblastUpdateFixture=True,
-                msgblastFixtureStore=str(store), msgblastUpdateProbeRelaunch=probe, SUEnableAutomaticChecks=False, SUAutomaticallyUpdate=False)
+                msgblastFixtureStore=str(store), msgblastUpdateProbeRelaunch=probe, msgblastUpdateRecoveryFixture=recovery, SUEnableAutomaticChecks=False, SUAutomaticallyUpdate=False)
     path.write_bytes(plistlib.dumps(info))
     run(["codesign", "--force", "--sign", "-", "--options", "runtime", "--entitlements", ROOT / "msgblast/msgblastDebug.entitlements", destination])
     run(["codesign", "--verify", "--deep", "--strict", destination])
@@ -105,6 +105,7 @@ def main():
         (served / "msgblast-0.1.2.md").write_text("- Native update checks and preferences\n- Keep drafts and staged attachments through updates\n")
         run([tools / "generate_appcast", "--ed-key-file", key_file, "--download-url-prefix", base, "--embed-release-notes", "--maximum-deltas", "0", served])
         good_feed = (served / "appcast.xml").read_bytes()
+        good_archive = archive.read_bytes()
         if args.ui:
             installed = work / "ui/msgblast.app"
             installed.parent.mkdir()
@@ -112,13 +113,34 @@ def main():
             print(f"UI fixture app: {installed}\nSynthetic draft and attachment store: {store}\nSigned localhost feed: {base}appcast.xml", flush=True)
             try: threading.Event().wait()
             except KeyboardInterrupt: return
-        for name, expected_exit, expected_build in [("install-and-preserve", 0, "2"), ("no-update", 3, "2"), ("invalid-signature", 1, "1"), ("failed-download", 1, "1")]:
+        for name, expected_exit, expected_build in [("install-and-preserve", 0, "2"), ("unreadable-state-recovery", 0, "2"), ("no-update", 3, "2"), ("invalid-signature", 1, "1"), ("failed-download", 1, "1")]:
+            recovery = name == "unreadable-state-recovery"
+            case_store = work / "recovery-store" if recovery else store
+            if recovery:
+                seed(case_store)
+                # Complete synthetic state with a provider unknown to this reader.
+                future_state = json.loads((case_store / "state.json").read_text())
+                future_state["comparisons"] = [{"id": "22222222-2222-2222-2222-222222222222",
+                    "prompt": "Synthetic saved comparison", "created": 0, "members": [], "followUps": [],
+                    "allDraft": "Saved comparison draft", "privateDrafts": {},
+                    "webProviders": ["future-provider"], "webProviderIdentityVersion": 2}]
+                original_bytes = json.dumps(future_state).encode()
+                (case_store / "state.json").write_bytes(original_bytes)
+                recovery_candidate = work / "recovery-candidate/msgblast.app"
+                recovery_candidate.parent.mkdir()
+                bundle(source, recovery_candidate, 2, base + "appcast.xml", public, case_store, probe=True, recovery=True)
+                run(["ditto", "-c", "-k", "--sequesterRsrc", "--keepParent", recovery_candidate, archive])
+                run([tools / "generate_appcast", "--ed-key-file", key_file, "--download-url-prefix", base, "--embed-release-notes", "--maximum-deltas", "0", served])
+                recovery_feed = (served / "appcast.xml").read_bytes()
+            elif name == "no-update":
+                # Restore the normal candidate once after the recovery case.
+                archive.write_bytes(good_archive)
             installed = work / name / "msgblast.app"
             installed.parent.mkdir()
             starting_build = 2 if name == "no-update" else 1
-            bundle(source, installed, starting_build, base + "appcast.xml", public, store, probe=True)
+            bundle(source, installed, starting_build, base + "appcast.xml", public, case_store, probe=True, recovery=recovery)
             feed = served / "appcast.xml"
-            feed.write_bytes(good_feed)
+            feed.write_bytes(recovery_feed if recovery else good_feed)
             if name in ("invalid-signature", "failed-download"):
                 tree = ET.fromstring(good_feed)
                 # Remove the original signed-feed comment by serialization, then sign this altered fixture feed.
@@ -142,12 +164,22 @@ def main():
                     report["cases"].append({"name": name, "passed": False, "error": "Probe timed out", "stdout": output_path.read_text(), "stderr": error_path.read_text()})
                     raise
             result = subprocess.CompletedProcess(command, code, output_path.read_text(), error_path.read_text())
-            if name == "install-and-preserve":
+            if name == "install-and-preserve" or recovery:
                 deadline = time.monotonic() + 30
-                while (version(installed) != expected_build or not (store / "relaunch.json").exists()) and time.monotonic() < deadline: time.sleep(0.2)
+                while (version(installed) != expected_build or not (case_store / "relaunch.json").exists()) and time.monotonic() < deadline: time.sleep(0.2)
             actual = version(installed)
             state = json.loads((store / "state.json").read_text())
             preserved = state.get("version") == 1 and len(state["selection"]) == 1 and state["draft"] == "Retained update-fixture draft" and state["attachmentsDraft"][0]["path"] == str(staged) and staged.read_text().startswith("Retain this synthetic")
+            if recovery:
+                snapshots = list((case_store / "Recovery").glob("*/drafts-state.json"))
+                originals = list((case_store / "Recovery").glob("*/original-state.json"))
+                preserved = ((case_store / "state.json").read_bytes() == original_bytes
+                    and any(json.loads(p.read_text())["draft"] == "New draft after unreadable state" for p in snapshots)
+                    and bool(originals) and all(p.read_bytes() == original_bytes for p in originals)
+                    and (case_store / "relaunch.json").exists())
+                if preserved:
+                    relaunched = json.loads((case_store / "relaunch.json").read_text())
+                    preserved = relaunched["build"] == expected_build and relaunched["recovery"] is True
             passed = result.returncode == expected_exit and actual == expected_build and preserved
             if name == "install-and-preserve":
                 passed = passed and "postponed for submission" in result.stdout and "submission finished" in result.stdout and "ready; install and quit" in result.stdout and (store / "relaunch.json").exists()
