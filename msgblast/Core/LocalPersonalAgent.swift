@@ -204,7 +204,7 @@ public enum LocalPersonalAgent {
         discover(path: await executableSearchPath())
     }
 
-    static func executableSearchPath() async -> String {
+    public static func executableSearchPath() async -> String {
         await Task.detached(priority: .utility) {
             let environment = ProcessInfo.processInfo.environment
             let home = FileManager.default.homeDirectoryForCurrentUser.path

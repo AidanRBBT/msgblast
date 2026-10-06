@@ -50,25 +50,37 @@ final class PersonalAgentController: ObservableObject {
 
     func signIn(_ provider: PersonalAgentProvider) {
         guard !demo, !shuttingDown, let agent = installed.first(where: { $0.provider == provider }) else { return }
+        do { openTerminal(script: try LocalPersonalAgent.loginScript(using: agent), purpose: "sign-in") }
+        catch { accountError = "Could not open sign-in. Run \(provider.setup) in Terminal." }
+    }
+
+    func setUp(_ runtime: LocalAgentRuntime) {
+        guard !demo, !shuttingDown,
+              let installation = detectedLocalAgents.first(where: { $0.runtime == runtime }) else { return }
+        Task {
+            let path = await LocalPersonalAgent.executableSearchPath()
+            guard !shuttingDown else { return }
+            openTerminal(script: LocalAgentDetection.setupScript(using: installation, path: path), purpose: "setup")
+        }
+    }
+
+    private func openTerminal(script: String, purpose: String) {
         accountError = nil
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("msgblast-Login-\(UUID()).command")
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("msgblast-Setup-\(UUID()).command")
         do {
-            let script = try msgblastCore.LocalPersonalAgent.loginScript(using: agent)
-            guard FileManager.default.createFile(atPath: url.path, contents: Data(script.utf8), attributes: [.posixPermissions: 0o700]) else {
-                throw PersonalAgentError.unavailable(provider.name)
-            }
-            guard let terminal = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Terminal") else {
+            guard FileManager.default.createFile(atPath: url.path, contents: Data(script.utf8), attributes: [.posixPermissions: 0o700]),
+                  let terminal = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Terminal") else {
                 throw PersonalAgentError.unavailable("Terminal")
             }
             NSWorkspace.shared.open([url], withApplicationAt: terminal, configuration: .init()) { [weak self] _, error in
                 if error != nil {
                     try? FileManager.default.removeItem(at: url)
-                    Task { @MainActor [weak self] in self?.accountError = "Could not open Terminal. Run \(provider.setup) manually." }
+                    Task { @MainActor [weak self] in self?.accountError = "Could not open Terminal for \(purpose). Try again." }
                 }
             }
         } catch {
             try? FileManager.default.removeItem(at: url)
-            accountError = "Could not open sign-in. Run \(provider.setup) in Terminal."
+            accountError = "Could not open Terminal for \(purpose). Try again."
         }
     }
 

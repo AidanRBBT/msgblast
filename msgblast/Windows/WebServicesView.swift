@@ -64,7 +64,7 @@ struct AgentsWorkspaceView: View {
                             .help(model.route(agent)?.handle ?? "No matching conversation")
                     }
                 }.padding(.horizontal, 20).padding(.top, 14).padding(.bottom, 20)
-                    LocalRuntimeDetectionView(agent: model.personalAgent).padding(.horizontal, 20).padding(.bottom, 20)
+                    LocalAgentSettingsView(agent: model.personalAgent, busy: busy).padding(.horizontal, 20).padding(.bottom, 20)
                 }
             }
         }
@@ -225,37 +225,130 @@ struct AgentsWorkspaceView: View {
     }
 }
 
-struct LocalRuntimeDetectionView: View {
+struct LocalAgentSettingsView: View {
     @ObservedObject var agent: PersonalAgentController
+    var busy = false
+    @State private var setupRuntime: LocalAgentRuntime?
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text(agent.demo ? "Local agents (simulated)" : "Local agents").font(.headline)
+                Text(agent.demo ? "Your local accounts (simulated)" : "Your local accounts").font(.headline)
                 Spacer()
-                Button("Refresh local agents") { Task { await agent.detectLocalAgents() } }.disabled(agent.detectingLocalAgents)
+                Button {
+                    Task { await refresh() }
+                } label: { Image(systemName: "arrow.clockwise") }
+                    .buttonStyle(.borderless).help("Refresh accounts")
+                    .accessibilityLabel("Refresh accounts")
+                    .disabled(busy || agent.checkingAccounts || agent.detectingLocalAgents)
+            }.padding(.bottom, 12)
+            ForEach([PersonalAgentProvider.codex, .claude]) { provider in
+                let installed = agent.installed.contains { $0.provider == provider }
+                accountRow(name: provider == .codex ? "ChatGPT" : "Claude",
+                           symbol: provider == .codex ? "sparkles" : "sun.max",
+                           status: installed ? (agent.accounts[provider]?.label ?? "Checking sign-in…") : "Not installed") {
+                    if installed {
+                        Button(provider == .codex ? "Sign in with ChatGPT" : "Sign in with Claude") { agent.signIn(provider) }
+                            .disabled(agent.demo || busy || agent.checkingAccounts)
+                    } else {
+                        Link("Install \(provider.name)", destination: URL(string: provider == .codex
+                             ? "https://developers.openai.com/codex/cli" : "https://code.claude.com/docs/en/setup")!)
+                    }
+                }
+                Divider()
             }
             ForEach(LocalAgentRuntime.allCases) { runtime in
-                let installation = agent.detectedLocalAgents.first { $0.runtime == runtime }
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(runtime.name).fontWeight(.medium)
-                        Text(installation == nil ? "CLI not found" : agent.demo ? "CLI detected (simulated)" : "CLI detected")
-                            .font(.caption).foregroundStyle(.secondary)
-                        if let installation, !agent.demo {
-                            Text(installation.executableURL.path).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
-                        }
-                        Text(runtime.setup).font(.caption.monospaced()).textSelection(.enabled)
+                let installed = agent.detectedLocalAgents.contains { $0.runtime == runtime }
+                accountRow(name: runtime.name, symbol: runtime == .openclaw ? "pawprint" : "paperplane",
+                           status: agent.detectingLocalAgents ? "Checking installation…" : installed ? "Installed on this Mac" : "Not installed") {
+                    if installed {
+                        Button("Set up \(runtime.name)") { setupRuntime = runtime }.disabled(busy)
+                    } else {
+                        Link("Install \(runtime.name)", destination: runtime.documentation)
                     }
-                    Spacer()
-                    if let installation {
-                        Button("Show CLI") { NSWorkspace.shared.activateFileViewerSelecting([installation.executableURL]) }.disabled(agent.demo)
-                    } else { Link("Setup guide", destination: runtime.documentation) }
                 }
+                if runtime != LocalAgentRuntime.allCases.last { Divider() }
             }
-            Text("Detection checks installed executables. It does not verify account sign-in or a running gateway.")
-                .font(.caption).foregroundStyle(.secondary)
-        }.padding(16).background(.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
-            .task { await agent.detectLocalAgents() }
+            if agent.demo {
+                Text("Demo accounts · sign-in and setup are simulated.")
+                    .font(.caption).foregroundStyle(.secondary).padding(.top, 8)
+            }
+            if let error = agent.accountError {
+                Text(error).font(.caption).foregroundStyle(.orange).padding(.top, 8)
+            }
+        }
+        .padding(16)
+        .background(.secondary.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
+        .frame(maxWidth: 640)
+        .sheet(item: $setupRuntime) { runtime in
+            LocalAgentSetupView(agent: agent, runtime: runtime)
+        }
+        .task { await refresh() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            Task { await refresh() }
+        }
+    }
+
+    private func refresh() async {
+        if agent.demo { await agent.discover() }
+        async let accounts: Void = agent.refreshAccounts()
+        async let installations: Void = agent.detectLocalAgents()
+        _ = await (accounts, installations)
+    }
+
+    private func accountRow<Action: View>(name: String, symbol: String, status: String,
+                                          @ViewBuilder action: () -> Action) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: symbol).font(.title3).foregroundStyle(.secondary)
+                .frame(width: 32, height: 32)
+                .background(.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            VStack(alignment: .leading, spacing: 3) {
+                Text(name).fontWeight(.medium)
+                Text(status).font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 12)
+            action().controlSize(.regular)
+        }.padding(.vertical, 10)
+    }
+}
+
+private struct LocalAgentSetupView: View {
+    @ObservedObject var agent: PersonalAgentController
+    let runtime: LocalAgentRuntime
+    @Environment(\.dismiss) private var dismiss
+    @State private var showingDetails = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("Set up \(runtime.name)").font(.title2.bold())
+            Text("Continue in Terminal to choose your provider and finish \(runtime.name)’s setup. Return here when you’re done.")
+                .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            Text(runtime == .openclaw
+                 ? "OpenClaw is detected. Conversations in msgblast are not connected yet."
+                 : "Hermes is detected. After setup, select it in a comparison report to use it.")
+                .font(.callout).fixedSize(horizontal: false, vertical: true)
+            if agent.demo {
+                Label("Simulated installation · Terminal setup is disabled", systemImage: "info.circle")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            DisclosureGroup("Installation details", isExpanded: $showingDetails) {
+                VStack(alignment: .leading, spacing: 8) {
+                    if let installation = agent.detectedLocalAgents.first(where: { $0.runtime == runtime }), !agent.demo {
+                        Text(installation.executableURL.path).font(.caption).textSelection(.enabled)
+                    }
+                    Text(runtime.setup).font(.caption.monospaced()).textSelection(.enabled)
+                    Link("\(runtime.name) setup guide", destination: runtime.documentation)
+                }.padding(.top, 8)
+            }.font(.callout)
+            HStack {
+                Spacer()
+                Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
+                Button("Continue in Terminal") {
+                    agent.setUp(runtime)
+                    dismiss()
+                }.buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction).disabled(agent.demo)
+            }
+        }.padding(24).frame(width: 420)
     }
 }
 
