@@ -25,7 +25,7 @@ enum MusePageScript {
         let reason = '';
         const input = editor();
         if (!pathAllowed()) reason = 'Open this comparison’s Muse side chat before sending.';
-        else if (!unique('[aria-label="Chat messages"],#hatch-chat-scroll')) reason = 'Sign in to Muse and open a side chat.';
+        else if (![...document.querySelectorAll('[aria-label="Chat messages"],#hatch-chat-scroll')].some(visible)) reason = 'Sign in to Muse and open a side chat.';
         else if (document.querySelector('[role="dialog"],[aria-modal="true"]')) reason = 'Finish the open Muse dialog first.';
         else if (!input || input.disabled || input.readOnly) reason = 'Waiting for Muse’s message field.';
         return {url:location.href,ready:reason === '',reason:reason || 'Muse side chat ready',draft:input?.value || ''};

@@ -4,6 +4,56 @@ import WebKit
 
 @MainActor
 final class MultiWebAgentTests: XCTestCase {
+    // Control structures observed in the signed-in narrow panes on 2026-10-05.
+    // No account data or provider network calls are used by these fixtures.
+    func testSignedInNarrowLayoutsCanSendWithHiddenAccountControlsAndRichEditors() async throws {
+        for provider in WebProvider.allCases {
+            let session = WebAgentSession(provider: provider, storageURL: temporaryDirectory().appendingPathComponent("state.json"), fixture: true)
+            session.connect()
+            try await waitFor { session.snapshot.ready }
+            var html = WebPageScript(provider: provider).fixture
+            func replace(_ source: String, with replacement: String) {
+                XCTAssertTrue(html.contains(source), "\(provider.name) fixture changed; update the observed layout variant")
+                html = html.replacingOccurrences(of: source, with: replacement)
+            }
+            switch provider {
+            case .muse:
+                replace(#"<div id="hatch-chat-scroll" aria-label="Chat messages">"#,
+                    with: #"<div id="hatch-chat-scroll"><div aria-label="Chat messages" role="log"></div>"#)
+            case .chatgpt:
+                replace(#"<button data-testid="accounts-profile-button">"#,
+                    with: #"<button aria-label="Open profile menu" style="display:none">"#)
+                replace(#"<textarea aria-label="Chat with ChatGPT"></textarea>"#,
+                    with: #"<div class="ProseMirror" contenteditable="true" role="textbox" aria-label="Ask ChatGPT"></div>"#)
+                replace(#"aria-label="Send message""#, with: #"aria-label="Send""#)
+            case .claude:
+                replace(#"<button data-testid="user-menu-button">"#,
+                    with: #"<button data-testid="user-menu-button" style="display:none">"#)
+            case .grok:
+                replace(#"<button data-testid="user-menu-button">Fixture account</button>"#,
+                    with: #"<button aria-haspopup="menu"><img alt="pfp"></button>"#)
+                replace(#"<textarea aria-label="Ask Grok anything"></textarea>"#,
+                    with: #"<div class="tiptap ProseMirror" contenteditable="true" role="textbox" aria-label="Ask Grok anything"></div>"#)
+            }
+            session.webView.loadHTMLString(html, baseURL: provider.newChatURL)
+            try await waitFor { !session.webView.isLoading }
+            let result = try await session.webView.callAsyncJavaScript(WebPageScript(provider: provider).inspect, arguments: [:], in: nil, contentWorld: .defaultClient) as? [String: Any]
+            XCTAssertEqual(result?["ready"] as? Bool, true, "\(provider.name): \(result?["reason"] ?? "missing snapshot")")
+            guard result?["ready"] as? Bool == true else { continue }
+            let attempt = await session.send("Narrow layout comparison", comparisonID: UUID())
+            XCTAssertEqual(attempt?.status, .observed, provider.name)
+            XCTAssertTrue(provider.isSavedConversation(try XCTUnwrap(attempt?.conversationURL)))
+            XCTAssertEqual(session.snapshot.messages.filter { $0.role == "user" }.map(\.text), ["Narrow layout comparison"])
+
+            // Retained hidden account markup must not override a visible sign-in page.
+            _ = try await session.webView.callAsyncJavaScript("const login=document.createElement('button');login.textContent='Log in';document.body.append(login)", arguments: [:], in: nil, contentWorld: .page)
+            if provider != .muse {
+                let signedOut = try await session.webView.callAsyncJavaScript(WebPageScript(provider: provider).inspect, arguments: [:], in: nil, contentWorld: .defaultClient) as? [String: Any]
+                XCTAssertEqual(signedOut?["ready"] as? Bool, false, provider.name)
+            }
+        }
+    }
+
     func testLiveBrowserSupportsInternalFramesWithoutNavigationWarnings() async throws {
         for provider in [WebProvider.claude, .grok] {
             let session = WebAgentSession(provider: provider, storageURL: temporaryDirectory().appendingPathComponent("state.json"), fixture: false)

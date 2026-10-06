@@ -9,8 +9,8 @@ struct WebPageScript {
         switch provider {
         case .muse: return MusePageScript.helpers
         case .chatgpt:
-            selectors = (#"textarea[aria-label="Chat with ChatGPT"],#prompt-textarea[contenteditable="true"]"#,
-                         #"button[data-testid="send-button"],button[aria-label="Send message"],button[aria-label="Send prompt"]"#,
+            selectors = (#"textarea[aria-label="Chat with ChatGPT"],#prompt-textarea[contenteditable="true"],[contenteditable="true"][role="textbox"][aria-label="Ask ChatGPT"]"#,
+                         #"button[data-testid="send-button"],button[aria-label="Send message"],button[aria-label="Send prompt"],button[aria-label="Send"]"#,
                          #"[data-message-author-role][data-message-id]"#,
                          #"button[data-testid="accounts-profile-button"],button[aria-label="Open profile menu"]"#)
         case .claude:
@@ -19,10 +19,10 @@ struct WebPageScript {
                          #"[data-testid="user-message"],[data-testid="assistant-message"],.font-claude-message"#,
                          #"button[data-testid="user-menu-button"],button[aria-label="User menu"],button[aria-label="Open user menu"]"#)
         case .grok:
-            selectors = (#"textarea[aria-label="Ask Grok anything"],textarea[placeholder="What do you want to know?"]"#,
+            selectors = (#"textarea[aria-label="Ask Grok anything"],textarea[placeholder="What do you want to know?"],[contenteditable="true"][role="textbox"][aria-label="Ask Grok anything"]"#,
                          #"button[data-testid="chat-submit"],button[aria-label="Submit"]"#,
                          #"[data-message-id][data-message-role],.message-bubble"#,
-                         #"button[data-testid="user-menu-button"],button[aria-label="User menu"],button[aria-label="Open user menu"],button[aria-label="Account menu"]"#)
+                         #"button[data-testid="user-menu-button"],button[aria-label="User menu"],button[aria-label="Open user menu"],button[aria-label="Account menu"],button[aria-haspopup="menu"]:has(img[alt="pfp"])"#)
         }
         let config: [String: String] = ["name":provider.name,"provider":provider.rawValue,"host":provider.homeURL.host!,"editor":selectors.editor,"send":selectors.send,"messages":selectors.messages,"account":selectors.account]
         let json = String(data: try! JSONSerialization.data(withJSONObject: config, options: [.sortedKeys]), encoding: .utf8)!
@@ -58,7 +58,10 @@ struct WebPageScript {
             const modal=all('[role="dialog"],[aria-modal="true"]').length>0;
             const generating=all('button[data-testid="stop-button"],button[aria-label="Stop generating"],button[aria-label="Stop response"],button[aria-label="Stop"] ').length>0;
             if (!pathAllowed()) reason=`Open a ${config.name} chat to send from MsgBlast.`;
-            else if (login || !all(config.account).length) reason=`Sign in to ${config.name} and open a chat. If already signed in, use the page while its layout is unsupported.`;
+            else if (login) reason=`Sign in to ${config.name} to send this request.`;
+            // Responsive sidebars hide their account control without ending the session.
+            // Still require known account markup and a visible, unique editor below.
+            else if (!document.querySelector(config.account)) reason=`${config.name}’s page layout is not recognized yet. Reload the page and try again.`;
             else if (modal) reason=`Finish the open dialog in ${config.name} first.`;
             else if (generating) reason=`Wait for ${config.name} to finish its current reply.`;
             else if (!input || input.disabled || input.readOnly || input.getAttribute('aria-disabled')==='true') reason=`Waiting for ${config.name}’s message field.`;
@@ -117,9 +120,9 @@ struct WebPageScript {
         :root{color-scheme:light dark;font:15px -apple-system,sans-serif}body{margin:0;padding:22px;background:Canvas;color:CanvasText}header{display:flex;gap:12px;align-items:center;border-bottom:1px solid #8884;padding-bottom:16px}small{color:#888}#transcript{min-height:150px;padding:20px 0}article{background:#8882;border-radius:16px;margin:12px 0;padding:14px}textarea,[contenteditable]{box-sizing:border-box;width:100%;min-height:70px;padding:12px;font:inherit;border:1px solid #8885;border-radius:14px}button{font:inherit;margin:8px 0;padding:8px 14px;border-radius:10px;border:1px solid #8885}[hidden]{display:none!important}
         </style></head><body><header><strong id="thread-title">New \(provider.name) chat</strong><small>Local fixture · no real sends</small></header>
         <div id="login" hidden><p>Sign in to continue.</p><button onclick="chat.hidden=false;login.hidden=true">Sign in to fixture</button></div>
-        <main id="chat"><button \(account)>Fixture account</button><div id="transcript"></div>\(input)<button \(send) disabled>Send</button><button onclick="chat.hidden=true;login.hidden=false">Sign out of fixture</button></main>
+        <main id="chat"><button \(account)>Fixture account</button><div id="transcript"></div>\(input)<button id="fixture-send" \(send) disabled>Send</button><button onclick="chat.hidden=true;login.hidden=false">Sign out of fixture</button></main>
         <script>
-        const provider='\(provider.rawValue)',input=document.querySelector('textarea,[contenteditable]'),send=document.querySelector('button[aria-label]');
+        const provider='\(provider.rawValue)',input=document.querySelector('textarea,[contenteditable]'),send=document.getElementById('fixture-send');
         const fixtureThreads = {},newPath='\(provider.newChatURL.path)';
         function updateFixtureTitle(){document.getElementById('thread-title').textContent=location.pathname===newPath?'New \(provider.name) chat':'\(provider.name) chat · '+location.pathname.slice(-6);}
         function navigateFixtureThread(url){
