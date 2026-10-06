@@ -103,11 +103,12 @@ Signing-key/identity changes require a deliberate migration. Missing R2 hosting 
 
 ## Cursor Cloud specific instructions
 
-Cloud agents run on Linux. The Mac app needs Xcode on macOS Sequoia, so `xcodebuild`, SwiftUI, AppKit, `hdiutil`, and `mac_alias.Alias.for_file` are not available here. These checks do not produce a signed app.
+Hosted Cloud Agents run on Ubuntu and cannot validate the native Mac app. Follow [docs/cloud-agent.md](docs/cloud-agent.md) for install, Linux checks, the non-publishing native workflow, GitHub access limits, and release verification. Linux tests are not a substitute for `.github/workflows/validate.yml` on the `xcode-27` runner.
 
-- Download worker: from the repo root, `npm test --prefix download`. The environment install already runs `npm ci --prefix download`. Import `download/worker.mjs` and call its `fetch` handler with `https://updates.msgblast.app/latest.zip`; a good result is a no-store 302 to `https://updates.msgblast.app/downloads/msgblast-VERSION-BUILD.zip`.
-- Release tooling: `python3 -m unittest discover -s scripts/tests -p 'test_*.py' -v`. The suite stays in Python and does not call Apple tools.
-- `scripts/installer-requirements.txt` (`ds_store`, `mac_alias`) is installed for imports. Creating the DMG still belongs on the macOS release runner.
+- Install with `bash scripts/cloud-agent-install.sh`. It pins `scripts/installer-requirements.txt` in `${MSGBLAST_INSTALLER_VENV:-$HOME/.msgblast-installer}` and runs `npm ci --prefix download`. Do not commit `.cursor/environment.json`; that file overrides the saved environment.
+- Linux checks: `python3 -m unittest discover -s scripts/tests -p 'test_*.py' -v`, then `npm test --prefix download` and `npm run check --prefix download`. The Wrangler check is a dry-run and does not deploy.
+- Native core checks belong to `validate.yml` (`msgblastTests` plus `scripts/test_updates.py` on `xcode-27`). Do not dispatch `release-adhoc.yml` as a test. UI evidence needs an authorized isolated Mac; do not use the user's live Mac without setup authorization.
+- Keep Sparkle and R2 secrets in Actions only. Recheck `gh auth status` and the live appcast before any release. The October 6, 2026 baseline is 0.2.2 build 7 at `f86cce472649d5468792d04a86dd05a7b763774a`.
 
 ## Pull request evidence
 
