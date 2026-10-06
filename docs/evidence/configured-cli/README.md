@@ -19,7 +19,7 @@ The harness calls the real `LocalPersonalAgent` core implementation with a deter
 
 ## Validation and review
 
-- Full unit suite: 144 passed, zero failures.
+- Full unit suite after integrating current main: 145 passed, zero failures.
 - After final completion/error handling changes: 38 PersonalAgentTests passed, zero failures.
 - Parent independently reran the actual-adapter fixture captured here; all scenarios passed.
 - The report shutdown/persistence harness passes after repairing two outdated test substitutes; product lifecycle behavior and existing assertions are unchanged.
@@ -28,8 +28,8 @@ The harness calls the real `LocalPersonalAgent` core implementation with a deter
 
 ## Screenshots
 
-No screenshot is claimed for this nonvisual change. The available computer-use tool blocks Terminal, so a relevant terminal capture could not be made. The actual command output and invocation records above provide the workflow evidence; an unchanged app screen would not demonstrate this fix.
+The PNG captures show a read-only browser replay of the actual invocation records above: configured new and resumed requests, a denied action, a restricted report, and legacy-history reconstruction. They show the nonvisual adapter workflow, not the production app UI or a live provider. The replay uses the records captured from the reviewed code; its controls do not run commands.
 
 ## Video
 
-No video is claimed for the same capture limitation. The reproducible fixture sequence and actual output above document each interaction and result. No live-provider demonstration or simulated UI recording is substituted.
+[Recorded-call walkthrough](configured-cli-records.mp4) sequences the captured new-session, follow-up, denied-action, and legacy-history views. Timing is edited to five-second holds. This is a deterministic fixture replay, not continuous recording of execution or proof that a live skill/connector ran. No account, real skill, or paid model was used. The records and reproducible harness remain the primary evidence.
