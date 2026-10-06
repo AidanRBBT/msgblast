@@ -12,3 +12,23 @@ public enum InstallationLocation {
         return inside(home + "/Downloads") || inside("/Volumes") || app.contains("/AppTranslocation/")
     }
 }
+
+public enum SupportDirectory {
+    /// Production stays `msgblast`. Demo stays `msgblast-Demo`. A preview may set
+    /// `msgblastSupportDirectory` to another `msgblast-…` folder; anything else is ignored.
+    /// Live web previews keep their existing `MsgBlast-WebPreview` folder unless that override is set.
+    public static func folderName(demo: Bool, override: String?, webPreview: Bool = false, bundleIdentifier: String? = nil) -> String {
+        if let override, let safe = sanitized(override) { return safe }
+        if webPreview {
+            return bundleIdentifier == "com.msgblast.web-preview"
+                ? "MsgBlast-WebPreview"
+                : "MsgBlast-WebPreview-" + (bundleIdentifier ?? "local")
+        }
+        return demo ? "msgblast-Demo" : "msgblast"
+    }
+
+    public static func sanitized(_ raw: String) -> String? {
+        guard raw.range(of: #"^msgblast-[A-Za-z0-9][A-Za-z0-9-]{0,40}$"#, options: .regularExpression) != nil else { return nil }
+        return raw
+    }
+}

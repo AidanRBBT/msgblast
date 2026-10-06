@@ -13,7 +13,7 @@ struct msgblastApp: App {
         return NSSize(width: min(preferredWindowSize.width, screen.width), height: min(preferredWindowSize.height, screen.height))
     }
     var body: some Scene {
-        WindowGroup("msgblast") {
+        WindowGroup(Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "msgblast") {
             Group {
                 if startup.needsInstallation { InstallationView() }
                 else if let model {
