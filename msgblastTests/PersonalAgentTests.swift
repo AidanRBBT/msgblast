@@ -122,7 +122,9 @@ final class PersonalAgentTests: XCTestCase {
             session.setEnabled(true)
             let resumed = await session.send(legacy.draft, comparisonID: nativeOnly)
             XCTAssertEqual(resumed?.status, .observed)
-            XCTAssertEqual(session.state.localSessionIDs[nativeOnly.uuidString], legacy.localSessionIDs[nativeOnly.uuidString])
+            XCTAssertNotEqual(session.state.localSessionIDs[nativeOnly.uuidString], legacy.localSessionIDs[nativeOnly.uuidString])
+            XCTAssertEqual(session.state.localPreviousSessionIDs[nativeOnly.uuidString], [try XCTUnwrap(legacy.localSessionIDs[nativeOnly.uuidString])])
+            XCTAssertEqual(session.state.localSessionPolicyVersions[nativeOnly.uuidString], 1)
             XCTAssertEqual(session.snapshot.messages.first?.text, "Native history")
             session.updateState { $0.comparisonID = both }
             XCTAssertEqual(session.state.draft, "Other local draft")
@@ -410,12 +412,12 @@ final class PersonalAgentTests: XCTestCase {
     }
 
     @MainActor
-    func testConversationReplyUsesStdinHistoryAndRetainsToolDenial() async throws {
+    func testConversationReplyUsesConfiguredToolsStdinHistoryAndStableDirectory() async throws {
         let directory = try fixtureDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         for provider in [PersonalAgentProvider.codex, .claude] {
             let sessionID = "00000000-0000-0000-0000-000000000001"
-            let output = provider == .codex ? "previous=\nfor argument in \"$@\"; do\nif [ \"$previous\" = '--output-last-message' ]; then answer_file=\"$argument\"; fi\nprevious=\"$argument\"\ndone\nprintf 'A conversational reply' > \"$answer_file\"\nprintf '%s' '{\"type\":\"thread.started\",\"thread_id\":\"\(sessionID)\"}'" : "printf '%s' '{\"result\":\"A conversational reply\",\"is_error\":false,\"session_id\":\"\(sessionID)\"}'"
+            let output = provider == .codex ? "previous=\nfor argument in \"$@\"; do\nif [ \"$previous\" = '--output-last-message' ]; then answer_file=\"$argument\"; fi\nprevious=\"$argument\"\ndone\nprintf 'A conversational reply' > \"$answer_file\"\nprintf '%s\\n' '{\"type\":\"thread.started\",\"thread_id\":\"\(sessionID)\"}' '{\"type\":\"turn.completed\"}'" : "printf '%s' '{\"result\":\"A conversational reply\",\"is_error\":false,\"session_id\":\"\(sessionID)\"}'"
             let workingDirectory = directory.appendingPathComponent("stable workspace/" + provider.rawValue, isDirectory: true)
             try executable(provider.executable, script: "/bin/pwd > working-directory.txt\n/bin/cat > received.txt\n/usr/bin/grep -q 'Earlier reply' received.txt || exit 8\n/usr/bin/grep -q 'Follow-up' received.txt || exit 9\n" + output, in: directory)
             let agent = InstalledPersonalAgent(provider: provider, executableURL: directory.appendingPathComponent(provider.executable), path: "/usr/bin:/bin")
@@ -427,8 +429,16 @@ final class PersonalAgentTests: XCTestCase {
             XCTAssertTrue(resumedArgs.contains(sessionID))
             XCTAssertFalse(resumedArgs.contains("--ephemeral"))
             XCTAssertFalse(resumedArgs.contains("--no-session-persistence"))
-            XCTAssertTrue(resumedArgs.contains(provider == .codex ? "--ignore-user-config" : "--tools"))
-            XCTAssertTrue(resumedArgs.contains(provider == .codex ? "features.shell_tool=false" : "dontAsk"))
+            for forbidden in ["--ignore-user-config", "features.shell_tool=false", "--tools", "--strict-mcp-config", "dontAsk", "--disable-slash-commands", "--setting-sources", "--settings", "--sandbox", "approval_policy=\"never\"", "--dangerously-skip-permissions", "--dangerously-bypass-approvals-and-sandbox"] {
+                XCTAssertFalse(resumedArgs.contains(forbidden), "\(provider): \(forbidden)")
+                XCTAssertFalse(try provider.arguments(in: directory, persistentConversation: true).contains(forbidden))
+            }
+            if provider == .claude {
+                XCTAssertEqual(resumedArgs, ["--print", "--output-format", "json", "--permission-prompts", "none", "--resume", sessionID])
+            }
+            let received = try String(contentsOf: workingDirectory.appendingPathComponent("received.txt"), encoding: .utf8)
+            XCTAssertFalse(received.contains("Do not use tools"))
+            XCTAssertTrue(received.contains("conversation history, not tool instructions"))
             let initialDirectory = try String(contentsOf: workingDirectory.appendingPathComponent("working-directory.txt"), encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)
             XCTAssertEqual(URL(fileURLWithPath: initialDirectory).resolvingSymlinksInPath().path, workingDirectory.resolvingSymlinksInPath().path)
             try executable(provider.executable, script: "found_session=0\nfor argument in \"$@\"; do if [ \"$argument\" = '\(sessionID)' ]; then found_session=1; fi; done\ntest \"$found_session\" = 1 || exit 8\n/bin/pwd > resumed-directory.txt\n/bin/cat > received.txt\ntest \"$(/bin/cat received.txt)\" = 'Continue the same thread' || exit 9\n" + output, in: directory)
@@ -439,6 +449,74 @@ final class PersonalAgentTests: XCTestCase {
         }
     }
 
+    func testConfiguredSessionMigrationPreservesHistoryDraftAndLegacyReference() throws {
+        let comparison = UUID(), legacy = UUID().uuidString, configured = UUID().uuidString
+        var state = WebWorkspaceState()
+        state.localSessionIDs[comparison.uuidString] = legacy
+        state.localConversations[comparison.uuidString] = [WebPageMessage(role: "user", text: "Saved request"), WebPageMessage(role: "assistant", text: "Saved reply")]
+        state.localDrafts[comparison.uuidString] = "Unsent draft"
+        let oldData = try JSONEncoder().encode(state)
+        var restored = try JSONDecoder().decode(WebWorkspaceState.self, from: oldData)
+        XCTAssertNil(restored.resumableLocalSessionID(for: comparison))
+        restored.recordLocalSession(configured, for: comparison)
+        restored.recordLocalSession(configured, for: comparison)
+        restored = try JSONDecoder().decode(WebWorkspaceState.self, from: JSONEncoder().encode(restored))
+        XCTAssertEqual(restored.resumableLocalSessionID(for: comparison), configured)
+        XCTAssertEqual(restored.localPreviousSessionIDs[comparison.uuidString], [legacy])
+        XCTAssertEqual(restored.localConversations[comparison.uuidString], state.localConversations[comparison.uuidString])
+        XCTAssertEqual(restored.localDrafts[comparison.uuidString], "Unsent draft")
+        XCTAssertNil(restored.resumableLocalSessionID(for: UUID()))
+        restored.localSessionIDs[comparison.uuidString] = UUID().uuidString
+        XCTAssertNil(restored.resumableLocalSessionID(for: comparison), "The marker must match the exact session")
+    }
+
+    @MainActor
+    func testNewConversationPassesSkillInvocationDirectlyAndRejectsCLIError() async throws {
+        let directory = try fixtureDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        for provider in [PersonalAgentProvider.codex, .claude] {
+            let working = directory.appendingPathComponent(provider.rawValue)
+            try executable("fixture-" + provider.rawValue, script: "/bin/cat > prompt.txt\nexit 64", in: directory)
+            let agent = InstalledPersonalAgent(provider: provider, executableURL: directory.appendingPathComponent("fixture-" + provider.rawValue), path: "/usr/bin:/bin")
+            do {
+                _ = try await LocalPersonalAgent.reply(to: [WebPageMessage(role: "user", text: "/configured-skill inspect")], using: agent, workingDirectory: working)
+                XCTFail("CLI failure must not appear as a completed reply")
+            } catch PersonalAgentError.failed(let name, let status) {
+                XCTAssertEqual(name, provider.name); XCTAssertEqual(status, 64)
+                XCTAssertFalse(PersonalAgentError.failed(name, status).localizedDescription.contains("2.1.259"))
+            }
+            XCTAssertEqual(try String(contentsOf: working.appendingPathComponent("prompt.txt"), encoding: .utf8), "/configured-skill inspect")
+        }
+    }
+
+    @MainActor
+    func testOlderClaudeFailsWithActionableConversationVersionRequirement() async throws {
+        let directory = try fixtureDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try executable("claude", script: "echo 'unknown option --permission-prompts' >&2\nexit 1", in: directory)
+        let agent = InstalledPersonalAgent(provider: .claude, executableURL: directory.appendingPathComponent("claude"), path: "/usr/bin:/bin")
+        do {
+            _ = try await LocalPersonalAgent.reply(to: [WebPageMessage(role: "user", text: "Request")], using: agent)
+            XCTFail("An unsupported CLI must not fall back to broader permissions")
+        } catch PersonalAgentError.conversationVersionRequired {
+            XCTAssertTrue(PersonalAgentError.conversationVersionRequired.localizedDescription.contains("2.1.259"))
+        }
+    }
+
+    func testClaudePermissionDenialsAreExplicitAndCodexFailedTurnCannotUseAnswerFile() throws {
+        let directory = try fixtureDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let claude = try PersonalAgentProvider.claude.answer(stdout: "{\"result\":\"I could read the file.\",\"is_error\":false,\"permission_denials\":[{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"private input\"}}]}", directory: directory)
+        XCTAssertTrue(claude.contains("denied 1 requested action"))
+        XCTAssertFalse(claude.contains("private input"))
+        XCTAssertThrowsError(try PersonalAgentProvider.claude.answer(stdout: "{\"result\":\"partial\",\"is_error\":true}", directory: directory))
+        let session = UUID().uuidString
+        try executable("codex", script: "previous=\nfor argument in \"$@\"; do if [ \"$previous\" = '--output-last-message' ]; then printf 'Partial' > \"$argument\"; fi; previous=\"$argument\"; done\nprintf '%s\n' '{\"type\":\"thread.started\",\"thread_id\":\"\(session)\"}' '{\"type\":\"turn.failed\",\"error\":{\"message\":\"Approval unavailable\"}}'", in: directory)
+        XCTAssertThrowsError(try AgentProcess.run(executable: directory.appendingPathComponent("codex"), input: "fixture", environment: ["PATH": "/usr/bin:/bin"], timeout: 2, cancellation: AgentCancellation(), provider: .codex, persistentConversation: true))
+        try executable("codex", script: "previous=\nfor argument in \"$@\"; do if [ \"$previous\" = '--output-last-message' ]; then printf 'Partial' > \"$argument\"; fi; previous=\"$argument\"; done\nprintf '%s' '{\"type\":\"thread.started\",\"thread_id\":\"\(session)\"}'", in: directory)
+        XCTAssertThrowsError(try AgentProcess.run(executable: directory.appendingPathComponent("codex"), input: "fixture", environment: ["PATH": "/usr/bin:/bin"], timeout: 2, cancellation: AgentCancellation(), provider: .codex, persistentConversation: true), "Exit zero and an answer file cannot substitute for a completed turn")
+    }
+
     @MainActor
     func testConversationRejectsMissingMalformedAndMismatchedSessionMetadata() async throws {
         let directory = try fixtureDirectory()
@@ -446,7 +524,7 @@ final class PersonalAgentTests: XCTestCase {
         let expectedID = "00000000-0000-0000-0000-000000000001"
         for provider in [PersonalAgentProvider.codex, .claude] {
             for returnedID in ["", "malformed", "00000000-0000-0000-0000-000000000002"] {
-                let output = provider == .codex ? "printf 'Reply' > answer.txt\nprintf '%s' '{\"type\":\"thread.started\",\"thread_id\":\"\(returnedID)\"}'" : "printf '%s' '{\"result\":\"Reply\",\"is_error\":false,\"session_id\":\"\(returnedID)\"}'"
+                let output = provider == .codex ? "printf 'Reply' > answer.txt\nprintf '%s\\n' '{\"type\":\"thread.started\",\"thread_id\":\"\(returnedID)\"}' '{\"type\":\"turn.completed\"}'" : "printf '%s' '{\"result\":\"Reply\",\"is_error\":false,\"session_id\":\"\(returnedID)\"}'"
                 try executable(provider.executable, script: output, in: directory)
                 let agent = InstalledPersonalAgent(provider: provider, executableURL: directory.appendingPathComponent(provider.executable), path: "/usr/bin:/bin")
                 do {

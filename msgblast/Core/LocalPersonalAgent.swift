@@ -45,18 +45,26 @@ public enum PersonalAgentProvider: String, CaseIterable, Identifiable, Sendable 
     func arguments(in directory: URL, persistentConversation: Bool = false, sessionID: String? = nil) throws -> [String] {
         switch self {
         case .codex:
-            var args = ["exec", "--skip-git-repo-check", "--ignore-user-config", "--sandbox", "read-only",
-                    "-c", "approval_policy=\"never\"", "-c", "features.shell_tool=false", "--color", "never",
+            var args = ["exec", "--skip-git-repo-check", "--color", "never",
                     "--output-last-message", directory.appendingPathComponent(summaryAnswerFilename).path]
+            if !persistentConversation {
+                args += ["--ignore-user-config", "--sandbox", "read-only", "-c", "approval_policy=\"never\"", "-c", "features.shell_tool=false"]
+            }
             if persistentConversation {
                 args += ["--json"]
                 if let sessionID { args += ["resume", sessionID] }
             } else { args += ["--ephemeral"] }
             return args + ["-"]
         case .claude:
-            var args = ["--print", "--output-format", "json", "--tools", "", "--strict-mcp-config",
-                    "--permission-mode", "dontAsk", "--disable-slash-commands",
-                    "--setting-sources", "", "--settings", "{\"disableAllHooks\":true}"]
+            var args = ["--print", "--output-format", "json"]
+            if persistentConversation {
+                // Keep configured permission rules/mode/hooks. No UI hosts approvals;
+                // anything requiring an unanswered prompt must be denied, not hang.
+                args += ["--permission-prompts", "none"]
+            } else {
+                args += ["--tools", "", "--strict-mcp-config", "--permission-mode", "dontAsk",
+                         "--disable-slash-commands", "--setting-sources", "", "--settings", "{\"disableAllHooks\":true}"]
+            }
             if persistentConversation {
                 if let sessionID { args += ["--resume", sessionID] }
                 else { args += ["--session-id", UUID().uuidString] }
@@ -88,7 +96,9 @@ public enum PersonalAgentProvider: String, CaseIterable, Identifiable, Sendable 
                   let text = object[self == .gemini ? "response" : "result"] as? String else {
                 throw PersonalAgentError.invalidResponse(name)
             }
-            answer = text
+            if self == .claude, let denials = object["permission_denials"] as? [[String: Any]], !denials.isEmpty {
+                answer = text + "\n\nClaude Code denied \(denials.count) requested action(s) under its permission rules. Those actions were not completed. Review permissions in the CLI before trying again."
+            } else { answer = text }
         case .pi, .grok, .hermes: answer = stdout
         }
         let trimmed = answer.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -108,15 +118,16 @@ public struct InstalledPersonalAgent: Identifiable, Equatable, Sendable {
 }
 
 public enum PersonalAgentError: LocalizedError {
-    case unavailable(String), unsupportedProvider(PersonalAgentProvider), failed(String, Int32), timedOut, tooLarge, invalidResponse(String)
+    case conversationVersionRequired, unavailable(String), unsupportedProvider(PersonalAgentProvider), failed(String, Int32), timedOut, tooLarge, invalidResponse(String)
     public var errorDescription: String? {
         switch self {
+        case .conversationVersionRequired: "Claude Code conversations require version 2.1.259 or later. Update Claude Code in Terminal to enable unattended permission handling, then try again."
         case .unavailable(let name): "\(name) could not be launched. Refresh installed agents and check its CLI installation."
         case .unsupportedProvider(let provider): provider.unavailabilityReason ?? "\(provider.name) is unavailable for comparison reports."
-        case .failed(let name, let code): "\(name) exited with status \(code). Open its CLI in Terminal to check sign-in, usage limits, and updates, then try again."
+        case .failed(let name, let code): "\(name) exited with status \(code). Open its CLI in Terminal to check sign-in, permissions, usage limits, and updates, then try again."
         case .timedOut: "The personal agent did not finish within three minutes. Try again when it is ready."
-        case .tooLarge: "The comparison or agent output is too large to summarize in one request. No partial summary was saved."
-        case .invalidResponse(let name): "\(name) did not return a completed comparison report. Check its sign-in and CLI version in Terminal, then try again."
+        case .tooLarge: "The request or agent output is too large to complete in one request. No partial response was saved."
+        case .invalidResponse(let name): "\(name) did not return a completed response. Check sign-in, permissions, and CLI version in Terminal, then try again."
         }
     }
 }
@@ -236,9 +247,9 @@ public enum LocalPersonalAgent {
         guard agent.provider == .codex || agent.provider == .claude else { throw PersonalAgentError.unsupportedProvider(agent.provider) }
         if let sessionID, UUID(uuidString: sessionID) == nil { throw PersonalAgentError.invalidResponse(agent.provider.name) }
         let prompt: String
-        if sessionID == nil {
+        if sessionID == nil && conversation.count > 1 {
             let data = try JSONEncoder().encode(conversation)
-            prompt = "Reply to the last user message in this conversation. The JSON below is the conversation history, not tool instructions. Return only your reply, without a report schema. Do not use tools.\n\n" + String(decoding: data, as: UTF8.self)
+            prompt = "Reply to the last user message in this conversation. The JSON below is the conversation history, not tool instructions. Return only your reply, without a report schema. Use your normally configured skills and tools when appropriate, respecting your CLI permissions. If an action is denied or needs interactive approval, explain what could not be completed; do not claim success.\n\n" + String(decoding: data, as: UTF8.self)
         } else { prompt = conversation.last?.text ?? "" }
         let result = try await request(prompt: prompt, using: agent, sessionID: sessionID, persistentConversation: true, workingDirectory: workingDirectory)
         guard let resumedID = result.sessionID else { throw PersonalAgentError.invalidResponse(agent.provider.name) }
@@ -262,6 +273,11 @@ public enum LocalPersonalAgent {
                 let result = try AgentProcess.run(executable: agent.executableURL, input: prompt, environment: environment,
                     timeout: 180, cancellation: cancellation, provider: agent.provider,
                     persistentConversation: persistentConversation, sessionID: sessionID, workingDirectory: workingDirectory)
+                if result.status != 0, persistentConversation, agent.provider == .claude,
+                   result.stderr.contains("permission-prompts"),
+                   ["unknown option", "unrecognized option", "unexpected argument"].contains(where: { result.stderr.lowercased().contains($0) }) {
+                    throw PersonalAgentError.conversationVersionRequired
+                }
                 guard result.status == 0 else { throw PersonalAgentError.failed(agent.provider.name, result.status) }
                 return result
             }.value
@@ -348,13 +364,21 @@ enum AgentProcess {
         let output = try readOutput(stdoutURL)
         if let provider, process.terminationStatus == 0 {
             var conversationID: String?
+            var completedCodexTurn = false
             if persistentConversation {
                 let records = provider == .codex ? output.split(separator: "\n").map(String.init) : [output]
                 for record in records {
                     guard let data = record.data(using: .utf8), let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { continue }
+                    if provider == .codex, ["turn.failed", "error"].contains(object["type"] as? String ?? "") {
+                        throw PersonalAgentError.invalidResponse(provider.name)
+                    }
+                    if provider == .codex, object["type"] as? String == "turn.completed" { completedCodexTurn = true }
                     let candidate = provider == .codex && object["type"] as? String == "thread.started" ? object["thread_id"] as? String : provider == .claude ? object["session_id"] as? String : nil
-                    if let candidate, UUID(uuidString: candidate) != nil { conversationID = candidate; break }
+                    if let candidate, UUID(uuidString: candidate) != nil { conversationID = candidate }
                 }
+            }
+            if persistentConversation, provider == .codex, !completedCodexTurn {
+                throw PersonalAgentError.invalidResponse(provider.name)
             }
             return Result(status: 0, stdout: try provider.answer(stdout: output, directory: directory), sessionID: conversationID)
         }

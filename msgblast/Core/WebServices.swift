@@ -42,9 +42,14 @@ public struct WebWorkspaceState: Codable, Sendable {
     public var conversationURLs: [String: URL] = [:]
     public var localConversations: [String: [WebPageMessage]] = [:]
     public var localSessionIDs: [String: String] = [:]
+    // Mark the exact session created with configured tools. Old IDs stay available
+    // for recovery when a restricted session is replaced from its saved transcript.
+    public var localSessionPolicyVersions: [String: Int] = [:]
+    public var localConfiguredSessionIDs: [String: String] = [:]
+    public var localPreviousSessionIDs: [String: [String]] = [:]
     public var localDrafts: [String: String] = [:]
     public init() {}
-    private enum CodingKeys: String, CodingKey { case providerIdentityVersion, enabled, sessionID, draft, selected, includeMuse, messageRecipients, comparisonID, attempts, conversationURLs, museConversations, localConversations, localSessionIDs, localDrafts }
+    private enum CodingKeys: String, CodingKey { case providerIdentityVersion, enabled, sessionID, draft, selected, includeMuse, messageRecipients, comparisonID, attempts, conversationURLs, museConversations, localConversations, localSessionIDs, localDrafts, localConfiguredSessionIDs, localPreviousSessionIDs, localSessionPolicyVersions }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         providerIdentityVersion = try c.decodeIfPresent(Int.self, forKey: .providerIdentityVersion) ?? 1
@@ -59,6 +64,9 @@ public struct WebWorkspaceState: Codable, Sendable {
             ?? c.decodeIfPresent([String: URL].self, forKey: .museConversations) ?? [:]
         localConversations = try c.decodeIfPresent([String: [WebPageMessage]].self, forKey: .localConversations) ?? [:]
         localSessionIDs = try c.decodeIfPresent([String: String].self, forKey: .localSessionIDs) ?? [:]
+        localSessionPolicyVersions = try c.decodeIfPresent([String: Int].self, forKey: .localSessionPolicyVersions) ?? [:]
+        localConfiguredSessionIDs = try c.decodeIfPresent([String: String].self, forKey: .localConfiguredSessionIDs) ?? [:]
+        localPreviousSessionIDs = try c.decodeIfPresent([String: [String]].self, forKey: .localPreviousSessionIDs) ?? [:]
         localDrafts = try c.decodeIfPresent([String: String].self, forKey: .localDrafts) ?? [:]
         attempts = try c.decodeIfPresent([WebSendAttempt].self, forKey: .attempts) ?? []
     }
@@ -76,6 +84,25 @@ public struct WebWorkspaceState: Codable, Sendable {
         try c.encode(localConversations, forKey: .localConversations)
         try c.encode(localSessionIDs, forKey: .localSessionIDs)
         try c.encode(localDrafts, forKey: .localDrafts)
+        try c.encode(localSessionPolicyVersions, forKey: .localSessionPolicyVersions)
+        try c.encode(localConfiguredSessionIDs, forKey: .localConfiguredSessionIDs)
+        try c.encode(localPreviousSessionIDs, forKey: .localPreviousSessionIDs)
+    }
+    public func resumableLocalSessionID(for comparison: UUID) -> String? {
+        let key = comparison.uuidString
+        guard let id = localSessionIDs[key], localConfiguredSessionIDs[key] == id, localSessionPolicyVersions[key] == 1 else { return nil }
+        return id
+    }
+    public mutating func recordLocalSession(_ id: String, for comparison: UUID) {
+        let key = comparison.uuidString
+        if let previous = localSessionIDs[key], previous != id {
+            var retained = localPreviousSessionIDs[key] ?? []
+            if !retained.contains(previous) { retained.append(previous) }
+            localPreviousSessionIDs[key] = retained
+        }
+        localSessionIDs[key] = id
+        localConfiguredSessionIDs[key] = id
+        localSessionPolicyVersions[key] = 1
     }
     public func hasUnresolvedSend(_ text: String) -> Bool {
         attempts.contains { $0.text == text && [.attempting, .uncertain].contains($0.status) }
@@ -173,6 +200,9 @@ public enum WebProviderStateMigration {
             }
             local.localConversations = try merge(local.localConversations, browser.localConversations)
             local.localSessionIDs = try merge(local.localSessionIDs, browser.localSessionIDs)
+            local.localSessionPolicyVersions = try merge(local.localSessionPolicyVersions, browser.localSessionPolicyVersions)
+            local.localConfiguredSessionIDs = try merge(local.localConfiguredSessionIDs, browser.localConfiguredSessionIDs)
+            local.localPreviousSessionIDs = try merge(local.localPreviousSessionIDs, browser.localPreviousSessionIDs)
             local.localDrafts = try merge(local.localDrafts, browser.localDrafts)
             for attempt in nativeAttempts {
                 if let existing = local.attempts.first(where: { $0.id == attempt.id }) {
@@ -192,6 +222,9 @@ public enum WebProviderStateMigration {
         browser.localConversations = [:]
         browser.localSessionIDs = [:]
         browser.localDrafts = [:]
+        browser.localConfiguredSessionIDs = [:]
+        browser.localSessionPolicyVersions = [:]
+        browser.localPreviousSessionIDs = [:]
         browser.providerIdentityVersion = 2
         // sessionID and conversationURLs deliberately remain the original web values.
         try write(browser, to: source)

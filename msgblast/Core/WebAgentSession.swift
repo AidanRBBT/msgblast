@@ -451,7 +451,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
             attempt.status = .attempting
             try store(attempt)
             started = true
-            let savedSessionID = state.localSessionIDs[id.uuidString]
+            let savedSessionID = state.resumableLocalSessionID(for: id)
             let workingDirectory = conversationWorkingDirectory(id)
             let request = Task { [fixture, provider, installedAgent] in
                 if fixture {
@@ -465,7 +465,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
             let answer = try await withTaskCancellationHandler { try await request.value } onCancel: { request.cancel() }
             try Task.checkCancellation()
             state.localConversations[id.uuidString] = history + [WebPageMessage(role: "assistant", text: answer.text)]
-            state.localSessionIDs[id.uuidString] = answer.sessionID
+            state.recordLocalSession(answer.sessionID, for: id)
             if state.draft == text { state.draft = "" }
             state.localDrafts[id.uuidString] = state.draft
             attempt.status = .observed; attempt.messageID = user.id
