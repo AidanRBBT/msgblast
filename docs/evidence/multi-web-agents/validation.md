@@ -16,13 +16,13 @@ The real signed-out ChatGPT page renders inside the isolated MsgBlast Web Previe
 
 **Authenticated live selectors, real shared submissions, login retention after relaunch, and long-running background behavior are still unverified.** The user was asked to sign in inside the preview. New-provider account/menu and transcript selectors remain compatibility assumptions until that check completes. Local fixtures cannot establish live service compatibility. Unrecognized layouts leave shared sending disabled, with the actual website available in its pane.
 
-No live prompts, private transcripts, credentials, or avatars were exported for this evidence. The user's installed development app was not replaced or restarted. Preview Messages are synthetic; live preview web services are real.
+No live prompts, private transcripts, credentials, or avatars were exported for this evidence. Icon validation used isolated builds before the user-requested development build was refreshed; no installed app in /Applications was replaced. Preview Messages are synthetic; live preview web services are real.
 
 ## Captures
 
-Desktop native macOS UI only; mobile screenshots do not apply. All screenshots show the changed feature using local fixture pages, not the providers' actual signed-in interfaces. Initial-letter avatars are the app's defaults; Muse retains its website/personal-avatar behavior.
+Desktop native macOS UI only; mobile screenshots do not apply. All screenshots show the changed feature using local fixture pages, not the providers' actual signed-in interfaces. ChatGPT and Claude use bundled iOS App Store artwork. Grok uses the user-requested ImageGen adaptation for the circular avatar. Muse retains its website/personal-avatar behavior.
 
-The video is a sampled walkthrough assembled from actual native screenshots with edited timing. It shows selection, a prepared shared prompt, submission, replies, and sign-out. It is not a continuous screen recording, a timing benchmark, or proof of live service compatibility. Evidence remains within this private repository.
+The video is a sampled walkthrough assembled from actual native screenshots with edited timing. It shows selection, a prepared shared prompt, observed messages and replies, and sign-out. The submission screenshot was captured after the fast fixture replies appeared. It is not a continuous screen recording, a timing benchmark, or proof of live service compatibility. Evidence remains within this private repository.
 
 ## Simplification
 
@@ -43,7 +43,13 @@ Both isolated fixture and live-preview packages rebuilt successfully after the f
 
 - [Selected agents](01-agents.png)
 - [Prepared shared prompt](02-ready.png)
-- [Submission in progress](03-submission.png)
+- [Observed shared submission](03-submission.png)
 - [Three replies](04-replies.png)
 - [Sign-in needed and retained draft](05-signout.png)
 - [Sampled fixture walkthrough, edited timing](multi-agent-walkthrough.mp4)
+
+## Agent artwork refresh
+
+October 5, 2026: bundled official iOS App Store ChatGPT/Claude images and an ImageGen Grok adaptation requested by the user after inspecting its App Store image. [Asset sources and generation prompts](../../../MsgBlast/Resources/WebAgentIcons.md). Isolated `build/icon-validation` and fixture builds passed. The built image bytes match the repository assets; native picker and 38-point headers render the final artwork. The existing Muse avatar path remains unchanged. No new unit tests were added for static artwork; the earlier 65-test core result above covers the unchanged core implementation.
+
+All five captures and the sampled video were refreshed from the final icon revision. A local shared send produced all three outgoing messages and replies; Claude sign-out retained the shared draft and disabled Send. No real prompts were sent.

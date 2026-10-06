@@ -1,9 +1,9 @@
 {
-  "base": "e8f3e93413fd0dbe4d6d4047fe6a0c9efb55a568",
+  "base": "9440a9856c6072d6fa9385280f5d9dabb15f8cc9",
   "capture_date": "2026-10-05",
   "build": "scripts/build_web_preview.sh --fixture",
   "source_sha256": {
-    "MsgBlast.xcodeproj/project.pbxproj": "b7e05c71bc48fda5215f813515d283e310622b9e45568913d3582464f1af0e8b",
+    "MsgBlast.xcodeproj/project.pbxproj": "3e94cd1102eefbd720b65f7263ab56b88515e356fe53f10212dba7f89e1d526d",
     "MsgBlast/App/AppModel.swift": "35602fb966d681223982adc02335e217f2fc88ea809a7a3637cf16c2145bc40b",
     "MsgBlast/Core/WebAgentSession.swift": "12771a8fd808a451ea69fa1dedb67d5748eea98627ab6b1773b0024d1cc872d1",
     "MsgBlast/Core/WebAgents.swift": "ef6528f5ae03e00bc77c27e07b6b4a28a6f688cebfbc95ddf12284106dc50326",
@@ -11,11 +11,16 @@
     "MsgBlast/Core/WebProvider.swift": "968c73cf0803863bba9a0b62480c59e2ffbe5acd55f26828a9d2ad2abbb8795e",
     "MsgBlast/Core/WebServices.swift": "ad842642ab05ea08ff263e30c01d346efe60ab0053051d1fe3dfd21d5683f30e",
     "MsgBlast/Windows/Views.swift": "416fc90bb69fe68cea47e9d61906526b56dbfdd694e3eb8af66a3d800d0a8bae",
-    "MsgBlast/Windows/WebServicesView.swift": "81062fca4f1f280b7a73c2c8018b25f10d38e1750d1da790837873720bc00e15",
+    "MsgBlast/Windows/WebServicesView.swift": "7c897508eb2f3e157129ad2f5c7cc1b9d1d15860498617f4d284b94e91ca1e38",
     "MsgBlastTests/MultiWebAgentTests.swift": "58346a516535abd79d1c7d636d31d863640a6d86a91e0edd95c23b363da5d585",
-    "MsgBlastTests/WebServiceTests.swift": "da2a540f33246c9b5a08f6e088c216eb03e705ad36b30cf99797892611670a0c"
+    "MsgBlastTests/WebServiceTests.swift": "da2a540f33246c9b5a08f6e088c216eb03e705ad36b30cf99797892611670a0c",
+    "scripts/generate_project.py": "f5f7776b4b81a02abd7a820e2975195c4e837151969f9cc6f7cba759e49b48bf",
+    "MsgBlast/Resources/WebAgentIcons/claude.jpg": "50d784959c3e09b6c3ed992d306efcdf306d949d3ae833c510d91a7623135b30",
+    "MsgBlast/Resources/WebAgentIcons/grok.png": "07875b0e663ee7ebbd8ec085a8460621f2d0faf431a8e41f3ca49688e7b28faf",
+    "MsgBlast/Resources/WebAgentIcons/chatgpt.jpg": "243ff2cead1bf06f43f2c90dfde5f7420d5b1b8ddd8f1bd497df4877ddef3bb2"
   },
   "mode": "Synthetic local WebKit pages; no live sends",
-  "test_result": "65 passed, 0 failed, 0 skipped",
-  "test_bundle": "Test-MsgBlast-2026.10.05_15-12-08--0700.xcresult"
+  "test_result": "Prior core run: 65 passed, 0 failed, 0 skipped; core unchanged by static artwork update",
+  "test_bundle": "Test-MsgBlast-2026.10.05_15-12-08--0700.xcresult",
+  "icon_validation": "Isolated dev and fixture builds passed; native picker/header rendering checked; bundled bytes match source."
 }

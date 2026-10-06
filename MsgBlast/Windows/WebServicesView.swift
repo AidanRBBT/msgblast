@@ -238,8 +238,15 @@ private struct WebAgentPane: View {
 }
 
 private let museDefaultAvatar = Bundle.main.url(forResource: "MuseAvatar", withExtension: "jpg").flatMap { try? Data(contentsOf: $0) }
+private let webDefaultAvatars: [WebProvider: Data] = Dictionary(uniqueKeysWithValues:
+    [WebProvider.chatgpt, .claude, .grok].compactMap { provider in
+        guard let url = Bundle.main.url(forResource: provider.rawValue, withExtension: provider == .grok ? "png" : "jpg", subdirectory: "WebAgentIcons"),
+              let data = try? Data(contentsOf: url) else { return nil }
+        return (provider, data)
+    }
+)
 @MainActor
 private func webAgent(_ session: WebAgentSession) -> Agent {
-    Agent(name: session.provider.name, handles: [], avatar: session.provider == .muse ? session.avatar ?? museDefaultAvatar : nil,
+    Agent(name: session.provider.name, handles: [], avatar: session.provider == .muse ? session.avatar ?? museDefaultAvatar : webDefaultAvatars[session.provider],
           colorIndex: WebProvider.allCases.firstIndex(of: session.provider)! + 4)
 }
