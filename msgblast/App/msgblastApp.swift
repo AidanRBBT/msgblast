@@ -30,6 +30,9 @@ struct msgblastApp: App {
             CommandMenu("Comparisons") {
                 ForEach(model?.state.comparisons ?? []) { comparison in Button(comparison.title) { model?.coordinator?.open(comparison.id) } }
             }
+            CommandGroup(replacing: .help) {
+                Button("Send Feedback…") { FeedbackWindowController.show(model: model, updater: updater) }
+            }
         }
         Settings {
             if let model { AppSettingsView(model: model, updater: updater) }
