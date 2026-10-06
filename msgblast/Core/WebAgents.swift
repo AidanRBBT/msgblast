@@ -17,12 +17,19 @@ public final class WebAgents: ObservableObject {
             session.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }.store(in: &subscriptions)
         }
     }
-    public func setComparison(_ id: UUID?) { workspaceSession.updateState { $0.comparisonID = id } }
+    public func setComparison(_ id: UUID?) {
+        for session in sessions where session.provider == .muse || session.provider.personalAgentProvider != nil {
+            session.updateState { $0.comparisonID = id }
+        }
+    }
     public func toggle(_ session: WebAgentSession) {
         session.updateState { $0.selected.toggle() }
         if session.state.selected { session.connect() }
     }
     public func connectSelected() { selected.forEach { $0.connect() } }
+    public var hasNativeRequests: Bool { sessions.contains { $0.provider.personalAgentProvider != nil && $0.isSending } }
+    public func beginShutdown() { sessions.forEach { $0.beginShutdown() } }
+    public func cancelAndWait() async { for session in sessions { await session.cancelAndWait() } }
     public static func send(_ text: String, to sessions: [WebAgentSession], comparisonID: UUID? = nil) async -> [WebProvider: WebSendAttempt] {
         let tasks = sessions.map { session in Task { @MainActor in (session.provider, await session.send(text, comparisonID: comparisonID)) } }
         var results: [WebProvider: WebSendAttempt] = [:]

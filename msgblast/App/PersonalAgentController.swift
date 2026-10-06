@@ -10,6 +10,8 @@ final class PersonalAgentController: ObservableObject {
     @Published private(set) var accounts: [PersonalAgentProvider: PersonalAgentAccountStatus] = [:]
     @Published private(set) var checkingAccounts = false
     @Published private(set) var accountError: String?
+    @Published private(set) var detectedLocalAgents: [InstalledLocalAgent] = []
+    @Published private(set) var detectingLocalAgents = false
     @Published private(set) var errors: [UUID: String] = [:]
     @Published private var tasks: [UUID: Task<Void, Never>] = [:]
     private var discoveryTask: Task<[InstalledPersonalAgent], Never>?
@@ -20,6 +22,15 @@ final class PersonalAgentController: ObservableObject {
     init(demo: Bool) {
         self.demo = demo
         if demo { accounts = [.codex: .subscription, .claude: .signedOut] }
+    }
+
+    func detectLocalAgents() async {
+        guard !shuttingDown, !detectingLocalAgents else { return }
+        detectingLocalAgents = true
+        defer { detectingLocalAgents = false }
+        if demo {
+            detectedLocalAgents = LocalAgentRuntime.allCases.map { InstalledLocalAgent(runtime: $0, executableURL: URL(fileURLWithPath: "/dev/null")) }
+        } else { detectedLocalAgents = await LocalAgentDetection.detect() }
     }
 
     func refreshAccounts() async {

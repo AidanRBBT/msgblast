@@ -20,7 +20,7 @@ struct AgentsWorkspaceView: View {
         let text = model.state.draft.trimmingCharacters(in: .whitespacesAndNewlines)
         return !busy && (!web.selected.isEmpty || !nativeRecipients.isEmpty)
             && (web.selected.isEmpty || (!text.isEmpty && attachments.isEmpty))
-            && web.selected.allSatisfy { $0.snapshot.ready && $0.snapshot.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !$0.state.hasUnresolvedSend(text) }
+            && web.selected.allSatisfy { $0.snapshot.ready && $0.snapshot.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !$0.hasUnresolvedSend(text) }
             && (nativeRecipients.isEmpty || (model.databaseAvailable && nativeRecipients.allSatisfy { model.route($0) != nil }))
     }
 
@@ -50,6 +50,7 @@ struct AgentsWorkspaceView: View {
     private var agentPicker: some View {
         GeometryReader { geometry in
             ScrollView {
+                VStack(spacing: 20) {
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 20), count: 3), spacing: 28) {
                     ForEach(web.sessions, id: \.provider) { session in
                         PinnedAgentTile(agent: webAgent(session), selected: session.state.selected, size: tileSize(geometry)) {
@@ -63,6 +64,8 @@ struct AgentsWorkspaceView: View {
                             .help(model.route(agent)?.handle ?? "No matching conversation")
                     }
                 }.padding(.horizontal, 20).padding(.top, 14).padding(.bottom, 20)
+                    LocalRuntimeDetectionView(agent: model.personalAgent).padding(.horizontal, 20).padding(.bottom, 20)
+                }
             }
         }
     }
@@ -77,7 +80,7 @@ struct AgentsWorkspaceView: View {
                 HStack(spacing: 0) {
                     ForEach(web.selected, id: \.provider) { session in
                         if session.provider != web.selected.first?.provider { Divider() }
-                        WebAgentPane(session: session, busy: busy).frame(width: width)
+                        WebAgentPane(session: session, account: model.personalAgent, busy: busy, sendNative: { sendDirect($0, to: session) }).frame(width: width)
                     }
                     if let comparison = nativeComparison {
                         ForEach(comparison.members) { member in
@@ -105,7 +108,7 @@ struct AgentsWorkspaceView: View {
             }
             let unavailable = web.selected.filter { !$0.snapshot.ready && !$0.loading }.map { $0.provider.name }
             if !unavailable.isEmpty && !model.state.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !busy {
-                Text("Send & compare can’t send to \(unavailable.formatted(.list(type: .and))). You can message them directly in their chats.")
+                Text("Connect \(unavailable.formatted(.list(type: .and))) in their panes before sending.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             if !web.selected.isEmpty && !attachments.isEmpty {
@@ -197,11 +200,70 @@ struct AgentsWorkspaceView: View {
             web.setComparison(comparisonID)
         }
     }
+
+    private func sendDirect(_ text: String, to session: WebAgentSession) {
+        guard !busy, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        let existingID = nativeComparison?.id
+        model.webBroadcastBusy = true
+        Task { @MainActor in
+            defer { model.webBroadcastBusy = false }
+            let id: UUID
+            if let existingID { id = existingID }
+            else {
+                guard let created = await model.prepareWebComparison(text, recipientIDs: [], providers: [session.provider]) else { return }
+                id = created
+            }
+            guard let i = model.index(id) else { return }
+            if model.state.comparisons[i].webProviders?.contains(session.provider) != true {
+                model.state.comparisons[i].webProviders = (model.state.comparisons[i].webProviders ?? []) + [session.provider]
+            }
+            do { try model.save() } catch { model.error = error.localizedDescription; return }
+            showingComparison = true
+            _ = await session.send(text, comparisonID: id)
+            web.setComparison(id)
+        }
+    }
+}
+
+struct LocalRuntimeDetectionView: View {
+    @ObservedObject var agent: PersonalAgentController
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text(agent.demo ? "Local agents (simulated)" : "Local agents").font(.headline)
+                Spacer()
+                Button("Refresh local agents") { Task { await agent.detectLocalAgents() } }.disabled(agent.detectingLocalAgents)
+            }
+            ForEach(LocalAgentRuntime.allCases) { runtime in
+                let installation = agent.detectedLocalAgents.first { $0.runtime == runtime }
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(runtime.name).fontWeight(.medium)
+                        Text(installation == nil ? "CLI not found" : agent.demo ? "CLI detected (simulated)" : "CLI detected")
+                            .font(.caption).foregroundStyle(.secondary)
+                        if let installation, !agent.demo {
+                            Text(installation.executableURL.path).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+                        }
+                        Text(runtime.setup).font(.caption.monospaced()).textSelection(.enabled)
+                    }
+                    Spacer()
+                    if let installation {
+                        Button("Show CLI") { NSWorkspace.shared.activateFileViewerSelecting([installation.executableURL]) }.disabled(agent.demo)
+                    } else { Link("Setup guide", destination: runtime.documentation) }
+                }
+            }
+            Text("Detection checks installed executables. It does not verify account sign-in or a running gateway.")
+                .font(.caption).foregroundStyle(.secondary)
+        }.padding(16).background(.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+            .task { await agent.detectLocalAgents() }
+    }
 }
 
 private struct WebAgentPane: View {
     @ObservedObject var session: WebAgentSession
+    @ObservedObject var account: PersonalAgentController
     let busy: Bool
+    let sendNative: (String) -> Void
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 10) {
@@ -212,7 +274,9 @@ private struct WebAgentPane: View {
                 }
                 Spacer()
                 if session.loading { ProgressView().controlSize(.small) }
-                Button { session.openComparisonChat() } label: { Image(systemName: "house") }.help("\(session.provider.name) comparison chat").accessibilityLabel("\(session.provider.name) comparison chat").disabled(busy)
+                if session.provider.personalAgentProvider == nil {
+                    Button { session.openComparisonChat() } label: { Image(systemName: "house") }.help("\(session.provider.name) comparison chat").accessibilityLabel("\(session.provider.name) comparison chat").disabled(busy)
+                }
                 Button { session.reload() } label: { Image(systemName: "arrow.clockwise") }.help("Reload \(session.provider.name)").accessibilityLabel("Reload \(session.provider.name)").disabled(busy)
             }.padding(14).background(.bar)
             if let latest = session.latestComparisonAttempt {
@@ -225,7 +289,9 @@ private struct WebAgentPane: View {
                     .accessibilityElement(children: .contain)
             }
             if let error = session.error { Text(error).font(.caption).foregroundStyle(.orange).padding(10).frame(maxWidth: .infinity, alignment: .leading) }
-            if session.connected {
+            if let provider = session.provider.personalAgentProvider {
+                nativeConversation(provider)
+            } else if session.connected {
                 if !session.snapshot.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !session.isSending {
                     Text("\(session.provider.name) has a draft. Send or clear it in the page before using the shared composer.").font(.caption).foregroundStyle(.orange).padding(8)
                 }
@@ -241,6 +307,10 @@ private struct WebAgentPane: View {
                 }.frame(maxWidth: .infinity, maxHeight: .infinity).padding(28)
             }
         }
+        .task { if session.provider.personalAgentProvider != nil { await account.discover() } }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            if session.provider.personalAgentProvider != nil { session.reload() }
+        }
         .sheet(isPresented: Binding(get: { session.popup != nil }, set: { if !$0 { session.closePopup() } })) {
             VStack(spacing: 0) {
                 HStack {
@@ -252,6 +322,57 @@ private struct WebAgentPane: View {
                 if let popup = session.popup { EmbeddedServicePage(webView: popup) }
             }.frame(minWidth: 650, minHeight: 650)
         }
+    }
+
+    private func nativeConversation(_ provider: PersonalAgentProvider) -> some View {
+        VStack(spacing: 12) {
+            HStack {
+                Text(session.fixture ? "Simulated local account · no provider requests" : session.accountStatus.label)
+                    .font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                if account.installed.contains(where: { $0.provider == provider }) {
+                    Button(session.provider == .chatgpt ? "Sign in with ChatGPT" : "Sign in with Claude") { account.signIn(provider) }
+                        .disabled(session.fixture || busy)
+                } else {
+                    Link("Install \(provider.name)", destination: URL(string: provider == .codex
+                         ? "https://developers.openai.com/codex/cli" : "https://code.claude.com/docs/en/setup")!)
+                }
+            }
+            if let error = account.accountError { Text(error).font(.caption).foregroundStyle(.orange) }
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 16) {
+                        if session.snapshot.messages.isEmpty {
+                            Text("Start a conversation with \(session.provider.name). Your local CLI account is used, and this comparison’s replies are saved in msgblast.")
+                                .foregroundStyle(.secondary).padding(.vertical, 20)
+                        }
+                        ForEach(session.snapshot.messages) { message in
+                            VStack(alignment: .leading, spacing: 5) {
+                                Text(message.role == "user" ? "You" : session.provider.name).font(.caption.bold()).foregroundStyle(.secondary)
+                                Text((try? AttributedString(markdown: message.text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(message.text))
+                                    .textSelection(.enabled)
+                            }.padding(12).frame(maxWidth: .infinity, alignment: .leading)
+                                .background(message.role == "user" ? Color.accentColor.opacity(0.08) : Color.secondary.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
+                                .id(message.id)
+                        }
+                        if session.isSending { ProgressView("\(session.provider.name) is replying…").id("replying") }
+                    }
+                }.onChange(of: session.snapshot.messages.last?.id) { _, id in
+                    if let id { proxy.scrollTo(id, anchor: .bottom) }
+                }
+            }
+            if session.isSending { Button("Cancel \(session.provider.name) reply") { session.cancelNativeRequest() } }
+            if session.latestComparisonAttempt?.status == .uncertain {
+                Text("The last request was incomplete. Continuing may consume provider usage again.").font(.caption).foregroundStyle(.orange)
+                Button("Acknowledge incomplete request") { session.acknowledgeIncompleteRequest() }.disabled(busy)
+            }
+            MessageInput(text: Binding(get: { session.state.draft }, set: { text in session.updateState { $0.draft = text } }),
+                attachments: [], addAttachments: { _ in }, removeAttachment: { _ in }, placeholder: "Message \(session.provider.name)",
+                accessibilityName: "Message \(session.provider.name)", sendLabel: "Send to \(session.provider.name)",
+                disabled: busy || !session.snapshot.ready, attachmentsEnabled: false) {
+                    sendNative(session.state.draft)
+                }
+        }.padding(14)
     }
 
 }

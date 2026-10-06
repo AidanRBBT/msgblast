@@ -35,7 +35,7 @@ final class MultiWebAgentTests: XCTestCase {
         XCTAssertEqual(web.sessions[0].state.draft, "Legacy draft")
         XCTAssertEqual(web.comparisonID, comparison)
         XCTAssertEqual(Set(web.sessions.map { $0.state.sessionID }).count, 4)
-        for session in web.sessions { XCTAssertEqual(session.webView.configuration.websiteDataStore.identifier, session.state.sessionID) }
+        for session in web.sessions where session.provider.personalAgentProvider == nil { XCTAssertEqual(session.webView.configuration.websiteDataStore.identifier, session.state.sessionID) }
         web.toggle(web.sessions[2])
         let reopened = WebAgents(directory: directory, fixture: false)
         XCTAssertEqual(reopened.selected.map(\.provider), [.muse, .claude])
@@ -53,7 +53,7 @@ final class MultiWebAgentTests: XCTestCase {
         for session in web.sessions {
             XCTAssertEqual(session.snapshot.messages.filter { $0.role == "user" }.count, 1)
             XCTAssertEqual(session.snapshot.draft, "")
-            XCTAssertNil(session.webView.window, "Submission must not depend on window focus")
+            if session.provider.personalAgentProvider == nil { XCTAssertNil(session.webView.window, "Submission must not depend on window focus") }
         }
         let again = await WebAgents.send("Compare a morning walk with an afternoon walk.", to: web.selected)
         for provider in WebProvider.allCases {
@@ -62,24 +62,26 @@ final class MultiWebAgentTests: XCTestCase {
         }
     }
 
-    func testDraftOrSignedOutAgentDoesNotBlockIndependentSubmissions() async throws {
-        let web = WebAgents(directory: temporaryDirectory(), fixture: true)
+    func testDraftOrUnavailableAgentDoesNotBlockIndependentSubmissions() async throws {
+        let directory = temporaryDirectory()
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try Data("invalid persisted state".utf8).write(to: directory.appendingPathComponent(WebProvider.claude.storageFilename))
+        let web = WebAgents(directory: directory, fixture: true)
         web.sessions.forEach { $0.connect() }
-        try await waitFor { web.sessions.allSatisfy { $0.snapshot.ready } }
+        try await waitFor { web.sessions.filter { $0.provider != .claude }.allSatisfy { $0.snapshot.ready } }
         let chatgpt = web.sessions[1], claude = web.sessions[2]
-        _ = try await chatgpt.webView.callAsyncJavaScript("document.querySelector('textarea').value='Keep this draft'", arguments: [:], in: nil, contentWorld: .page)
-        _ = try await claude.webView.callAsyncJavaScript("chat.hidden=true;login.hidden=false", arguments: [:], in: nil, contentWorld: .page)
+        chatgpt.updateState { $0.draft = "Keep this draft" }
         let results = await WebAgents.send("New question", to: web.sessions)
         XCTAssertEqual(results[.muse]?.status, .observed)
         XCTAssertEqual(results[.grok]?.status, .observed)
         XCTAssertEqual(results[.chatgpt]?.status, .notSent)
-        XCTAssertEqual(results[.claude]?.status, .notSent)
+        XCTAssertNil(results[.claude])
         XCTAssertEqual(chatgpt.snapshot.draft, "Keep this draft")
         XCTAssertFalse(claude.snapshot.ready)
     }
 
     func testSignedOutEditorsAndAmbiguousSendControlsAreNotSubmitted() async throws {
-        for provider in [WebProvider.chatgpt, .claude, .grok] {
+        for provider in [WebProvider.grok] {
             let session = WebAgentSession(provider: provider, storageURL: temporaryDirectory().appendingPathComponent("state.json"), fixture: true)
             session.connect()
             try await waitFor { session.snapshot.ready }
@@ -96,11 +98,11 @@ final class MultiWebAgentTests: XCTestCase {
     }
 
     func testRevealingAnOlderMatchingMessageIsNotANewSendReceipt() async throws {
-        let session = WebAgentSession(provider: .chatgpt, storageURL: temporaryDirectory().appendingPathComponent("state.json"), fixture: true)
+        let session = WebAgentSession(provider: .grok, storageURL: temporaryDirectory().appendingPathComponent("state.json"), fixture: true)
         session.connect()
         try await waitFor { session.snapshot.ready }
         _ = try await session.webView.callAsyncJavaScript("""
-        const old=document.createElement('article');old.hidden=true;old.dataset.messageAuthorRole='user';old.dataset.messageId='earlier-message';old.textContent='Repeated question';document.getElementById('transcript').append(old);
+        const old=document.createElement('article');old.hidden=true;old.dataset.messageRole='user';old.className='message-bubble';old.dataset.messageId='earlier-message';old.textContent='Repeated question';document.getElementById('transcript').append(old);
         document.querySelector('button[aria-label]').addEventListener('click',e=>{e.stopImmediatePropagation();old.hidden=false;document.querySelector('textarea').value='';},true);
         """, arguments: [:], in: nil, contentWorld: .page)
         let attempt = await session.send("Repeated question")
@@ -110,26 +112,26 @@ final class MultiWebAgentTests: XCTestCase {
     }
 
     func testPrependingHistoryDoesNotChangeAnOlderMessageIntoAReceipt() async throws {
-        let session = WebAgentSession(provider: .claude, storageURL: temporaryDirectory().appendingPathComponent("state.json"), fixture: true)
+        let session = WebAgentSession(provider: .grok, storageURL: temporaryDirectory().appendingPathComponent("state.json"), fixture: true)
         session.connect()
         try await waitFor { session.snapshot.ready }
         _ = try await session.webView.callAsyncJavaScript("""
-        const old=document.createElement('article');old.dataset.testid='user-message';old.textContent='Repeated question';document.getElementById('transcript').append(old);
-        document.querySelector('button[aria-label]').addEventListener('click',e=>{e.stopImmediatePropagation();const history=document.createElement('article');history.dataset.testid='assistant-message';history.textContent='Earlier history loaded';old.before(history);document.querySelector('[contenteditable]').textContent='';},true);
+        const old=document.createElement('article');old.dataset.messageRole='user';old.className='message-bubble';old.dataset.messageId='earlier-message';old.textContent='Repeated question';document.getElementById('transcript').append(old);
+        document.querySelector('button[aria-label]').addEventListener('click',e=>{e.stopImmediatePropagation();const history=document.createElement('article');history.dataset.messageRole='assistant';history.className='message-bubble';history.dataset.messageId='earlier-history';history.textContent='Earlier history loaded';old.before(history);document.querySelector('textarea').value='';},true);
         """, arguments: [:], in: nil, contentWorld: .page)
         let attempt = await session.send("Repeated question")
         XCTAssertEqual(attempt?.status, .uncertain, "History insertion must not make an old role/index identity look new")
     }
 
     func testEditingThePageDuringSubmissionCannotConfirmAnotherConversation() async throws {
-        let session = WebAgentSession(provider: .claude, storageURL: temporaryDirectory().appendingPathComponent("state.json"), fixture: true)
+        let session = WebAgentSession(provider: .grok, storageURL: temporaryDirectory().appendingPathComponent("state.json"), fixture: true)
         session.connect()
         try await waitFor { session.snapshot.ready }
         _ = try await session.webView.callAsyncJavaScript("""
         document.querySelector('button[aria-label]').addEventListener('click',e=>{e.stopImmediatePropagation();
-        const input=document.querySelector('[contenteditable]');input.focus();document.execCommand('insertText',false,' Changed draft');
-        history.replaceState(null,'','/chat/older-conversation');
-        const old=document.createElement('article');old.dataset.testid='user-message';old.textContent='Repeated question';document.getElementById('transcript').append(old);},true);
+        const input=document.querySelector('textarea');input.focus();document.execCommand('insertText',false,' Changed draft');
+        history.replaceState(null,'','/c/older-conversation');
+        const old=document.createElement('article');old.dataset.messageRole='user';old.className='message-bubble';old.dataset.messageId='earlier-message';old.textContent='Repeated question';document.getElementById('transcript').append(old);},true);
         """, arguments: [:], in: nil, contentWorld: .page)
         let attempt = await session.send("Repeated question")
         XCTAssertEqual(attempt?.status, .uncertain, "A browser edit during submission invalidates receipt attribution across conversations")
@@ -137,21 +139,21 @@ final class MultiWebAgentTests: XCTestCase {
     }
 
     func testAnExistingSidebarConversationCannotConfirmANewChatSend() async throws {
-        let session = WebAgentSession(provider: .chatgpt, storageURL: temporaryDirectory().appendingPathComponent("state.json"), fixture: true)
+        let session = WebAgentSession(provider: .grok, storageURL: temporaryDirectory().appendingPathComponent("state.json"), fixture: true)
         session.connect()
         try await waitFor { session.snapshot.ready }
         _ = try await session.webView.callAsyncJavaScript("""
         const link=document.createElement('a');link.href='/c/older-conversation';link.textContent='Earlier conversation';document.body.append(link);
         document.querySelector('button[aria-label]').addEventListener('click',e=>{e.stopImmediatePropagation();
         history.replaceState(null,'',link.href);document.querySelector('textarea').value='';
-        const old=document.createElement('article');old.dataset.messageAuthorRole='user';old.dataset.messageId='older-message';old.textContent='Repeated question';document.getElementById('transcript').append(old);},true);
+        const old=document.createElement('article');old.dataset.messageRole='user';old.className='message-bubble';old.dataset.messageId='older-message';old.textContent='Repeated question';document.getElementById('transcript').append(old);},true);
         """, arguments: [:], in: nil, contentWorld: .page)
         let attempt = await session.send("Repeated question")
         XCTAssertEqual(attempt?.status, .uncertain, "A known pre-existing conversation cannot be the new-chat receipt")
     }
 
     func testMultilinePromptMatchesRenderedParagraphs() async throws {
-        for provider in [WebProvider.chatgpt, .claude, .grok] {
+        for provider in [WebProvider.grok] {
             let session = WebAgentSession(provider: provider, storageURL: temporaryDirectory().appendingPathComponent("state.json"), fixture: true)
             session.connect()
             try await waitFor { session.snapshot.ready }

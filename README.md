@@ -49,6 +49,8 @@ Check for new versions from **msgblast → Check for Updates**.
 
 ## Comparison reports
 
+ChatGPT and Claude conversations use native panes backed by your local Codex and Claude Code accounts. Reopen a saved comparison to resume the same CLI sessions and restore its replies and drafts. Muse and Grok retain their browser panes. See [native conversations and account setup](docs/personal-agent-reports.md#native-chatgpt-and-claude-conversations).
+
 Click **Summarize** in a comparison to open a report with a recommended next action, a comparison of the replies, and open questions. Reports use an installed personal-agent CLI and its existing account. See [personal agent reports](docs/personal-agent-reports.md) for setup, supported CLIs, privacy limits, and fixture validation.
 
 ## Build it yourself
@@ -65,15 +67,15 @@ open build/from-source/Build/Products/Debug/msgblast.app
 
 You can also open **msgblast.xcodeproj** in Xcode, select the **msgblast** scheme, and click **Run**.
 
-## Embedded web agents
+## AI agent conversations
 
-Select **Muse, ChatGPT, Claude, or Grok** beside your Messages agents in **My agents**. Use each selected agent's **Open** button to open its real page inside msgblast. Claude's `claude.com` site currently redirects to `claude.ai`; the agent opens `https://claude.ai/new`. Grok is the `grok.com` service, separate from the Grok Bot desktop app.
+Select **Muse, ChatGPT, Claude, or Grok** beside your Messages agents in **My agents**. Use each selected agent's **Open** button to show its conversation. ChatGPT and Claude use native conversation panes through your installed Codex and Claude Code CLIs; Muse and Grok open their pages inside msgblast. Grok is the `grok.com` service, separate from the Grok Bot desktop app.
 
 Muse creates a **side chat for each new comparison**, then keeps follow-ups in that same chat. Reopen a comparison from the sidebar to return to its saved Muse side chat; choose **New comparison** for a separate conversation. If Muse does not assign a side-chat URL, the send stays unconfirmed and the app does not retry in the main chat.
 
-Each agent has a separate persistent WebKit data store. Sign in inside msgblast once; Safari, Chrome, and desktop-app logins are separate and their cookies are not imported. The existing Muse file, session identifier, selection, and pending sends migrate in place. New providers start unselected. HTTPS sign-in popups stay in an app sheet with their URL visible.
+Muse and Grok each have a separate persistent WebKit data store. Their Safari, Chrome, and desktop-app logins are separate and cookies are not imported. ChatGPT and Claude use existing local CLI accounts and sign in through the official CLI in Terminal; their browser data is preserved but no longer displayed. The existing Muse file, session identifier, selection, and pending sends migrate in place. New providers start unselected. HTTPS sign-in popups stay in an app sheet with their URL visible.
 
-The shared composer submits text concurrently to selected web agents and independently to selected Messages agents. Each web pane displays its own submission result and the service's actual conversation, replies, links, and approval controls. Selecting an agent does not start a new conversation on every send. The home control opens the service's main/new-chat page. These web conversations are not archived with each native Messages comparison.
+The shared composer submits text concurrently to selected providers and independently to selected Messages agents. Each pane shows its own result and replies. ChatGPT and Claude transcripts, drafts, and CLI session IDs are saved per comparison; reopening the comparison resumes the same sessions. Their individual composers also create saved comparisons. Muse returns to its saved side chat; Grok displays its current browser conversation. The home control on browser panes opens the service’s comparison/new-chat page.
 
 Web sends require an empty site composer, recognizable signed-in UI, and unambiguous controls. Existing drafts are preserved. Intent is saved before clicking Send once, then the app checks for a new outgoing message with matching text. **Appeared in [agent]** is a page observation, not a server delivery acknowledgement. Interrupted or unconfirmed sends are not retried automatically. Native Messages retains its existing attachments and retry workflow; shared sends including web agents are text-only.
 
@@ -81,11 +83,11 @@ Muse still uses the signed-in user's displayed avatar when readable, with the bu
 
 ### Verification status
 
-**Muse side chats, ChatGPT, Claude, and Grok are preview integrations pending authenticated live validation.** Current English DOM selectors include compatibility assumptions beyond the signed-out ChatGPT/Grok controls inspected on October 5, 2026. An unrecognized layout disables shared sending and leaves the embedded page available. Fixtures do not prove a site's authentication, anti-automation behavior, long-running background operation, or future compatibility. No website integration can promise that every future site version will work unchanged.
+**Muse side chats and Grok are browser preview integrations pending authenticated live validation.** Their current English DOM selectors include compatibility assumptions beyond the controls inspected on October 5, 2026. ChatGPT and Claude are native CLI integrations validated with local executable fixtures; live CLI sign-in, inference, and resume remain unverified. An unrecognized layout disables shared sending and leaves the embedded page available. Fixtures do not prove a site's authentication, anti-automation behavior, long-running background operation, or future compatibility. No website integration can promise that every future site version will work unchanged.
 
 Run `zsh scripts/build_web_preview.sh` and open `build/msgblast Web Preview.app` for live sign-in checks. It has a separate bundle identifier, blue demo icon, and `~/Library/Application Support/MsgBlast-WebPreview` state. **All web services are live; Messages are synthetic.** This does not install over the development app.
 
-Run `zsh scripts/build_web_preview.sh --fixture` and open `build/msgblast Muse Fixture.app` for an entirely local test of all four web agents. The historical fixture app name is retained. Every launch uses temporary state and no destination sends externally. [Multi-agent verification and evidence](docs/evidence/multi-web-agents/validation.md) distinguishes fixture results from live checks.
+Run `zsh scripts/build_web_preview.sh --fixture` and open `build/msgblast Muse Fixture.app` for an entirely local test of all four providers. The historical fixture app name is retained. Every launch uses temporary state and no destination sends externally. [Multi-agent verification and evidence](docs/evidence/multi-web-agents/validation.md) distinguishes fixture results from live checks.
 
 Core tests exercise the real WebKit engine for concurrent sends, replies, textarea/contenteditable inputs, first-message URL transitions, repeated identical prompts, existing drafts, expired sessions, ambiguous controls, storage failures, session isolation, Muse migration, and avatar lifecycle. Direct native UI checks cover agent selection and the shared composer. Run the isolated core suite without launching the user's development app:
 
