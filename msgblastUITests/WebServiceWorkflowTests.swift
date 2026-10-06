@@ -2,6 +2,33 @@ import XCTest
 
 final class WebServiceWorkflowTests: XCTestCase {
     @MainActor
+    func testNativeChatGPTAndClaudeReopenTheSameComparisonWithoutWebViews() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--demo", "--isolated-demo"]
+        app.launch()
+        defer { app.terminate() }
+        for name in ["Cedar", "Lumen", "Orbit", "Maple", "Echo", "Flint"] { app.buttons[name].click() }
+        app.buttons["ChatGPT"].click(); app.buttons["Claude"].click()
+        let editor = app.textViews["Shared prompt"]
+        editor.click(); editor.typeKey("a", modifierFlags: .command); editor.typeText("Native conversation fixture")
+        app.buttons["Send & compare"].click()
+        let reply = app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", "ChatGPT fixture reply: Native conversation fixture", "ChatGPT fixture reply: Native conversation fixture")).firstMatch
+        XCTAssertTrue(reply.waitForExistence(timeout: 10))
+        XCTAssertEqual(app.webViews.count, 0)
+        capture(app, name: "Native ChatGPT and Claude panes — simulated replies")
+        app.buttons["My agents"].click()
+        let comparison = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", "Native conversation fixture", "Native conversation fixture")).firstMatch
+        XCTAssertTrue(comparison.waitForExistence(timeout: 5))
+        comparison.click()
+        XCTAssertTrue(reply.waitForExistence(timeout: 5))
+        editor.click(); editor.typeText("Continue the same conversation")
+        app.buttons["Send & compare"].click()
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", "ChatGPT fixture reply: Continue the same conversation", "ChatGPT fixture reply: Continue the same conversation")).firstMatch.waitForExistence(timeout: 10))
+        XCTAssertTrue(reply.exists)
+        XCTAssertEqual(app.webViews.count, 0)
+    }
+
+    @MainActor
     func testFailedMessagesRecipientCanRetryWithoutResendingToMuse() {
         let app = XCUIApplication()
         app.launchArguments = ["--demo", "--isolated-demo"]

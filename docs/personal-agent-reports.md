@@ -1,5 +1,21 @@
 # Personal agent reports
 
+## Native ChatGPT and Claude conversations
+
+ChatGPT and Claude now use native conversation panes in the agents workspace, replacing their embedded browser views. ChatGPT runs the local Codex CLI; Claude runs Claude Code. Their existing CLI accounts and provider usage rules apply. Muse and Grok continue using their embedded pages, and Messages recipients still use the native Messages workflow.
+
+Select either provider, open its pane, and use its sign-in button if needed. Both the shared composer and each provider’s own composer create saved comparisons that can be reopened from the sidebar. Replies, drafts, and CLI session IDs are saved separately for each comparison. Follow-ups use `codex exec resume SESSION_ID` or `claude --resume SESSION_ID`, including after restarting msgblast. A new comparison creates new provider sessions. If the CLI’s own saved session has been removed, the error stays visible; msgblast does not silently start another session or resend the request.
+
+The initial request includes any saved local transcript; later requests send just the new message to the saved provider session. Both adapters retain tool denial, isolated configuration controls, bounded output, timeout, and cancellation. Conversation sessions persist in the provider CLI’s own history, unlike the ephemeral comparison-report requests. msgblast retains its native transcript and session reference in its existing owner-only local state. Login credentials remain CLI-owned. Browser website chats are not imported or synchronized with these sessions, and existing embedded browser data is preserved.
+
+An incomplete or canceled provider request can consume usage without returning a reply. Its saved receipt blocks automatic continuation until you explicitly acknowledge it. Quit waits for active broadcasts and cleans up outstanding native request processes. Fixtures simulate replies and session IDs and never call the real CLIs or provider services.
+
+Validation: the 103-test full unit suite, 22 focused account/conversation tests, app-model/lifecycle fixtures, and the native reopen/follow-up UI test passed. The focused tests cover stable per-comparison working directories, exact session-ID reuse, malformed/missing/mismatched metadata, post-start cancellation, explicit recovery, reopening transcripts, and restoring drafts through the new-comparison screen. Native UI assertions verify that selected ChatGPT/Claude panes contain no WebKit views. These fixture results do not prove live provider-owned session creation, authentication, usage accounting, or resume after a provider CLI update. No live login or inference was performed for this validation.
+
+Session handling follows [Codex non-interactive mode](https://developers.openai.com/codex/noninteractive) and [Claude Code programmatic conversations](https://code.claude.com/docs/en/headless#continue-conversations). Existing chats from the provider websites and unrelated CLI sessions are not imported by this change.
+
+## Comparison reports
+
 Click **Summarize** in the top-right toolbar of a comparison window, a separate conversation window, or the floating shared composer. A separate, resizable **Comparison report** window opens and starts the personal agent selected last time (or the first detected CLI on first use). The report leads with **Best next action** and its reasoning, then compares the responses and lists open questions. Select a different personal agent in the report window and click **Update report** to use it.
 
 The report includes every participant's available responses, reactions, confirmed follow-ups, and explicit thread replies within the same boundaries as the conversation columns. It is independent of the message-recipient selection. At least one reply or recipient reaction is required to generate a report; the response count includes both. The report is saved with the comparison, can be copied, and becomes visibly stale when the conversation changes. Clicking **Summarize** again focuses the existing report window and requests an update; clicking while a request is running only focuses the report. New replies never trigger automatic provider requests. Existing saved summaries remain readable until replaced by a report.

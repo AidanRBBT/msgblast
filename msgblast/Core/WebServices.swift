@@ -1,14 +1,15 @@
 import Foundation
 
 public enum WebSendStatus: String, Codable, Sendable {
-    case preparing, attempting, observed, notSent, uncertain
+    case preparing, attempting, observed, notSent, uncertain, dismissed
     public func label(for provider: WebProvider) -> String {
         switch self {
         case .preparing: "Checking \(provider.name)…"
         case .attempting: "Submitting to \(provider.name)…"
-        case .observed: "Appeared in \(provider.name)"
-        case .notSent: "Not sent to \(provider.name)"
+        case .observed: provider.personalAgentProvider == nil ? "Appeared in \(provider.name)" : "\(provider.name) replied"
+        case .notSent: provider.personalAgentProvider == nil ? "Not sent to \(provider.name)" : "No completed reply from \(provider.name)"
         case .uncertain: "\(provider.name) submission unconfirmed"
+        case .dismissed: "Incomplete request acknowledged"
         }
     }
 }
@@ -35,8 +36,11 @@ public struct WebWorkspaceState: Codable, Sendable {
     public var comparisonID: UUID?
     public var attempts: [WebSendAttempt] = []
     public var museConversations: [String: URL] = [:]
+    public var localConversations: [String: [WebPageMessage]] = [:]
+    public var localSessionIDs: [String: String] = [:]
+    public var localDrafts: [String: String] = [:]
     public init() {}
-    private enum CodingKeys: String, CodingKey { case sessionID, draft, selected, includeMuse, messageRecipients, comparisonID, attempts, museConversations }
+    private enum CodingKeys: String, CodingKey { case sessionID, draft, selected, includeMuse, messageRecipients, comparisonID, attempts, museConversations, localConversations, localSessionIDs, localDrafts }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         sessionID = try c.decode(UUID.self, forKey: .sessionID)
@@ -45,6 +49,9 @@ public struct WebWorkspaceState: Codable, Sendable {
         messageRecipients = try c.decodeIfPresent(Set<UUID>.self, forKey: .messageRecipients) ?? []
         comparisonID = try c.decodeIfPresent(UUID.self, forKey: .comparisonID)
         museConversations = try c.decodeIfPresent([String: URL].self, forKey: .museConversations) ?? [:]
+        localConversations = try c.decodeIfPresent([String: [WebPageMessage]].self, forKey: .localConversations) ?? [:]
+        localSessionIDs = try c.decodeIfPresent([String: String].self, forKey: .localSessionIDs) ?? [:]
+        localDrafts = try c.decodeIfPresent([String: String].self, forKey: .localDrafts) ?? [:]
         attempts = try c.decodeIfPresent([WebSendAttempt].self, forKey: .attempts) ?? []
     }
     public func encode(to encoder: Encoder) throws {
@@ -56,6 +63,9 @@ public struct WebWorkspaceState: Codable, Sendable {
         try c.encodeIfPresent(comparisonID, forKey: .comparisonID)
         try c.encode(attempts, forKey: .attempts)
         try c.encode(museConversations, forKey: .museConversations)
+        try c.encode(localConversations, forKey: .localConversations)
+        try c.encode(localSessionIDs, forKey: .localSessionIDs)
+        try c.encode(localDrafts, forKey: .localDrafts)
     }
     public func hasUnresolvedSend(_ text: String) -> Bool {
         attempts.contains { $0.text == text && [.attempting, .uncertain].contains($0.status) }
@@ -66,10 +76,10 @@ public struct WebWorkspaceState: Codable, Sendable {
             switch result.attempts[i].status {
             case .attempting:
                 result.attempts[i].status = .uncertain
-                result.attempts[i].detail = "MsgBlast stopped during submission. Check the embedded chat before sending this text again."
+                result.attempts[i].detail = "msgblast stopped during submission. Check the conversation before sending this text again."
             case .preparing:
                 result.attempts[i].status = .notSent
-                result.attempts[i].detail = "MsgBlast stopped before clicking Send. Any prepared text remains in the embedded chat."
+                result.attempts[i].detail = "msgblast stopped before submission. Review the saved draft before sending again."
             default: break
             }
         }
@@ -77,10 +87,13 @@ public struct WebWorkspaceState: Codable, Sendable {
     }
 }
 
-public struct WebPageMessage: Decodable, Equatable, Sendable {
+public struct WebPageMessage: Codable, Equatable, Identifiable, Sendable {
     public var id: String
     public var role: String
     public var text: String
+    public init(id: String = UUID().uuidString, role: String, text: String) {
+        self.id = id; self.role = role; self.text = text
+    }
 }
 
 public struct WebPageSnapshot: Decodable, Equatable, Sendable {
