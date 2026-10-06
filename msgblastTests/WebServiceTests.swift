@@ -354,12 +354,12 @@ final class WebServiceTests: XCTestCase {
         return WebAgentSession(provider: .muse, storageURL: directory.appendingPathComponent("web.json"), fixture: true)
     }
 
-    private func waitFor(_ predicate: () -> Bool) async throws {
+    private func waitFor(file: StaticString = #filePath, line: UInt = #line, _ predicate: () -> Bool) async throws {
         for _ in 0..<100 {
             if predicate() { return }
             try await Task.sleep(for: .milliseconds(100))
         }
-        XCTFail("WebKit did not reach the expected state")
+        XCTFail("WebKit did not reach the expected state", file: file, line: line)
     }
 }
 
