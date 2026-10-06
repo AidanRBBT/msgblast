@@ -8,7 +8,7 @@ struct msgblastApp: App {
     private var model: AppModel? { startup.model }
     @StateObject private var updater = AppUpdater()
     var body: some Scene {
-        WindowGroup("msgblast") {
+        WindowGroup(Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "msgblast") {
             Group {
                 if startup.needsInstallation { InstallationView() }
                 else if let model {

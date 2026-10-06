@@ -45,7 +45,7 @@ final class AppModel: ObservableObject {
             if directory.path.hasPrefix(temporaryRoot) { fixtureDirectory = directory }
         }
         #endif
-        local = LocalStore(demo: demo, isolated: ProcessInfo.processInfo.arguments.contains("--isolated-demo") || Bundle.main.object(forInfoDictionaryKey: "msgblastPermissionGuidePreview") as? Bool == true, fixtureDirectory: fixtureDirectory)
+        local = LocalStore(demo: demo, isolated: ProcessInfo.processInfo.arguments.contains("--isolated-demo") || Bundle.main.object(forInfoDictionaryKey: "msgblastPermissionGuidePreview") as? Bool == true, fixtureDirectory: fixtureDirectory, supportDirectoryName: Bundle.main.object(forInfoDictionaryKey: "msgblastSupportDirectory") as? String)
         do { state = try local.load(); try local.save(state) } catch { storageLoadFailed = true; self.error = "Local state could not be loaded or saved: \(error.localizedDescription). Sending is unavailable until storage works." }
         if demo { setupDemo() }
         state.selection = Set(state.agents.map(\.id))

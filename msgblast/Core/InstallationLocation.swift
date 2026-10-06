@@ -12,3 +12,17 @@ public enum InstallationLocation {
         return inside(home + "/Downloads") || inside("/Volumes") || app.contains("/AppTranslocation/")
     }
 }
+
+public enum SupportDirectory {
+    /// Production stays `msgblast`. Demo stays `msgblast-Demo`. A preview may set
+    /// `msgblastSupportDirectory` to another `msgblast-…` folder; anything else is ignored.
+    public static func folderName(demo: Bool, override: String?) -> String {
+        if let override, let safe = sanitized(override) { return safe }
+        return demo ? "msgblast-Demo" : "msgblast"
+    }
+
+    public static func sanitized(_ raw: String) -> String? {
+        guard raw.range(of: #"^msgblast-[A-Za-z0-9][A-Za-z0-9-]{0,40}$"#, options: .regularExpression) != nil else { return nil }
+        return raw
+    }
+}
