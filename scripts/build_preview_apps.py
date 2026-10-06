@@ -14,28 +14,43 @@ import preview_apps as preview
 
 def run(command, cwd):
     print("+ " + " ".join(command), flush=True)
-    result = subprocess.run(command, cwd=cwd, text=True)
+    result = subprocess.run(command, cwd=cwd, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    if result.stdout:
+        print(result.stdout, end="" if result.stdout.endswith("\n") else "\n", flush=True)
     if result.returncode:
         raise SystemExit(f"Command failed ({result.returncode}): {' '.join(command)}")
 
 
+def is_mach_o(path):
+    try:
+        magic = path.open("rb").read(4)
+    except OSError:
+        return False
+    return magic in {bytes.fromhex(value) for value in (
+        "feedface", "cefaedfe", "feedfacf", "cffaedfe", "cafebabe", "bebafeca", "cafebabf", "bfbafeca")}
+
+
 def adhoc_sign(app, entitlements):
-    code = []
-    frameworks = app / "Contents/Frameworks"
-    if frameworks.is_dir():
-        for path in frameworks.rglob("*"):
-            if path.is_symlink():
-                continue
-            if path.is_dir() and path.suffix in {".framework", ".xpc", ".app"}:
-                code.append(path)
-            elif path.is_file():
-                magic = path.open("rb").read(4)
-                if magic in {bytes.fromhex(value) for value in (
-                    "feedface", "cefaedfe", "feedfacf", "cffaedfe", "cafebabe", "bebafeca", "cafebabf", "bfbafeca")}:
-                    code.append(path)
-        for path in sorted(code, key=lambda item: (-len(item.parts), str(item))):
-            run(["codesign", "--force", "--sign", "-", "--options", "runtime",
-                 "--preserve-metadata=entitlements", str(path)], app.parent)
+    """Sign nested Debug binaries and frameworks before the outer bundle.
+
+    Debug builds leave Contents/MacOS/*.debug.dylib unsigned when Xcode signing
+    is disabled. Sparkle helpers are already signed and keep their entitlements.
+    """
+    nested = []
+    for path in app.rglob("*"):
+        if path.is_symlink():
+            continue
+        if path.is_dir() and path.suffix in {".framework", ".xpc", ".app"}:
+            nested.append(path)
+        elif path.is_file() and is_mach_o(path):
+            nested.append(path)
+    for path in sorted(nested, key=lambda item: (-len(item.parts), str(item))):
+        signed = subprocess.run(["codesign", "-dv", str(path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+        command = ["codesign", "--force", "--sign", "-", "--options", "runtime"]
+        if signed:
+            command.append("--preserve-metadata=entitlements")
+        command.append(str(path))
+        run(command, app.parent)
     run(["codesign", "--force", "--sign", "-", "--options", "runtime",
          "--entitlements", str(entitlements), str(app)], app.parent)
     run(["codesign", "--verify", "--deep", "--strict", "--verbose=2", str(app)], app.parent)

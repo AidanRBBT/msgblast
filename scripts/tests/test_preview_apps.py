@@ -126,6 +126,8 @@ https://github.com/mgalpert/msgblast/actions/runs/123
         sys.path.insert(0, str(ROOT / "scripts"))
         source = (ROOT / "scripts/build_preview_apps.py").read_text()
         self.assertIn("--sequesterRsrc", source)
+        self.assertIn("app.rglob", source)
+        self.assertIn("debug.dylib", source)
         self.assertNotIn("automate_release", source)
         self.assertNotIn("MSGBLAST_SPARKLE_PRIVATE_KEY", source)
         self.assertNotIn("latest.zip", source)
