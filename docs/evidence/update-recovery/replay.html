@@ -1,0 +1,42 @@
+<!doctype html><meta charset="utf-8"><title>msgblast 0.5.2 recovery evidence</title><style>body{margin:0;background:#101923;color:#edf3f7;font:18px system-ui}main{max-width:1100px;margin:30px auto;padding:24px}h1{margin:0 0 10px;font-size:32px}p{color:#b8c4d1}nav{display:flex;gap:12px;margin:25px 0}button{background:#2b7851;border:0;border-radius:8px;padding:14px 20px;color:white;font-size:17px}pre{font:16px/1.5 ui-monospace,monospace;white-space:pre-wrap;background:#192735;padding:24px;border-radius:12px}h2{font-size:23px}</style><main><h1>msgblast 0.5.2 · saved-state recovery</h1><p>Read-only replay of actual Sparkle fixture output. Synthetic input; localhost signed update; no live app or provider.</p><nav><button onclick="show(0)">1. Original state</button><button onclick="show(1)">2. Install and relaunch</button><button onclick="show(2)">3. Recovery result</button></nav><section class="panel" ><h2>1. Saved state rejected by this reader</h2><pre>{
+  &quot;comparisons&quot;: [
+    {
+      &quot;id&quot;: &quot;22222222-2222-2222-2222-222222222222&quot;,
+      &quot;prompt&quot;: &quot;Synthetic saved comparison&quot;,
+      &quot;created&quot;: 0,
+      &quot;members&quot;: [],
+      &quot;followUps&quot;: [],
+      &quot;allDraft&quot;: &quot;Saved comparison draft&quot;,
+      &quot;privateDrafts&quot;: {},
+      &quot;webProviders&quot;: [
+        &quot;future-provider&quot;
+      ],
+      &quot;webProviderIdentityVersion&quot;: 2
+    }
+  ],
+  &quot;draft&quot;: &quot;Retained update-fixture draft&quot;,
+  &quot;attachmentsDraft&quot;: [
+    {
+      &quot;id&quot;: &quot;fixture&quot;,
+      &quot;filename&quot;: &quot;retained.txt&quot;,
+      &quot;path&quot;: &quot;/var/folders/y4/26hmq9ds25q21k_7rnkp4fgw0000gn/T/msgblast-update-fixture-9dd2jh42/recovery-store/Attachments/fixture/retained.txt&quot;,
+      &quot;byteCount&quot;: 52
+    }
+  ]
+}</pre></section><section class="panel" hidden><h2>2. Actual signed localhost updater log</h2><pre>update-probe: starting
+update-probe: app initialized
+update-probe: model initialized
+update-probe: unreadable-state fixture; new in-memory draft entered
+update-probe: checking
+update-probe: found build 2
+update-probe: downloading
+update-probe: extracting update
+update-probe: ready; install and quit
+update-probe: installing; terminated: false
+update-probe: safe quit requested</pre></section><section class="panel" hidden><h2>3. Update completed; data preserved</h2><pre>{
+  &quot;original_sha256&quot;: &quot;f69d8bf53f2070d6b970017bd9b125f28bed614e37356d468b6e347d885c140f&quot;,
+  &quot;backup_sha256&quot;: &quot;f69d8bf53f2070d6b970017bd9b125f28bed614e37356d468b6e347d885c140f&quot;,
+  &quot;separate_snapshot_draft&quot;: &quot;New draft after unreadable state&quot;,
+  &quot;relaunched_build&quot;: &quot;2&quot;,
+  &quot;relaunched_recovery_fixture&quot;: true
+}</pre></section><p>Fixture builds 1 → 2 use the same reviewed 0.5.2 code. The unsupported provider simulates a newer saved schema.</p></main><script>function show(n){document.querySelectorAll('.panel').forEach((x,i)=>x.hidden=i!==n)}</script>

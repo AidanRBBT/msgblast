@@ -64,8 +64,15 @@ final class AppModel: ObservableObject {
         timer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in Task { @MainActor in self?.refreshIfChanged() } }
     }
     func save() throws {
-        guard !storageLoadFailed else { throw AppFailure.blocked("Local state could not be loaded. Preserve the state.json file and repair it before sending; it will not be overwritten.") }
+        guard !storageLoadFailed else { throw AppFailure.blocked("Saved state is unavailable. It will not be overwritten. You can quit or update after new drafts are saved separately in \(local.url.deletingLastPathComponent().appendingPathComponent("Recovery").path). Repair the saved state before sending.") }
         try local.save(state)
+    }
+    func saveForTermination() throws {
+        if storageLoadFailed {
+            try QuitStateRecovery.preserve(state, originalURL: local.url)
+        } else {
+            try save()
+        }
     }
     func persist() { do { try save() } catch { self.error = "Could not save local state: \(error.localizedDescription)" } }
     func setWindowStyle(_ style: ComparisonWindowStyle) {

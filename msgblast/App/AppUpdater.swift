@@ -79,7 +79,7 @@ final class AppLifecycle: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         busyObservation = model.$busy.combineLatest(model.$webBroadcastBusy).dropFirst().sink { [weak self] _ in
             Task { @MainActor in
                 guard let self, let model = self.model else { return }
-                let decision = self.termination.resume(isBusy: model.busy || model.webBroadcastBusy, persist: { try model.save() })
+                let decision = self.termination.resume(isBusy: model.busy || model.webBroadcastBusy, persist: { try model.saveForTermination() })
                 if decision != .cancelled, !model.busy, !model.webBroadcastBusy, let install = self.pendingInstall {
                     self.pendingInstall = nil
                     install()
@@ -104,7 +104,7 @@ final class AppLifecycle: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         if ProcessInfo.processInfo.arguments.contains("--update-probe") { FileHandle.standardOutput.write(Data("update-probe: safe quit requested\n".utf8)) }
         #endif
         guard let model else { return .terminateNow }
-        switch termination.request(isBusy: model.busy || model.webBroadcastBusy, persist: { try model.save() }) {
+        switch termination.request(isBusy: model.busy || model.webBroadcastBusy, persist: { try model.saveForTermination() }) {
         case .allowed:
             model.personalAgent.beginShutdown()
             model.webAgents.beginShutdown()
