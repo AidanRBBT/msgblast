@@ -244,12 +244,12 @@ private struct WebAgentPane: View {
                 if session.loading { ProgressView().controlSize(.small) }
                 Button { session.reload() } label: { Image(systemName: "arrow.clockwise") }.help("Reload \(session.provider.name)").accessibilityLabel("Reload \(session.provider.name)").disabled(busy)
             }.padding(14).background(.bar)
-            if let latest = session.latestComparisonAttempt {
+            if let latest = session.latestComparisonAttempt, latest.status != .observed {
                 VStack(alignment: .leading, spacing: 3) {
-                    Label(latest.status.label(for: session.provider), systemImage: latest.status == .observed ? "checkmark.circle" : "info.circle")
+                    Label(latest.status.label(for: session.provider), systemImage: "info.circle")
                         .font(.caption.weight(.semibold))
                     Text(latest.text).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                    if latest.status != .observed, let detail = latest.detail { Text(detail).font(.caption).foregroundStyle(.secondary) }
+                    if let detail = latest.detail { Text(detail).font(.caption).foregroundStyle(.secondary) }
                 }.padding(10).frame(maxWidth: .infinity, alignment: .leading)
                     .accessibilityElement(children: .contain)
             }

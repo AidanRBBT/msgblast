@@ -23,13 +23,14 @@ final class WebServiceWorkflowTests: XCTestCase {
         XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "Connect your accounts")).firstMatch.waitForExistence(timeout: 10))
         app.buttons["Start signing in"].click()
         XCTAssertEqual(editor.value as? String, "Keep this comparison request")
-        XCTAssertFalse(app.staticTexts["Appeared in Muse"].exists)
+        XCTAssertFalse(app.staticTexts.containing(NSPredicate(format: "value CONTAINS %@", "Fixture reply: Keep this comparison request")).firstMatch.exists)
         app.buttons["Sign in to fixture"].click()
         XCTAssertTrue(app.buttons["Sign out of fixture"].waitForExistence(timeout: 10))
         XCTAssertEqual(editor.value as? String, "Keep this comparison request")
-        XCTAssertFalse(app.staticTexts["Appeared in Muse"].exists, "Signing in must not submit automatically")
+        XCTAssertFalse(app.staticTexts.containing(NSPredicate(format: "value CONTAINS %@", "Fixture reply: Keep this comparison request")).firstMatch.exists, "Signing in must not submit automatically")
         send.click()
-        XCTAssertTrue(app.staticTexts["Appeared in Muse"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "value CONTAINS %@", "Fixture reply: Keep this comparison request")).firstMatch.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["Appeared in Muse"].exists)
     }
 
     @MainActor
@@ -48,7 +49,8 @@ final class WebServiceWorkflowTests: XCTestCase {
         XCTAssertTrue(send.waitForExistence(timeout: 10))
         XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: send)], timeout: 10), .completed)
         send.click()
-        XCTAssertTrue(app.staticTexts["Appeared in Muse"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "value CONTAINS %@", "Fixture reply: Mixed failure fixture")).firstMatch.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["Appeared in Muse"].exists)
         let retry = app.buttons["Retry only failed recipients"]
         XCTAssertTrue(retry.waitForExistence(timeout: 10))
         retry.click()
@@ -84,8 +86,8 @@ final class WebServiceWorkflowTests: XCTestCase {
         XCTAssertTrue(send.waitForExistence(timeout: 10))
         XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: send)], timeout: 10), .completed)
         send.click()
-        XCTAssertTrue(app.staticTexts["Appeared in Muse"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "value CONTAINS %@", "Fixture reply: Compare a morning walk")).firstMatch.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["Appeared in Muse"].exists)
         XCTAssertTrue(app.staticTexts["Cedar (Demo)"].firstMatch.waitForExistence(timeout: 10))
         capture(app, name: "Embedded Muse and Messages replies — synthetic content")
         editor.click(); editor.typeText("Keep this shared draft")
@@ -96,7 +98,8 @@ final class WebServiceWorkflowTests: XCTestCase {
         for name in ["Muse", "ChatGPT", "Claude", "Grok"] { XCTAssertFalse(app.buttons["Open " + name].exists) }
         app.buttons["Muse"].rightClick()
         app.menuItems["Open chat"].click()
-        XCTAssertTrue(app.staticTexts["Appeared in Muse"].exists)
+        XCTAssertFalse(app.staticTexts["Appeared in Muse"].exists)
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "value CONTAINS %@", "Fixture reply: Compare a morning walk")).firstMatch.exists)
         XCTAssertFalse(app.buttons["Connect Muse"].exists)
     }
 
