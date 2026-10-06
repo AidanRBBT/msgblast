@@ -13,7 +13,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
     @Published public private(set) var popup: WKWebView?
     @Published public private(set) var popupURL = ""
     @Published public private(set) var avatar: Data?
-    // ChatGPT/Claude never touch this lazy view: their transcript is native.
+    // Optional CLI providers never touch this lazy view: their transcript is native.
     public lazy var webView: WKWebView = {
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = fixture ? .nonPersistent() : WKWebsiteDataStore(forIdentifier: state.sessionID)
@@ -41,12 +41,13 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
     public let provider: WebProvider
     private var script: WebPageScript { WebPageScript(provider: provider) }
 
-    public init(provider: WebProvider, storageURL: URL, fixture: Bool) {
+    public init(provider: WebProvider, storageURL: URL, fixture: Bool, migrationError: String? = nil) {
         self.provider = provider
         self.storageURL = storageURL
         self.fixture = fixture
         var loaded = WebWorkspaceState()
-        var failure: String?
+        loaded.selected = provider.personalAgentProvider == nil
+        var failure: String? = migrationError
         do { loaded = try JSONDecoder().decode(WebWorkspaceState.self, from: Data(contentsOf: storageURL)).recoveringInFlight() }
         catch CocoaError.fileReadNoSuchFile { }
         catch { failure = "Web session state could not be read. The saved file has been preserved: \(error.localizedDescription)" }
@@ -79,6 +80,14 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
             updateNativeSnapshot()
         }
         persist()
+    }
+
+    public var isEnabled: Bool { provider.personalAgentProvider == nil || state.enabled == true }
+
+    public func setEnabled(_ enabled: Bool) {
+        guard provider.personalAgentProvider != nil else { return }
+        updateState { $0.enabled = enabled; $0.selected = enabled }
+        if !enabled { cancelNativeRequest() }
     }
 
     public func connect() {
@@ -379,8 +388,8 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
         var fresh = snapshot
         fresh.messages = state.comparisonID.flatMap { state.localConversations[$0.uuidString] } ?? []
         fresh.draft = state.draft
-        fresh.ready = !storageFailed && (fixture || (installedAgent != nil && [.subscription, .apiKey, .other].contains(accountStatus)))
-        fresh.reason = installedAgent == nil && !fixture ? "Install \(provider.personalAgentProvider!.name), then sign in with your local account." : accountStatus.label
+        fresh.ready = isEnabled && !storageFailed && (fixture || (installedAgent != nil && [.subscription, .apiKey, .other].contains(accountStatus)))
+        fresh.reason = !isEnabled ? "Enable \(provider.name) in Settings to send." : installedAgent == nil && !fixture ? "Install \(provider.personalAgentProvider!.name), then sign in with your local account." : accountStatus.label
         if fresh != snapshot { snapshot = fresh }
     }
 
@@ -408,8 +417,12 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
         while provider.personalAgentProvider != nil && isSending { try? await Task.sleep(for: .milliseconds(20)) }
     }
 
+    func conversationWorkingDirectory(_ id: UUID) -> URL {
+        storageURL.deletingLastPathComponent().appendingPathComponent("local-conversations/\(provider.localConversationDirectoryName)/\(id.uuidString)", isDirectory: true)
+    }
+
     private func sendNative(_ text: String, comparisonID: UUID?) async -> WebSendAttempt? {
-        guard !shuttingDown, !isSending, !storageFailed, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        guard isEnabled, !shuttingDown, !isSending, !storageFailed, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
         let id = comparisonID ?? state.comparisonID ?? UUID()
         guard !hasIncompleteNativeRequest(for: id) else {
             error = "An earlier request did not complete. Review it before explicitly allowing another request; usage may have been consumed."
@@ -439,7 +452,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
             try store(attempt)
             started = true
             let savedSessionID = state.localSessionIDs[id.uuidString]
-            let workingDirectory = storageURL.deletingLastPathComponent().appendingPathComponent("local-conversations/\(provider.rawValue)/\(id.uuidString)", isDirectory: true)
+            let workingDirectory = conversationWorkingDirectory(id)
             let request = Task { [fixture, provider, installedAgent] in
                 if fixture {
                     try await Task.sleep(for: .milliseconds(350))

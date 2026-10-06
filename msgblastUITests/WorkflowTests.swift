@@ -22,11 +22,9 @@ final class WorkflowTests: XCTestCase {
         summarize.click()
         let report = app.windows["Comparison report · \(prompt) [Demo]"]
         XCTAssertTrue(report.waitForExistence(timeout: 5))
-        for text in ["Your local accounts (simulated)", "Subscription account connected", "Not signed in"] {
-            XCTAssertTrue(report.staticTexts.containing(NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", text, text)).firstMatch.exists)
-        }
-        XCTAssertFalse(report.buttons["Sign in with ChatGPT"].isEnabled)
-        XCTAssertFalse(report.buttons["Sign in with Claude"].isEnabled)
+        XCTAssertFalse(report.staticTexts["Your local accounts (simulated)"].exists)
+        XCTAssertFalse(report.buttons["Sign in with ChatGPT"].exists)
+        XCTAssertFalse(report.buttons["Sign in with Claude"].exists)
         XCTAssertEqual(app.sheets.count, 0, "The report must be a separate window")
         XCTAssertTrue(workspace.exists)
         let action = report.staticTexts.containing(NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", "Choose one representative example", "Choose one representative example")).firstMatch

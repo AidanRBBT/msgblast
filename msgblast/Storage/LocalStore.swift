@@ -12,7 +12,12 @@ struct LocalStore: Sendable {
     }
     func load() throws -> AppState {
         guard FileManager.default.fileExists(atPath: url.path) else { return AppState() }
-        return try JSONDecoder().decode(AppState.self, from: Data(contentsOf: url)).recoveringInFlight()
+        let bytes = try Data(contentsOf: url)
+        var state = try JSONDecoder().decode(AppState.self, from: bytes)
+        let needsMigration = state.comparisons.contains { ($0.webProviderIdentityVersion ?? 1) < 2 }
+        try WebProviderStateMigration.migrateComparisons(in: &state, directory: url.deletingLastPathComponent())
+        if needsMigration { try WebProviderStateMigration.preserveOriginal(bytes, at: url) }
+        return state.recoveringInFlight()
     }
     func save(_ state: AppState) throws {
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)

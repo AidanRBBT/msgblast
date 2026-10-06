@@ -23,7 +23,7 @@ You can also send photos and files to your Messages assistants.
 
 1. [Download msgblast](https://updates.msgblast.app/latest.zip), unzip the file, and drag **msgblast.app** into **Applications**. Open the app.
 2. For Messages assistants, click **Open Settings** in msgblast and allow it to read Messages history. Quit and reopen the app afterward. Then click **Add Agent**, find your assistant by name, email, or phone number, and allow Contacts when asked. The permission steps are below.
-3. For Muse, ChatGPT, Claude, or Grok, select their existing agent icons. Account setup appears when needed; connection details are below. **Agent** means an AI assistant in msgblast.
+3. Muse, ChatGPT, Claude, and Grok start selected in **Agents**. Sign in to their websites inside msgblast when needed. **Agent** means an AI assistant in msgblast.
 4. Type a question and press the send arrow. If account setup opens, finish signing in, then send again; your question stays ready. Allow msgblast to control **Messages** when sending there. Replies appear together for comparison.
 
 <details>
@@ -45,8 +45,9 @@ Check for updates from **msgblast → Check for Updates**.
 
 Select these agents alongside your Messages assistants. Each Blast gets its own conversations, and follow-ups continue in the saved chats.
 
-- **Muse and Grok:** sign in inside msgblast's embedded chat panes. Muse uses a side chat. Existing Safari, Chrome, and desktop-app sessions do not carry over.
-- **ChatGPT and Claude:** native chat panes use your installed Codex and Claude Code accounts. Use the sign-in action in the agent pane or local account settings, finish the official flow in Terminal, then return to msgblast. A website login alone does not connect these agents.
+All four use their websites inside msgblast, with persistent sign-in sessions. Muse uses a side chat. Existing Safari, Chrome, desktop-app and CLI sessions do not automatically sign you in to these embedded pages.
+
+**Codex CLI** and **Claude Code** are separate optional agents. Add them in **msgblast → Settings** to compare their replies alongside the web accounts. Their sign-ins, conversations and settings are separate from the websites; enabling a CLI does not replace its web agent. Manage local account sign-in and switching in Settings.
 
 Shared requests involving these four agents are text-only. Messages-only requests can include attachments. Model and thinking settings are not controlled by a shared selector.
 

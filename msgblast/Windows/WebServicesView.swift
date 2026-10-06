@@ -63,7 +63,7 @@ struct AgentsWorkspaceView: View {
                 Image(systemName: "person.crop.circle.badge.checkmark")
                     .font(.system(size: 34)).foregroundStyle(Color.accentColor)
                 Text("Connect your accounts").font(.title2.weight(.semibold))
-                Text("Use the sign-in action in each selected agent’s pane. ChatGPT and Claude sign in through their local CLI in Terminal; Muse and Grok sign in here. Then press Send & compare again.")
+                Text("Sign in to each website in its pane. If you selected an optional CLI agent, connect its account in Settings. Then press Send & compare again.")
                     .multilineTextAlignment(.center)
                 Text("Your request is saved in the message box below. Signing in won’t send it.")
                     .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
@@ -82,10 +82,10 @@ struct AgentsWorkspaceView: View {
         GeometryReader { geometry in
             ScrollView {
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 20), count: 3), spacing: 28) {
-                    ForEach(web.sessions, id: \.provider) { session in
+                    ForEach(web.availableSessions, id: \.provider) { session in
                         PinnedAgentTile(agent: webAgent(session), selected: session.state.selected, size: tileSize(geometry)) {
                             web.toggle(session)
-                        }.disabled(busy).help("\(session.provider.name) · \(session.provider.homeURL.host!)")
+                        }.disabled(busy).help("\(session.provider.name) · \(session.locationLabel)")
                             .contextMenu {
                                 Button("Open chat") {
                                     session.connect(); showingComparison = true
@@ -107,17 +107,17 @@ struct AgentsWorkspaceView: View {
 
     private var comparisonPanes: some View {
         GeometryReader { geometry in
-            let columns = web.selected.count + (nativeComparison?.members.count ?? 0)
+            let columns = web.displayed.count + (nativeComparison?.members.count ?? 0)
             let width = max(320, (geometry.size.width - CGFloat(max(0, columns - 1))) / CGFloat(max(1, columns)))
             ScrollView(.horizontal) {
                 HStack(spacing: 0) {
-                    ForEach(web.selected, id: \.provider) { session in
-                        if session.provider != web.selected.first?.provider { Divider() }
+                    ForEach(web.displayed, id: \.provider) { session in
+                        if session.provider != web.displayed.first?.provider { Divider() }
                         WebAgentPane(session: session, account: model.personalAgent, busy: busy, sendNative: { sendDirect($0, to: session) }).frame(width: width)
                     }
                     if let comparison = nativeComparison {
                         ForEach(comparison.members) { member in
-                            if !web.selected.isEmpty || member.id != comparison.members.first?.id { Divider() }
+                            if !web.displayed.isEmpty || member.id != comparison.members.first?.id { Divider() }
                             ConversationView(model: model, comparisonID: comparison.id, memberID: member.id, embedded: true)
                                 .frame(width: width)
                         }
@@ -136,8 +136,9 @@ struct AgentsWorkspaceView: View {
             if showingComparison { ScrollView(.horizontal) {
                 HStack(spacing: 8) {
                     Text("Send to").font(.caption).foregroundStyle(.secondary)
-                    ForEach(web.sessions, id: \.provider) { session in
-                        recipient(session.provider.name, selected: session.state.selected) { web.toggle(session) }
+                    ForEach(web.sessions.filter { session in session.isEnabled || web.displayed.contains(where: { $0.provider == session.provider }) }, id: \.provider) { session in
+                        recipient(session.provider.name, selected: session.isEnabled && session.state.selected) { web.toggle(session) }
+                            .disabled(!session.isEnabled)
                     }
                     ForEach(model.state.agents) { agent in
                         recipient(agent.name, selected: model.state.selection.contains(agent.id)) { toggle(agent.id) }
@@ -229,7 +230,7 @@ struct AgentsWorkspaceView: View {
     }
 
     private func sendDirect(_ text: String, to session: WebAgentSession) {
-        guard !busy, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        guard !busy, session.isEnabled, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         let existingID = nativeComparison?.id
         model.webBroadcastBusy = true
         Task { @MainActor in
@@ -254,6 +255,7 @@ struct AgentsWorkspaceView: View {
 
 struct LocalAgentSettingsView: View {
     @ObservedObject var agent: PersonalAgentController
+    @ObservedObject var web: WebAgents
     var busy = false
     @State private var setupRuntime: LocalAgentRuntime?
     private var isBusy: Bool { busy || !agent.running.isEmpty }
@@ -270,10 +272,17 @@ struct LocalAgentSettingsView: View {
                     .accessibilityLabel("Refresh accounts")
                     .disabled(isBusy || agent.checkingAccounts || agent.detectingLocalAgents)
             }.padding(.bottom, 12)
-            ForEach([PersonalAgentProvider.codex, .claude]) { provider in
+            Text("ChatGPT and Claude use their websites by default. Enable a CLI below to add it as a separate agent.")
+                .font(.caption).foregroundStyle(.secondary).padding(.bottom, 8)
+            ForEach(WebProvider.optionalProviders) { webProvider in
+                let provider = webProvider.personalAgentProvider!
+                Toggle("Enable \(webProvider.name)", isOn: Binding(
+                    get: { web.sessions.first(where: { $0.provider == webProvider })?.isEnabled == true },
+                    set: { web.setEnabled($0, for: webProvider) }
+                )).toggleStyle(.switch).disabled(isBusy).padding(.top, 8)
                 let installed = agent.installed.contains { $0.provider == provider }
                 let connected = [.subscription, .apiKey, .other].contains(agent.accounts[provider] ?? PersonalAgentAccountStatus.unknown)
-                accountRow(name: provider == .codex ? "ChatGPT" : "Claude",
+                accountRow(name: webProvider.name,
                            icon: provider == .codex ? "chatgpt" : "claude",
                            status: installed ? (agent.accounts[provider]?.label ?? "Checking sign-in…") : "Not installed") {
                     if installed {
@@ -449,14 +458,17 @@ private struct WebAgentPane: View {
     private func nativeConversation(_ provider: PersonalAgentProvider) -> some View {
         VStack(spacing: 12) {
             let connected = [.subscription, .apiKey, .other].contains(session.accountStatus)
-            if !connected {
+            if !session.isEnabled {
+                Text("Enable \(session.provider.name) in Settings to send. Your saved conversation is still available here.")
+                    .font(.caption).foregroundStyle(.secondary)
+            } else if !connected {
                 HStack {
                     Label(session.fixture ? "Simulated local account · no provider requests" : session.accountStatus.label,
                           systemImage: "person.crop.circle")
                         .font(.caption).foregroundStyle(.secondary)
                     Spacer()
                     if account.installed.contains(where: { $0.provider == provider }) {
-                        Button(session.provider == .chatgpt ? "Sign in with ChatGPT" : "Sign in with Claude") { account.signIn(provider) }
+                        Button(provider == .codex ? "Sign in with ChatGPT" : "Sign in with Claude") { account.signIn(provider) }
                             .disabled(session.fixture || busy)
                     } else {
                         Link("Install \(provider.name)", destination: URL(string: provider == .codex
@@ -513,8 +525,9 @@ private let localAccountIcons: [String: NSImage] = Dictionary(uniqueKeysWithValu
 
 private let museDefaultAvatar = Bundle.main.url(forResource: "MuseAvatar", withExtension: "jpg").flatMap { try? Data(contentsOf: $0) }
 private let webDefaultAvatars: [WebProvider: Data] = Dictionary(uniqueKeysWithValues:
-    [WebProvider.chatgpt, .claude, .grok].compactMap { provider in
-        guard let url = Bundle.main.url(forResource: provider.rawValue, withExtension: provider == .grok ? "png" : "jpg", subdirectory: "WebAgentIcons"),
+    [WebProvider.chatgpt, .claude, .grok, .codexCLI, .claudeCode].compactMap { provider in
+        let resource = provider == .codexCLI ? "chatgpt" : provider == .claudeCode ? "claude" : provider.rawValue
+        guard let url = Bundle.main.url(forResource: resource, withExtension: provider == .grok ? "png" : "jpg", subdirectory: "WebAgentIcons"),
               let data = try? Data(contentsOf: url) else { return nil }
         return (provider, data)
     }

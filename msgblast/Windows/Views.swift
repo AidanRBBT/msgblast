@@ -646,7 +646,7 @@ struct AppSettingsView: View {
                 Text("Separate windows").tag(ComparisonWindowStyle.separate)
             }.pickerStyle(.radioGroup)
             Section {
-                LocalAgentSettingsView(agent: model.personalAgent, busy: model.busy || model.webBroadcastBusy)
+                LocalAgentSettingsView(agent: model.personalAgent, web: model.webAgents, busy: model.busy || model.webBroadcastBusy)
             }
             Section("Updates") {
                 Text(updater.version).foregroundStyle(.secondary)

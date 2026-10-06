@@ -161,7 +161,8 @@ public struct Comparison: Codable, Identifiable, Sendable {
     public var recipientSelection: ConversationRecipients?
     public var summary: ComparisonSummary?
     public var webProviders: [WebProvider]?
-    public init(prompt: String, members: [Member]) { self.prompt = prompt; self.members = members }
+    public var webProviderIdentityVersion: Int?
+    public init(prompt: String, members: [Member]) { self.prompt = prompt; self.members = members; webProviderIdentityVersion = 2 }
     public var title: String { String((prompt.isEmpty ? attachments?.map(\.filename).joined(separator: ", ") ?? "Attachment" : prompt).prefix(65)) }
 }
 public struct SavedFrame: Codable, Sendable { public var x: Double; public var y: Double; public var width: Double; public var height: Double

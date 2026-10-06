@@ -8,10 +8,39 @@ import msgblastCore
     }
     @MainActor static func main() async throws {
         _ = NSApplication.shared
+        let migrationStore = LocalStore(demo: true, isolated: true)
+        let migrationDirectory = migrationStore.url.deletingLastPathComponent()
+        defer { try? FileManager.default.removeItem(at: migrationDirectory) }
+        var legacy = AppState()
+        for providers in [[WebProvider.chatgpt], [.claude], []] {
+            var comparison = Comparison(prompt: "Migration fixture", members: [])
+            comparison.webProviders = providers; comparison.webProviderIdentityVersion = nil
+            legacy.comparisons.append(comparison)
+        }
+        try migrationStore.save(legacy)
+        let corrupt = Data("corrupt referenced ChatGPT file".utf8)
+        let corruptURL = migrationDirectory.appendingPathComponent(WebProvider.chatgpt.storageFilename)
+        try corrupt.write(to: corruptURL)
+        var loaded = try migrationStore.load()
+        precondition(loaded.comparisons.count == 3)
+        precondition(loaded.comparisons[0].webProviderIdentityVersion == nil)
+        precondition(loaded.comparisons[1...].allSatisfy { $0.webProviderIdentityVersion == 2 })
+        try migrationStore.save(loaded)
+        let isolated = WebAgents(directory: migrationDirectory, fixture: true)
+        precondition(isolated.sessions.first { $0.provider == .chatgpt }!.error != nil)
+        precondition(isolated.sessions.first { $0.provider == .claude }!.error == nil)
+        let preservedCorrupt = try Data(contentsOf: corruptURL)
+        precondition(preservedCorrupt == corrupt)
+        var repaired = WebWorkspaceState(); repaired.providerIdentityVersion = 1
+        try JSONEncoder().encode(repaired).write(to: corruptURL)
+        loaded = try migrationStore.load()
+        precondition(loaded.comparisons.allSatisfy { $0.webProviderIdentityVersion == 2 })
+        print("PASS: LocalStore loads healthy comparisons despite a referenced corrupt provider, preserves that file, and retries successfully after repair.")
         let model = AppModel()
         precondition(model.demo && model.local.url.path.contains("UIFixture"))
         model.coordinator = WindowCoordinator(model: model)
         let recipient = model.state.agents[0]
+        WebProvider.optionalProviders.forEach { model.webAgents.setEnabled(true, for: $0) }
         let first = await model.prepareWebComparison("First comparison", recipientIDs: [recipient.id], providers: WebProvider.allCases)!
         let muse = model.webAgents.sessions.first { $0.provider == .muse }!
         precondition(muse.fixture)
@@ -40,6 +69,16 @@ import msgblastCore
         precondition(model.webAgents.selected.map(\.provider) == WebProvider.allCases)
         precondition(model.webAgents.comparisonID == first)
         precondition(model.comparison(first)?.members.first?.submission == .submitted)
+        model.webAgents.setEnabled(false, for: .codexCLI)
+        model.openWebComparison(first)
+        precondition(!model.webAgents.selected.contains { $0.provider == .codexCLI })
+        let archivedCodex = model.webAgents.displayed.first { $0.provider == .codexCLI }!
+        precondition(!archivedCodex.snapshot.ready && archivedCodex.snapshot.messages.first?.text == "First comparison")
+        let disabledAttempt = await archivedCodex.send("Disabled archive cannot send", comparisonID: first)
+        precondition(disabledAttempt == nil)
+        model.webAgents.setComparison(nil)
+        precondition(!model.webAgents.displayed.contains { $0.provider == .codexCLI })
+        model.openWebComparison(first)
         let attachment = try model.local.stage(Data("fixture attachment".utf8), filename: "sidechat-followup.txt")
         for text in ["", "Text with attachment"] {
             model.setAttachmentDraft([attachment], comparisonID: first)
@@ -59,6 +98,6 @@ import msgblastCore
         precondition(model.comparison(first)?.followUps.last?.states[recipient.id.uuidString] == .submitted)
         precondition(muse.state.attempts.count == beforeRetry)
         print("PASS: attachment-only and text-plus-attachment native follow-ups submit their comparison drafts; native retry does not resend Muse. Controlled local fixture inputs.")
-        print("PASS: actual AppModel + WindowCoordinator restore comparison ID, native recipient, provider selection, saved Muse/Grok URLs and native ChatGPT/Claude sessions. All sends use local fixtures.")
+        print("PASS: actual AppModel + WindowCoordinator restore comparison ID, native recipient, provider selection, four saved web URLs and separate Codex CLI/Claude Code sessions; disabled archived CLI remains readable without sending. All sends use local fixtures.")
     }
 }
