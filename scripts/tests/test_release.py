@@ -49,6 +49,16 @@ class ReleaseTests(unittest.TestCase):
             del args[index:index + 2]
         return args + ["--signing-mode", "ad-hoc"]
 
+    def test_notarization_reads_only_the_selected_temporary_keychain(self):
+        keychain = self.root / "signing.keychain-db"
+        options = release.parse_args(self.args + ["--notary-keychain", str(keychain)])
+        commands = release.commands_by_step(options)
+        for step in ("notary_credentials", "notarize"):
+            arguments = commands[step]
+            self.assertEqual(arguments[arguments.index("--keychain") + 1], str(keychain.resolve()))
+            self.assertNotIn("--password", arguments)
+            self.assertNotIn("--key", arguments)
+
     def test_release_rejects_development_artwork_before_building(self):
         saved = self.root / "output/app-icons/msgblast.icon"
         resource = self.root / "msgblast/AppIcon.icon"
