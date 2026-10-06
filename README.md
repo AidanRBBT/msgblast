@@ -69,11 +69,11 @@ You can also open **msgblast.xcodeproj** in Xcode, select the **msgblast** schem
 
 Select **Muse, ChatGPT, Claude, or Grok** beside your Messages agents in **My agents**. Use each selected agent's **Open** button to open its real page inside msgblast. Claude's `claude.com` site currently redirects to `claude.ai`; the agent opens `https://claude.ai/new`. Grok is the `grok.com` service, separate from the Grok Bot desktop app.
 
-Muse creates a **side chat for each new comparison**, then keeps follow-ups in that same chat. Reopen a comparison from the sidebar to return to its saved Muse side chat; choose **New comparison** for a separate conversation. If Muse does not assign a side-chat URL, the send stays unconfirmed and the app does not retry in the main chat.
+Each selected service creates a **dedicated chat for each new comparison** (a side chat in Muse), then keeps follow-ups in that same chat. Reopen a comparison from the sidebar to return to the saved conversations for Muse, ChatGPT, Claude, and Grok; choose **New comparison** for separate conversations. The app saves each service’s conversation URL, while the website retains its history. If a service does not assign a saved-chat URL, the send stays unconfirmed and the app does not automatically retry or create another chat.
 
 Each agent has a separate persistent WebKit data store. Sign in inside msgblast once; Safari, Chrome, and desktop-app logins are separate and their cookies are not imported. The existing Muse file, session identifier, selection, and pending sends migrate in place. New providers start unselected. HTTPS sign-in popups stay in an app sheet with their URL visible.
 
-The shared composer submits text concurrently to selected web agents and independently to selected Messages agents. Each web pane displays its own submission result and the service's actual conversation, replies, links, and approval controls. Selecting an agent does not start a new conversation on every send. The home control opens the service's main/new-chat page. These web conversations are not archived with each native Messages comparison.
+The shared composer submits text concurrently to selected web agents and independently to selected Messages agents. Each web pane displays its own submission result and the service's actual conversation, replies, links, and approval controls. Selecting an agent does not start a new conversation on every send. The home control returns to the comparison’s saved conversation, or its new-chat page before the first send. Conversation URLs are saved with the comparison; transcripts remain on each service.
 
 Web sends require an empty site composer, recognizable signed-in UI, and unambiguous controls. Existing drafts are preserved. Intent is saved before clicking Send once, then the app checks for a new outgoing message with matching text. **Appeared in [agent]** is a page observation, not a server delivery acknowledgement. Interrupted or unconfirmed sends are not retried automatically. Native Messages retains its existing attachments and retry workflow; shared sends including web agents are text-only.
 
@@ -81,7 +81,7 @@ Muse still uses the signed-in user's displayed avatar when readable, with the bu
 
 ### Verification status
 
-**Muse side chats, ChatGPT, Claude, and Grok are preview integrations pending authenticated live validation.** Current English DOM selectors include compatibility assumptions beyond the signed-out ChatGPT/Grok controls inspected on October 5, 2026. An unrecognized layout disables shared sending and leaves the embedded page available. Fixtures do not prove a site's authentication, anti-automation behavior, long-running background operation, or future compatibility. No website integration can promise that every future site version will work unchanged.
+**Dedicated chats in Muse, ChatGPT, Claude, and Grok are preview integrations pending authenticated live validation.** Current English DOM selectors include compatibility assumptions beyond the signed-out ChatGPT/Grok controls inspected on October 5, 2026. An unrecognized layout disables shared sending and leaves the embedded page available. Fixtures do not prove a site's authentication, anti-automation behavior, long-running background operation, or future compatibility. No website integration can promise that every future site version will work unchanged.
 
 Run `zsh scripts/build_web_preview.sh` and open `build/msgblast Web Preview.app` for live sign-in checks. It has a separate bundle identifier, blue demo icon, and `~/Library/Application Support/MsgBlast-WebPreview` state. **All web services are live; Messages are synthetic.** This does not install over the development app.
 
@@ -96,4 +96,19 @@ xcodebuild -project msgblast.xcodeproj -scheme msgblast \
   -only-testing:msgblastTests test
 ```
 
-After building, `bash scripts/test_web_comparisons.sh build/webkit-validation` checks production comparison reopening, native attachment follow-ups, retry isolation, and quit/update deferral with controlled local fixtures. [Muse side-chat validation](docs/evidence/muse-side-chats/validation.md) records the current results and live-test boundary.
+After building, `bash scripts/test_web_comparisons.sh build/webkit-validation` checks production comparison reopening, native attachment follow-ups, retry isolation, and quit/update deferral with controlled local fixtures. [Saved-chat validation](docs/evidence/dedicated-web-chats/validation.md) records the current results and live-test boundary.
+
+## License
+
+Copyright (C) 2026 Michael Galpert and contributors.
+
+Except where separately licensed or attributed, msgblast is licensed under the
+[GNU General Public License, version 3 only](LICENSE) (`GPL-3.0-only`). You may
+use, modify, and redistribute it, including commercially, under those terms.
+Distributed modified versions must remain under GPLv3 and include the
+corresponding source as required by the license. The software comes without
+any warranty.
+
+Third-party dependencies, service icons, logos, and other attributed assets
+retain their respective licenses and rights; this license does not relicense
+third-party material or grant trademark rights.
