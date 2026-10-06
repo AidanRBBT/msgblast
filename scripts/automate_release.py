@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build and publish an ad-hoc Sparkle release to an existing public R2 host."""
+"""Build and publish a signed Sparkle release to the existing public R2 host."""
 import argparse
 import hashlib
 import json
@@ -68,14 +68,32 @@ def current_release(store, prefix, directory, tools, key_file):
     feed = directory / "previous-appcast.xml"
     metadata = store.get(prefix + "appcast.xml", feed)
     if metadata is None:
-        return {"build": 0, "etag": None}
+        return {"build": 0, "etag": None, "signing_mode": None}
     verify_feed(feed, tools, key_file)
-    versions = ET.parse(feed).getroot().findall("./channel/item/" + release.SPARKLE + "version")
-    if not versions or any(not re.fullmatch(r"[1-9][0-9]*", item.text or "") for item in versions):
+    items = ET.parse(feed).getroot().findall("./channel/item")
+    versions = [item.findtext(release.SPARKLE + "version") for item in items]
+    if not versions or any(not re.fullmatch(r"[1-9][0-9]*", value or "") for value in versions):
         raise ReleaseError("Published feed has no valid integer build counter")
     if not metadata.get("ETag"):
         raise ReleaseError("R2 feed read did not return an ETag")
-    return {"build": max(int(item.text) for item in versions), "etag": metadata["ETag"]}
+    newest = max(items, key=lambda item: int(item.findtext(release.SPARKLE + "version")))
+    build = int(newest.findtext(release.SPARKLE + "version"))
+    version = newest.findtext(release.SPARKLE + "shortVersionString")
+    if not re.fullmatch(r"[0-9]+(?:\.[0-9]+){1,2}", version or ""):
+        raise ReleaseError("Published feed has no valid marketing version for its manifest")
+    manifest_path = directory / "previous-release.json"
+    if store.get(prefix + f"releases/{version}-{build}.json", manifest_path) is None:
+        raise ReleaseError("Published release manifest is missing; repair signing history before releasing")
+    manifest = json.loads(manifest_path.read_text())
+    mode = manifest.get("signing_mode")
+    if manifest.get("version") != version or manifest.get("build") != build or mode not in ("ad-hoc", "developer-id"):
+        raise ReleaseError("Published release manifest does not match the authenticated feed/signing history")
+    return {"build": build, "etag": metadata["ETag"], "signing_mode": mode}
+
+
+def verify_signing_continuity(snapshot, mode):
+    if snapshot.get("signing_mode") == "developer-id" and mode != "developer-id":
+        raise ReleaseError("Refusing Developer ID to ad-hoc signing downgrade; restore Developer ID configuration")
 
 
 def reserve_build(store, prefix, directory, published_build):
@@ -109,6 +127,7 @@ def verify_public(url, expected_digest):
 def publish_release(store, base_url, publish, snapshot, tools, key_file):
     prefix = object_prefix(base_url)
     manifest = json.loads((publish / "release.json").read_text())
+    verify_signing_continuity(snapshot, manifest.get("signing_mode"))
     version = release_version(manifest["version"])
     build = manifest["build"]
     if (not isinstance(build, int) or build <= snapshot["build"]
@@ -167,12 +186,31 @@ def required_environment(name):
     return value
 
 
+def signing_arguments():
+    mode = os.environ.get("MSGBLAST_SIGNING_MODE", "ad-hoc").strip()
+    if mode not in ("ad-hoc", "developer-id"):
+        raise ReleaseError("MSGBLAST_SIGNING_MODE must be ad-hoc or developer-id")
+    arguments = ["--signing-mode", mode]
+    if mode == "developer-id":
+        team = required_environment("MSGBLAST_APPLE_TEAM_ID")
+        identity = required_environment("MSGBLAST_DEVELOPER_ID_IDENTITY")
+        profile = required_environment("MSGBLAST_NOTARY_PROFILE")
+        if not release.developer_id_identity_matches(identity, team):
+            raise ReleaseError("Developer ID Application identity must match the configured Apple team")
+        arguments += ["--identity", identity, "--team-id", team, "--notary-profile", profile]
+        keychain = os.environ.get("MSGBLAST_NOTARY_KEYCHAIN", "").strip()
+        if keychain:
+            arguments += ["--notary-keychain", keychain]
+    return arguments
+
+
 def main(args=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--version", required=True, help="Numeric marketing version or v-prefixed tag")
     options = parser.parse_args(args)
     try:
         version = release_version(options.version)
+        signing = signing_arguments()
         base_url = required_environment("MSGBLAST_PUBLIC_BASE_URL")
         prefix = object_prefix(base_url)
         key_file = Path(required_environment("MSGBLAST_ED_KEY_FILE")).resolve()
@@ -185,6 +223,7 @@ def main(args=None):
         store = R2Store(required_environment("MSGBLAST_R2_ACCOUNT_ID"), required_environment("MSGBLAST_R2_BUCKET"))
         with tempfile.TemporaryDirectory(prefix="msgblast-release-state-") as temporary:
             snapshot = current_release(store, prefix, Path(temporary), tools, key_file)
+            verify_signing_continuity(snapshot, signing[1])
             build = reserve_build(store, prefix, Path(temporary), snapshot["build"])
         # An Actions run/attempt has a fresh path; failed artifacts cannot be mistaken for success.
         run_id = os.environ.get("GITHUB_RUN_ID", "local")
@@ -192,7 +231,7 @@ def main(args=None):
         if not re.fullmatch(r"[A-Za-z0-9_-]+", run_id + "-" + attempt):
             raise ReleaseError("Invalid run identifier")
         output = release.ROOT / "build/releases" / f"{version}-{build}-{run_id}-{attempt}"
-        preparation = release.parse_args(["--signing-mode", "ad-hoc", "--version", version,
+        preparation = release.parse_args([*signing, "--version", version,
             "--build", str(build), "--previous-build", str(snapshot["build"]),
             "--feed-url", base_url + "appcast.xml", "--download-url-prefix", base_url + "downloads/",
             "--public-key", public_key, "--sparkle-bin", str(tools), "--ed-key-file", str(key_file),
@@ -212,7 +251,9 @@ def main(args=None):
             with Path(summary).open("a") as file:
                 file.write(f"msgblast {version} ({build}) published from `{revision}`.\n\n"
                     f"[Installer]({result['installer_url']}) · [Update ZIP]({result['archive_url']}) · [Feed]({result['feed_url']})\n\n"
-                    "Ad-hoc app signing; Sparkle archive/feed signatures verified. No Apple notarization.\n")
+                    + ("Developer ID app signing and Apple notarization; Sparkle archive/feed signatures verified.\n"
+                     if preparation.signing_mode == "developer-id" else
+                     "Ad-hoc app signing; Sparkle archive/feed signatures verified. No Apple notarization.\n"))
         return 0
     except (ReleaseError, OSError, ValueError, KeyError, ET.ParseError) as error:
         print("Automated release failed: " + str(error), file=sys.stderr)

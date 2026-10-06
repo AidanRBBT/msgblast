@@ -1,0 +1,11 @@
+{
+  ".github/workflows/release-adhoc.yml": "7ecd8f71bc83992d965ce613753bfcdfe9fb332eddf6413d133f3ff713cd63a5",
+  ".github/workflows/verify-signing.yml": "cd4e8a978dfbe1da92c1e28ae29c525dc2523f1bc45eb37c38aa161ca599606a",
+  "scripts/automate_release.py": "78edcbacd1f978afafca4dcee69c978af9ea9bab8e2739967726afaa1e791ae7",
+  "scripts/release.py": "cd8afdc8e02a5e330a9ac7c4ebf954be10da0888ae8d8572a7ecfcf1f38a25bc",
+  "scripts/ci_signing.py": "c9de98d99eead5034e4082d1a593458cea715ca46da2848f0f5947b42cdb8b63",
+  "scripts/tests/test_automate_release.py": "25043b5d88d2c6b25bb545b00aa56b3f0f202769b5bd0478feced88dbc34055e",
+  "scripts/tests/test_release.py": "269e08e74730d8c8fe47b928792f6820992c01d64bdafbfea0e66263814d74fd",
+  "scripts/tests/test_ci_signing.py": "fece1141f2ee2d3955041ef9b4e8df97224edab17c916464e49b4fb079a4d76a",
+  "scripts/tests/test_validate_workflow.py": "b5a80671fa5ebfcbcc1c2b0264d8fe25581d66e3160ba90406b920552f1b36a0"
+}

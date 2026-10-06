@@ -35,6 +35,7 @@ def parse_args(args=None):
     parser.add_argument("--identity", help="Full Developer ID Application identity; developer-id mode only")
     parser.add_argument("--team-id")
     parser.add_argument("--notary-profile", help="Existing notarytool Keychain profile, never a password")
+    parser.add_argument("--notary-keychain", type=Path, help="Keychain containing the notarization profile; optional for local profiles")
     parser.add_argument("--feed-url", required=True, help="Chosen static HTTPS appcast URL")
     parser.add_argument("--download-url-prefix", required=True, help="Chosen static HTTPS archive directory, ending in /")
     parser.add_argument("--public-key", required=True, help="Base64 Sparkle Ed25519 public key (32 bytes)")
@@ -50,6 +51,8 @@ def parse_args(args=None):
     options.sparkle_bin = options.sparkle_bin.resolve()
     if options.ed_key_file:
         options.ed_key_file = options.ed_key_file.resolve()
+    if options.notary_keychain:
+        options.notary_keychain = options.notary_keychain.resolve()
     return options
 
 
@@ -81,6 +84,11 @@ def validate_production_icon(root=ROOT):
         raise ReleaseError("Release AppIcon must match the saved green production icon; see AGENTS.md")
 
 
+def developer_id_identity_matches(identity, team):
+    return bool(team and re.fullmatch(r"[A-Z0-9]{10}", team) and identity
+                and identity.startswith("Developer ID Application: ") and identity.endswith(f"({team})"))
+
+
 def validate_options(options):
     validate_production_icon()
     if not re.fullmatch(r"[0-9]+(?:\.[0-9]+){1,2}", options.version):
@@ -90,12 +98,11 @@ def validate_options(options):
     if options.signing_mode == "developer-id":
         if not options.team_id or not re.fullmatch(r"[A-Z0-9]{10}", options.team_id):
             raise ReleaseError("team-id must be the 10-character Apple Developer Team ID")
-        if not (options.identity and options.identity.startswith("Developer ID Application: ")
-                and options.identity.endswith(f"({options.team_id})")):
+        if not developer_id_identity_matches(options.identity, options.team_id):
             raise ReleaseError("A Developer ID Application identity for team-id is required")
         if not options.notary_profile or not options.notary_profile.strip():
             raise ReleaseError("Notarization Keychain profile is required for developer-id signing")
-    elif any((options.identity, options.team_id, options.notary_profile)):
+    elif any((options.identity, options.team_id, options.notary_profile, options.notary_keychain)):
         raise ReleaseError("Apple identity/team/notary inputs cannot be used with ad-hoc signing")
     if not options.ed_key_file and not options.keychain_account.strip():
         raise ReleaseError("Sparkle Keychain account or ed-key-file is required")
@@ -151,9 +158,10 @@ let key = try Curve25519.Signing.PrivateKey(rawRepresentation: seed)
 print(key.publicKey.rawRepresentation.base64EncodedString())
 """
         commands["public_key"] = ["swift", "-e", code, str(options.ed_key_file)]
+    notary_keychain = ["--keychain", str(options.notary_keychain)] if options.notary_keychain else []
     if not ad_hoc:
         commands["notary_credentials"] = ["xcrun", "notarytool", "history", "--keychain-profile",
-                                          options.notary_profile or "", "--output-format", "json"]
+                                          options.notary_profile or "", *notary_keychain, "--output-format", "json"]
 
     signing_settings = (["ENABLE_HARDENED_RUNTIME=YES"] if ad_hoc else [
         "DEVELOPMENT_TEAM=" + (options.team_id or ""), "CODE_SIGN_IDENTITY=" + (options.identity or ""),
@@ -183,7 +191,7 @@ print(key.publicKey.rawRepresentation.base64EncodedString())
     if not ad_hoc:
         commands["notary_package"] = ["ditto", "-c", "-k", "--sequesterRsrc", "--keepParent", str(app), str(output / "notarization.zip")]
         commands["notarize"] = ["xcrun", "notarytool", "submit", str(output / "notarization.zip"), "--keychain-profile",
-                                options.notary_profile or "", "--wait", "--output-format", "json"]
+                                options.notary_profile or "", *notary_keychain, "--wait", "--output-format", "json"]
         commands["staple"] = ["xcrun", "stapler", "staple", str(app)]
         commands["staple_verify"] = ["xcrun", "stapler", "validate", str(app)]
         commands["gatekeeper"] = ["spctl", "--assess", "--type", "execute", "--verbose=2", str(app)]

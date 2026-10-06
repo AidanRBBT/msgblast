@@ -1,0 +1,20 @@
+[
+  {
+    "title": "Unit contracts: credential lifecycle and signing continuity",
+    "command": "python3 -m unittest discover -s scripts/tests -p test_*.py",
+    "exit_code": 0,
+    "output": "Published msgblast 0.1.1 (2)\nPublished msgblast 0.1.1 (2)\nUploaded appcast.xml\nUploaded downloads/msgblast-1-2.zip\n......................................................................\n----------------------------------------------------------------------\nRan 70 tests in 0.120s\n\nOK\n"
+  },
+  {
+    "title": "Developer ID selection rejects incomplete configuration",
+    "command": "python3 scripts/automate_release.py --version 0.6.1",
+    "exit_code": 1,
+    "output": "Automated release failed: Missing release configuration: MSGBLAST_APPLE_TEAM_ID\n"
+  },
+  {
+    "title": "Credential installation refuses a local Keychain",
+    "command": "python3 scripts/ci_signing.py setup",
+    "exit_code": 1,
+    "output": "Signing credentials: Credential installation is restricted to GitHub Actions runners\n"
+  }
+]

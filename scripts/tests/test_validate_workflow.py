@@ -53,6 +53,27 @@ class ValidateWorkflowTests(unittest.TestCase):
         self.assertNotIn("secrets.", evidence)
         self.assertNotIn("tags:", evidence)
 
+    def test_signing_verification_cannot_publish_and_cleans_credentials(self):
+        text = (ROOT / ".github/workflows/verify-signing.yml").read_text()
+        self.assertIn("workflow_dispatch:", text)
+        self.assertNotIn("pull_request:", text)
+        self.assertNotIn("tags:", text)
+        for name in ("automate_release.py", "release.py", "MSGBLAST_R2_ACCESS_KEY_ID", "MSGBLAST_SPARKLE_PRIVATE_KEY"):
+            self.assertNotIn(name, text)
+        self.assertIn('test "$GITHUB_REF_NAME" = "$DEFAULT_BRANCH"', text)
+        self.assertLess(text.index("Require default-branch verification"), text.index("ci_signing.py setup"))
+        self.assertLess(text.index("ci_signing.py setup"), text.index("codesign --force"))
+        self.assertLess(text.index("codesign --force"), text.index("ci_signing.py cleanup"))
+        self.assertIn("if: always()", text)
+        self.assertNotIn("upload-artifact", text)
+
+    def test_release_credentials_surround_publication_and_always_cleanup(self):
+        text = RELEASE.read_text()
+        self.assertLess(text.index("ci_signing.py setup"), text.index("automate_release.py"))
+        self.assertLess(text.index("automate_release.py"), text.index("ci_signing.py cleanup"))
+        self.assertIn("always() && env.MSGBLAST_SIGNING_MODE == 'developer-id'", text)
+        self.assertIn("env.MSGBLAST_SIGNING_MODE == 'developer-id'", text)
+
     def test_linux_install_pins_a_virtualenv_and_does_not_build(self):
         text = INSTALL.read_text()
         self.assertIn("import ensurepip", text)
