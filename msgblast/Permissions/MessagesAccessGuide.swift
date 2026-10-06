@@ -301,7 +301,7 @@ struct MessagesAccessRow: View {
                     Button("Check again", action: check)
                 }
             }
-        }.padding(18)
+        }
     }
 }
 
