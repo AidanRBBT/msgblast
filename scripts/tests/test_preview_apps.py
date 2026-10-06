@@ -128,6 +128,7 @@ https://github.com/mgalpert/msgblast/actions/runs/123
         self.assertIn("--sequesterRsrc", source)
         self.assertIn("app.rglob", source)
         self.assertIn("debug.dylib", source)
+        self.assertIn("signing_order", source)
         self.assertNotIn("automate_release", source)
         self.assertNotIn("MSGBLAST_SPARKLE_PRIVATE_KEY", source)
         self.assertNotIn("latest.zip", source)
@@ -140,3 +141,28 @@ https://github.com/mgalpert/msgblast/actions/runs/123
         self.assertIn("not a fixture", development)
         self.assertIn("msgblast-Dev", development)
         self.assertIn("/Applications/msgblast.app", development)
+
+    def test_main_executable_never_precedes_its_debug_dylib(self):
+        import sys
+        sys.path.insert(0, str(ROOT / "scripts"))
+        build = load("build_preview_apps")
+        app = Path("/tmp/msgblast Dev.app")
+        mac = app / "Contents/MacOS"
+        executable = mac / "msgblast"
+        debug_dylib = mac / "msgblast.debug.dylib"
+        preview_dylib = mac / "__preview.dylib"
+        framework = app / "Contents/Frameworks/Sparkle.framework"
+        helper = framework / "Versions/B/Autoupdate"
+        # Alphabetical order is the bug: the shorter executable name comes first.
+        paths = [executable, debug_dylib, preview_dylib, framework, helper]
+        self.assertLess(str(executable), str(debug_dylib))
+        ordered = build.signing_order(paths)
+        self.assertLess(ordered.index(debug_dylib), ordered.index(executable))
+        self.assertLess(ordered.index(preview_dylib), ordered.index(executable))
+        self.assertLess(ordered.index(helper), ordered.index(framework))
+        with tempfile.TemporaryDirectory() as temporary:
+            bundle = Path(temporary) / "msgblast Dev.app"
+            info = bundle / "Contents/Info.plist"
+            info.parent.mkdir(parents=True)
+            info.write_bytes(__import__("plistlib").dumps({"CFBundleExecutable": "msgblast"}))
+            self.assertEqual(build.bundle_executable(bundle), bundle / "Contents/MacOS/msgblast")

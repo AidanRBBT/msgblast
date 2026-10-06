@@ -10,7 +10,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: msgblast-validate-${{ github.ref }}
+  # Keep this group distinct from runs that started before the signing-order fix.
+  group: msgblast-validate-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:

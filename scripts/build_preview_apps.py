@@ -30,11 +30,44 @@ def is_mach_o(path):
         "feedface", "cefaedfe", "feedfacf", "cffaedfe", "cafebabe", "bebafeca", "cafebabf", "bfbafeca")}
 
 
+def signing_order(paths):
+    """Sign dylibs before executables, and both before bundle containers.
+
+    Deepest-first name order is not enough: Contents/MacOS/msgblast sorts before
+    Contents/MacOS/msgblast.debug.dylib, and codesign rejects the executable
+    while that sibling dylib is unsigned.
+    """
+    def key(path):
+        path = Path(path)
+        if path.suffix == ".dylib":
+            phase = 0
+        elif path.suffix in {".framework", ".xpc", ".app"}:
+            phase = 2
+        else:
+            phase = 1
+        return (phase, -len(path.parts), str(path))
+
+    return sorted((Path(path) for path in paths), key=key)
+
+
+def bundle_executable(app):
+    """The outer codesign seals CFBundleExecutable after nested dylibs."""
+    info_path = Path(app) / "Contents/Info.plist"
+    if not info_path.is_file():
+        return None
+    with info_path.open("rb") as file:
+        name = plistlib.load(file).get("CFBundleExecutable")
+    if not name:
+        return None
+    return Path(app) / "Contents/MacOS" / name
+
+
 def adhoc_sign(app, entitlements):
     """Sign nested Debug binaries and frameworks before the outer bundle.
 
     Debug builds leave Contents/MacOS/*.debug.dylib unsigned when Xcode signing
     is disabled. Sparkle helpers are already signed and keep their entitlements.
+    The main executable is left for the final app signature.
     """
     nested = []
     for path in app.rglob("*"):
@@ -44,7 +77,10 @@ def adhoc_sign(app, entitlements):
             nested.append(path)
         elif path.is_file() and is_mach_o(path):
             nested.append(path)
-    for path in sorted(nested, key=lambda item: (-len(item.parts), str(item))):
+    executable = bundle_executable(app)
+    for path in signing_order(nested):
+        if path == executable:
+            continue
         signed = subprocess.run(["codesign", "-dv", str(path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
         command = ["codesign", "--force", "--sign", "-", "--options", "runtime"]
         if signed:
