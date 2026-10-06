@@ -9,8 +9,9 @@ A written explanation never satisfies the screenshot or video requirement.
 When a change truly cannot be shown, a person reviews that explanation
 separately. This check still fails until the description has a remote image
 and a remote playable video. An empty or local <video> tag is not a video.
-Syntax inside a code fence, an HTML comment, inline code, or an escape does
-not count, because GitHub does not render it.
+Syntax inside a code fence, an indented code block, an HTML comment, a pre or
+code element, inline code, or an escape does not count, because GitHub does
+not render it.
 """
 import argparse
 from pathlib import Path
@@ -35,6 +36,8 @@ CLOSED_FENCE = re.compile(r"(?ms)^[ ]{0,3}(?P<tick>`{3,}|~{3,})[^\n]*\n.*?^[ ]{0
 OPEN_FENCE = re.compile(r"(?ms)^[ ]{0,3}(`{3,}|~{3,})[^\n]*\n.*\Z")
 INLINE_CODE = re.compile(r"``+[^`\n]*``+|`[^`\n]*`")
 ESCAPED_EMBED = re.compile(r"\\!\[[^\]]*\]\([^)\n]*\)|\\</?(?:img|video|source)\b[^>\n]*>", re.IGNORECASE)
+HTML_PRE_CODE = re.compile(r"(?is)<pre\b[^>]*>.*?</pre>|<code\b[^>]*>.*?</code>")
+INDENTED_CODE = re.compile(r"(?m)^(?: {4}|\t)+.*(?:\n|$)")
 
 
 def section(body, title):
@@ -52,8 +55,10 @@ def rendered_text(text):
     if not text:
         return ""
     text = HTML_COMMENT.sub(" ", text)
+    text = HTML_PRE_CODE.sub(" ", text)
     text = CLOSED_FENCE.sub("\n", text)
     text = OPEN_FENCE.sub("\n", text)
+    text = INDENTED_CODE.sub("\n", text)
     text = INLINE_CODE.sub(" ", text)
     text = ESCAPED_EMBED.sub(" ", text)
     return text

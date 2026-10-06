@@ -323,6 +323,64 @@ Evidence-SHA: {sha}
         )
         self.assertEqual(evidence.problems(html, sha), [])
 
+    def test_indented_and_pre_code_examples_are_not_embeds(self):
+        sha = "b" * 40
+        video = """## Video
+
+<video src="https://example.com/preview.mp4" controls></video>
+"""
+        indented = f"""## Screenshots
+
+    ![sample](https://example.test/example.png)
+
+{video}
+Evidence-SHA: {sha}
+"""
+        tabbed = f"""## Screenshots
+
+\t![sample](https://example.test/example.png)
+
+{video}
+Evidence-SHA: {sha}
+"""
+        pre = f"""## Screenshots
+
+<pre><code>![sample](https://example.test/example.png)</code></pre>
+
+{video}
+Evidence-SHA: {sha}
+"""
+        for hidden in (indented, tabbed, pre):
+            found = evidence.problems(hidden, sha)
+            self.assertNotEqual(found, [])
+            self.assertTrue(any("embedded https image" in item for item in found))
+        hidden_video = f"""## Screenshots
+
+![Shown workflow](https://example.com/shown.png)
+
+## Video
+
+    https://example.com/hidden.mp4
+
+<pre><code>https://github.com/user-attachments/assets/hidden</code></pre>
+
+Evidence-SHA: {sha}
+"""
+        video_found = evidence.problems(hidden_video, sha)
+        self.assertTrue(any("empty or local" in item for item in video_found))
+        kept = f"""## Screenshots
+
+    ![sample](https://example.test/example.png)
+
+<pre><code>![sample](https://example.test/example.png)</code></pre>
+
+![Shown workflow](https://example.com/shown.png)
+
+{video}
+Evidence-SHA: {sha}
+"""
+        self.assertEqual(evidence.problems(kept, sha), [])
+
     def test_packaging_script_stays_nonpublishing(self):
         import sys
         sys.path.insert(0, str(ROOT / "scripts"))
