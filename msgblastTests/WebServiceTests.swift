@@ -210,29 +210,33 @@ final class WebServiceTests: XCTestCase {
 
     func testPersonalAvatarFollowsTheMainChatMediaAndChanges() async throws {
         let session = try makeSession()
+        let window = displayAvatarFixture(session)
+        defer { window.orderOut(nil); window.contentView = nil }
         session.connect()
         try await waitFor { session.snapshot.ready }
         XCTAssertNil(session.avatar)
-        _ = try await session.webView.callAsyncJavaScript("changeFixtureAvatar()", arguments: [:], in: nil, contentWorld: .page)
+        _ = try await session.webView.callAsyncJavaScript("changeFixtureAvatar(); await document.querySelector('[data-hatch-avatar-layer]').decode()", arguments: [:], in: nil, contentWorld: .page)
         try await waitFor { session.avatar != nil }
         let first = try XCTUnwrap(session.avatar)
         await session.refresh()
         XCTAssertEqual(session.avatar, first, "Unchanged media should retain its cached still")
-        _ = try await session.webView.callAsyncJavaScript("changeFixtureAvatar()", arguments: [:], in: nil, contentWorld: .page)
+        _ = try await session.webView.callAsyncJavaScript("changeFixtureAvatar(); await document.querySelector('[data-hatch-avatar-layer]').decode()", arguments: [:], in: nil, contentWorld: .page)
         try await waitFor { session.avatar != nil && session.avatar != first }
         XCTAssertTrue(session.state.attempts.isEmpty, "Reading an avatar must never submit a message")
     }
 
     func testAvatarClearsOnSignOutAndIsNotPersistedForAnotherAccount() async throws {
         let session = try makeSession()
+        let window = displayAvatarFixture(session)
+        defer { window.orderOut(nil); window.contentView = nil }
         session.connect()
         try await waitFor { session.snapshot.ready }
-        _ = try await session.webView.callAsyncJavaScript("changeFixtureAvatar()", arguments: [:], in: nil, contentWorld: .page)
+        _ = try await session.webView.callAsyncJavaScript("changeFixtureAvatar(); await document.querySelector('[data-hatch-avatar-layer]').decode()", arguments: [:], in: nil, contentWorld: .page)
         try await waitFor { session.avatar != nil }
         let first = session.avatar
         _ = try await session.webView.callAsyncJavaScript("chat.hidden=true;login.hidden=false", arguments: [:], in: nil, contentWorld: .page)
         try await waitFor { !session.snapshot.ready && session.avatar == nil }
-        _ = try await session.webView.callAsyncJavaScript("changeFixtureAvatar();chat.hidden=false;login.hidden=true", arguments: [:], in: nil, contentWorld: .page)
+        _ = try await session.webView.callAsyncJavaScript("changeFixtureAvatar(); await document.querySelector('[data-hatch-avatar-layer]').decode();chat.hidden=false;login.hidden=true", arguments: [:], in: nil, contentWorld: .page)
         try await waitFor { session.avatar != nil && session.avatar != first }
         session.reload()
         try await waitFor { session.snapshot.ready && session.avatar == nil }
@@ -334,17 +338,28 @@ final class WebServiceTests: XCTestCase {
         XCTAssertFalse(provider.acceptsReceipt(from: saved, at: provider.newChatURL))
     }
 
+    private func displayAvatarFixture(_ session: WebAgentSession) -> NSWindow {
+        // Avatar capture rasterizes displayed media. Give WebKit the same rendering
+        // context as the app instead of depending on detached-view painting in CI.
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
+                              styleMask: [.titled], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = session.webView
+        window.orderFront(nil)
+        return window
+    }
+
     private func makeSession() throws -> WebAgentSession {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("MsgBlast-WebTests-\(UUID())")
         return WebAgentSession(provider: .muse, storageURL: directory.appendingPathComponent("web.json"), fixture: true)
     }
 
-    private func waitFor(_ predicate: () -> Bool) async throws {
+    private func waitFor(file: StaticString = #filePath, line: UInt = #line, _ predicate: () -> Bool) async throws {
         for _ in 0..<100 {
             if predicate() { return }
             try await Task.sleep(for: .milliseconds(100))
         }
-        XCTFail("WebKit did not reach the expected state")
+        XCTFail("WebKit did not reach the expected state", file: file, line: line)
     }
 }
 
