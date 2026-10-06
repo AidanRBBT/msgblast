@@ -1,0 +1,62 @@
+name: Validate msgblast
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: msgblast-validate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Install pinned installer libraries and worker dependencies
+        run: bash scripts/cloud-agent-install.sh
+
+      - name: Test release tooling
+        run: python3 -m unittest discover -s scripts/tests -p 'test_*.py' -v
+
+      - name: Test download worker and dry-run its Wrangler config
+        working-directory: download
+        run: |
+          npm test
+          npm run check
+
+  native:
+    runs-on: xcode-27
+    timeout-minutes: 60
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - name: Check out source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Show selected Xcode
+        run: xcodebuild -version
+
+      - name: Build isolated demo-icon Debug app and run core regressions
+        run: |
+          xcodebuild -project msgblast.xcodeproj -scheme msgblast \
+            -derivedDataPath build/updater-validation \
+            -destination 'platform=macOS,arch=arm64' \
+            ASSETCATALOG_COMPILER_APPICON_NAME=AppIconDemo \
+            -only-testing:msgblastTests test -quiet
+
+      - name: Exercise real Sparkle updater with isolated fixtures
+        run: python3 scripts/test_updates.py --derived-data build/updater-validation
