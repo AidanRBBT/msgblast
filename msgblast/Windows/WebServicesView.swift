@@ -81,7 +81,6 @@ struct AgentsWorkspaceView: View {
     private var agentPicker: some View {
         GeometryReader { geometry in
             ScrollView {
-                VStack(spacing: 20) {
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 20), count: 3), spacing: 28) {
                     ForEach(web.sessions, id: \.provider) { session in
                         PinnedAgentTile(agent: webAgent(session), selected: session.state.selected, size: tileSize(geometry)) {
@@ -100,8 +99,6 @@ struct AgentsWorkspaceView: View {
                             .help(model.route(agent)?.handle ?? "No matching conversation")
                     }
                 }.padding(.horizontal, 20).padding(.top, 14).padding(.bottom, 20)
-                    LocalAgentSettingsView(agent: model.personalAgent, busy: busy).padding(.horizontal, 20).padding(.bottom, 20)
-                }
             }
         }
     }
@@ -259,6 +256,7 @@ struct LocalAgentSettingsView: View {
     @ObservedObject var agent: PersonalAgentController
     var busy = false
     @State private var setupRuntime: LocalAgentRuntime?
+    private var isBusy: Bool { busy || !agent.running.isEmpty }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -270,16 +268,17 @@ struct LocalAgentSettingsView: View {
                 } label: { Image(systemName: "arrow.clockwise") }
                     .buttonStyle(.borderless).help("Refresh accounts")
                     .accessibilityLabel("Refresh accounts")
-                    .disabled(busy || agent.checkingAccounts || agent.detectingLocalAgents)
+                    .disabled(isBusy || agent.checkingAccounts || agent.detectingLocalAgents)
             }.padding(.bottom, 12)
             ForEach([PersonalAgentProvider.codex, .claude]) { provider in
                 let installed = agent.installed.contains { $0.provider == provider }
+                let connected = [.subscription, .apiKey, .other].contains(agent.accounts[provider] ?? PersonalAgentAccountStatus.unknown)
                 accountRow(name: provider == .codex ? "ChatGPT" : "Claude",
-                           symbol: provider == .codex ? "sparkles" : "sun.max",
+                           icon: provider == .codex ? "chatgpt" : "claude",
                            status: installed ? (agent.accounts[provider]?.label ?? "Checking sign-in…") : "Not installed") {
                     if installed {
-                        Button(provider == .codex ? "Sign in with ChatGPT" : "Sign in with Claude") { agent.signIn(provider) }
-                            .disabled(agent.demo || busy || agent.checkingAccounts)
+                        Button(connected ? "Switch account" : provider == .codex ? "Sign in with ChatGPT" : "Sign in with Claude") { agent.signIn(provider) }
+                            .disabled(agent.demo || isBusy || agent.checkingAccounts)
                     } else {
                         Link("Install \(provider.name)", destination: URL(string: provider == .codex
                              ? "https://developers.openai.com/codex/cli" : "https://code.claude.com/docs/en/setup")!)
@@ -289,10 +288,10 @@ struct LocalAgentSettingsView: View {
             }
             ForEach(LocalAgentRuntime.allCases) { runtime in
                 let installed = agent.detectedLocalAgents.contains { $0.runtime == runtime }
-                accountRow(name: runtime.name, symbol: runtime == .openclaw ? "pawprint" : "paperplane",
+                accountRow(name: runtime.name, icon: runtime == .openclaw ? "openclaw" : "hermes",
                            status: agent.detectingLocalAgents ? "Checking installation…" : installed ? "Installed on this Mac" : "Not installed") {
                     if installed {
-                        Button("Set up \(runtime.name)") { setupRuntime = runtime }.disabled(busy)
+                        Button("Set up \(runtime.name)") { setupRuntime = runtime }.disabled(isBusy)
                     } else {
                         Link("Install \(runtime.name)", destination: runtime.documentation)
                     }
@@ -326,12 +325,15 @@ struct LocalAgentSettingsView: View {
         _ = await (accounts, installations)
     }
 
-    private func accountRow<Action: View>(name: String, symbol: String, status: String,
+    private func accountRow<Action: View>(name: String, icon: String, status: String,
                                           @ViewBuilder action: () -> Action) -> some View {
         HStack(spacing: 12) {
-            Image(systemName: symbol).font(.title3).foregroundStyle(.secondary)
-                .frame(width: 32, height: 32)
-                .background(.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            if let image = localAccountIcons[icon] {
+                Image(nsImage: image).resizable().scaledToFit()
+                    .frame(width: 32, height: 32)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .accessibilityHidden(true)
+            }
             VStack(alignment: .leading, spacing: 3) {
                 Text(name).fontWeight(.medium)
                 Text(status).font(.caption).foregroundStyle(.secondary)
@@ -446,12 +448,14 @@ private struct WebAgentPane: View {
 
     private func nativeConversation(_ provider: PersonalAgentProvider) -> some View {
         VStack(spacing: 12) {
+            let connected = [.subscription, .apiKey, .other].contains(session.accountStatus)
             HStack {
-                Text(session.fixture ? "Simulated local account · no provider requests" : session.accountStatus.label)
-                    .font(.caption).foregroundStyle(.secondary)
+                Label(session.fixture ? "Simulated local account · no provider requests" : session.accountStatus.label,
+                      systemImage: connected ? "checkmark.circle.fill" : "person.crop.circle")
+                    .font(.caption).foregroundStyle(connected ? Color.green : Color.secondary)
                 Spacer()
                 if account.installed.contains(where: { $0.provider == provider }) {
-                    Button(session.provider == .chatgpt ? "Sign in with ChatGPT" : "Sign in with Claude") { account.signIn(provider) }
+                    Button(connected ? "Switch account" : session.provider == .chatgpt ? "Sign in with ChatGPT" : "Sign in with Claude") { account.signIn(provider) }
                         .disabled(session.fixture || busy)
                 } else {
                     Link("Install \(provider.name)", destination: URL(string: provider == .codex
@@ -463,7 +467,7 @@ private struct WebAgentPane: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 16) {
                         if session.snapshot.messages.isEmpty {
-                            Text("Start a conversation with \(session.provider.name). Your local CLI account is used, and this comparison’s replies are saved in msgblast.")
+                            Text(connected ? "Ready to chat. Send a message below, or use the shared message box to ask your selected agents." : "Sign in to \(session.provider.name) to start chatting. Your request stays in the message box until you send it.")
                                 .foregroundStyle(.secondary).padding(.vertical, 20)
                         }
                         ForEach(session.snapshot.messages) { message in
@@ -496,6 +500,14 @@ private struct WebAgentPane: View {
     }
 
 }
+
+private let localAccountIcons: [String: NSImage] = Dictionary(uniqueKeysWithValues:
+    ["chatgpt.jpg", "claude.jpg", "openclaw.png", "hermes.png"].compactMap { filename in
+        guard let url = Bundle.main.url(forResource: filename, withExtension: nil, subdirectory: "WebAgentIcons"),
+              let image = NSImage(contentsOf: url) else { return nil }
+        return (url.deletingPathExtension().lastPathComponent, image)
+    }
+)
 
 private let museDefaultAvatar = Bundle.main.url(forResource: "MuseAvatar", withExtension: "jpg").flatMap { try? Data(contentsOf: $0) }
 private let webDefaultAvatars: [WebProvider: Data] = Dictionary(uniqueKeysWithValues:

@@ -633,6 +633,9 @@ struct AppSettingsView: View {
                 Text("One window").tag(ComparisonWindowStyle.connected)
                 Text("Separate windows").tag(ComparisonWindowStyle.separate)
             }.pickerStyle(.radioGroup)
+            Section {
+                LocalAgentSettingsView(agent: model.personalAgent, busy: model.busy || model.webBroadcastBusy)
+            }
             Section("Updates") {
                 Text(updater.version).foregroundStyle(.secondary)
                 if updater.configuration.isEnabled {
@@ -644,6 +647,6 @@ struct AppSettingsView: View {
                     Text(updater.configuration.unavailableReason).foregroundStyle(.secondary)
                 }
             }
-        }.formStyle(.grouped).padding(20).frame(width: 480, height: 360)
+        }.formStyle(.grouped).padding(20).frame(width: 640, height: 650)
     }
 }
