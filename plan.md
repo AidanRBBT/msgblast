@@ -169,7 +169,7 @@ draft -> sending -> active -> saved/open-ended
 
 **Requirements:** R1, R2, R8.
 
-**Files:** `MsgBlast.xcodeproj`, `MsgBlast/App/`, `MsgBlast/Permissions/`, `MsgBlastTests/PermissionStateTests.swift`.
+**Files:** `msgblast.xcodeproj`, `msgblast/App/`, `msgblast/Permissions/`, `msgblastTests/PermissionStateTests.swift`.
 
 **Approach:** Build the SwiftUI app entry, AppKit window coordinator, Contacts and Automation permission descriptions, Full Disk Access guidance, and capability-specific blocked states. Keep permission requests tied to the feature that needs them.
 
@@ -183,7 +183,7 @@ draft -> sending -> active -> saved/open-ended
 
 **Requirements:** R3, R6–R8, R13.
 
-**Files:** `MsgBlast/Messages/MessageStoreProbe.swift`, `MsgBlast/Messages/MessagesAutomationProbe.swift`, `MsgBlastTests/MessagesProbeTests.swift`, `docs/integration-findings.md`.
+**Files:** `msgblast/Messages/MessageStoreProbe.swift`, `msgblast/Messages/MessagesAutomationProbe.swift`, `msgblastTests/MessagesProbeTests.swift`, `docs/integration-findings.md`.
 
 **Approach:** With permission, inspect only schema and authorized test records; identify chat identity, outgoing anchor, incoming updates, and reply relationship. Send ordinary text to the authorized test destination. Test Messages' inline Reply UI and whether the app can target the exact prompt through Accessibility. Record observed OS version, permissions, and failures. Keep probes isolated from production adapters.
 
@@ -197,7 +197,7 @@ draft -> sending -> active -> saved/open-ended
 
 **Requirements:** R2–R5.
 
-**Files:** `MsgBlast/Agents/`, `MsgBlast/Contacts/`, `MsgBlast/Messages/ChatResolver.swift`, `MsgBlastTests/AgentSetupTests.swift`.
+**Files:** `msgblast/Agents/`, `msgblast/Contacts/`, `msgblast/Messages/ChatResolver.swift`, `msgblastTests/AgentSetupTests.swift`.
 
 **Approach:** Search Contacts, store the selected contact identity and presentation fields, render a color avatar when needed, and match only existing one-to-one iMessage chats. Choose the most recently active eligible chat when several exist, but surface its destination in the picker.
 
@@ -211,7 +211,7 @@ draft -> sending -> active -> saved/open-ended
 
 **Requirements:** R5–R7, R11–R12.
 
-**Files:** `MsgBlast/Comparisons/`, `MsgBlast/Messages/MessageSender.swift`, `MsgBlast/Storage/`, `MsgBlastTests/PromptSendTests.swift`, `MsgBlastTests/ComparisonRangeTests.swift`.
+**Files:** `msgblast/Comparisons/`, `msgblast/Messages/MessageSender.swift`, `msgblast/Storage/`, `msgblastTests/PromptSendTests.swift`, `msgblastTests/ComparisonRangeTests.swift`.
 
 **Approach:** Persist a draft and intended recipients before sending. Issue separate one-to-one sends, reconcile the resulting outgoing records to stable anchors, and record per-recipient state. Retry only failures. Bound ordinary messages by the next prompt anchor in that chat while retaining later replies explicitly tied to the older anchor.
 
@@ -225,7 +225,7 @@ draft -> sending -> active -> saved/open-ended
 
 **Requirements:** R8, R11–R12, R14–R16.
 
-**Files:** `MsgBlast/Windows/`, `MsgBlast/Comparisons/ComparisonView.swift`, `MsgBlast/Messages/MessageReader.swift`, `MsgBlastTests/ComparisonWindowTests.swift`.
+**Files:** `msgblast/Windows/`, `msgblast/Comparisons/ComparisonView.swift`, `msgblast/Messages/MessageReader.swift`, `msgblastTests/ComparisonWindowTests.swift`.
 
 **Approach:** Read message ranges through the adapter, refresh as Messages changes, and display per-agent windows with shared comparison identity. Suggest a horizontal tile layout; preserve user-moved positions and provide a navigator when some columns are offscreen.
 
@@ -239,7 +239,7 @@ draft -> sending -> active -> saved/open-ended
 
 **Requirements:** R9–R10, R13, R17.
 
-**Files:** `MsgBlast/Windows/FloatingComposer.swift`, `MsgBlast/Comparisons/AgentComposer.swift`, `MsgBlast/Messages/ReplySender.swift`, `MsgBlastTests/ComposerRoutingTests.swift`.
+**Files:** `msgblast/Windows/FloatingComposer.swift`, `msgblast/Comparisons/AgentComposer.swift`, `msgblast/Messages/ReplySender.swift`, `msgblastTests/ComposerRoutingTests.swift`.
 
 **Approach:** Each agent window sends only to its bound chat. The separate draggable panel sends to every member of its prompt and shows the set before send. For members whose old range has ended, use the proven R13 context path; prevent send if the exact original prompt cannot be targeted safely.
 
@@ -253,7 +253,7 @@ draft -> sending -> active -> saved/open-ended
 
 **Requirements:** R1–R17.
 
-**Files:** `MsgBlast/Onboarding/`, `MsgBlastTests/EndToEndFlowTests.swift`, `README.md`, `docs/integration-findings.md`.
+**Files:** `msgblast/Onboarding/`, `msgblastTests/EndToEndFlowTests.swift`, `README.md`, `docs/integration-findings.md`.
 
 **Approach:** Finish permission education, empty states, destination preview, saved comparison list, errors, and restore behavior. Remove abandoned probe code after the production adapter is chosen. Prepare review evidence from the tested revision.
 

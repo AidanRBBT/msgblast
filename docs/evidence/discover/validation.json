@@ -44,15 +44,15 @@
     "preview_bundle": "build/discover-validation/Discover Add Preview.app"
   },
   "sha256": {
-    "MsgBlast/Core/DiscoverCatalog.swift": "b758c776b5910b37abbff2a38c111ae3cd457180b4c30574e36392e76ab5962b",
-    "MsgBlast/Windows/DiscoverView.swift": "61bd588eefd0231fc9671f8d296dd2e696a039a7783b2b71487780c09a978831",
-    "MsgBlast/Resources/Discover/catalog.json": "71bc7d4ee2867bc528a122781c4b26a03433649e2088ccc7ad6934954fec9681",
-    "MsgBlastTests/DiscoverTests.swift": "a5ceeaac88b3a465c6c35363effee5c1921906a5455b86e81e359a0fc8dc693d",
+    "msgblast/Core/DiscoverCatalog.swift": "b758c776b5910b37abbff2a38c111ae3cd457180b4c30574e36392e76ab5962b",
+    "msgblast/Windows/DiscoverView.swift": "61bd588eefd0231fc9671f8d296dd2e696a039a7783b2b71487780c09a978831",
+    "msgblast/Resources/Discover/catalog.json": "71bc7d4ee2867bc528a122781c4b26a03433649e2088ccc7ad6934954fec9681",
+    "msgblastTests/DiscoverTests.swift": "a5ceeaac88b3a465c6c35363effee5c1921906a5455b86e81e359a0fc8dc693d",
     "scripts/import_discover.py": "f77d98a1a0aab7f68dfd68172a6b860b71e18fde7f8dde17106e9112dae27cfe",
     "Package.swift": "0c22f89d395d49893b9c2de9a1ab686cecc06b50a1d16cdda9161d01b9c69831",
     "scripts/generate_project.py": "e5bee429239021e8758c786657fcd3df608b9878c1a4d78c0576d9102ab1dd7e",
-    "MsgBlast/Contacts/ContactSearch.swift": "4772a289214984d51a7494886e925cec1f65ad161a0e452be03b040f2f471d27",
-    "MsgBlast/Windows/Views.swift": "2ba185d8e2f33d3ee99443b7c9bded1c517eba2129bfcc84e00e3436362726ba"
+    "msgblast/Contacts/ContactSearch.swift": "4772a289214984d51a7494886e925cec1f65ad161a0e452be03b040f2f471d27",
+    "msgblast/Windows/Views.swift": "2ba185d8e2f33d3ee99443b7c9bded1c517eba2129bfcc84e00e3436362726ba"
   },
   "visible_curated_agents": 27,
   "visible_categories": [

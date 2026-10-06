@@ -1,0 +1,18 @@
+{
+  "base": "b6dbb9e",
+  "python_tests": 32,
+  "core_xcode_tests": 46,
+  "real_sparkle_scenarios": 4,
+  "workflow_lint": "passed; external ShellCheck disabled",
+  "primary_work_build": "passed",
+  "native_menu": "manually verified About, Hide and Quit use lowercase name",
+  "native_about": "msgblast Version 0.1.0 (1)",
+  "bundle_fields": {
+    "CFBundleName": "msgblast",
+    "CFBundleDisplayName": "msgblast",
+    "CFBundleExecutable": "msgblast"
+  },
+  "automated_ui_test": "Runner initialization blocked by macOS authentication before the test started. Native menu/About verified through CUA instead.",
+  "old_spelling_in_text_or_filenames": 0,
+  "capture": "Actual native demo screenshot; synthetic data. No live app replaced."
+}

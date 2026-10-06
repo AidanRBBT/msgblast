@@ -1,0 +1,121 @@
+name: Release msgblast without Apple credentials
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Marketing version, e.g. 0.1.0 (release-notes/VERSION.md must exist)'
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: msgblast-stable-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: xcode-27
+    timeout-minutes: 60
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
+      MSGBLAST_RELEASE_VERSION: ${{ inputs.version || github.ref_name }}
+      MSGBLAST_PUBLIC_BASE_URL: ${{ vars.MSGBLAST_PUBLIC_BASE_URL }}
+      MSGBLAST_R2_ACCOUNT_ID: ${{ vars.MSGBLAST_R2_ACCOUNT_ID }}
+      MSGBLAST_R2_BUCKET: ${{ vars.MSGBLAST_R2_BUCKET }}
+      MSGBLAST_PUBLIC_KEY: ${{ vars.MSGBLAST_PUBLIC_KEY }}
+      MSGBLAST_SPARKLE_BIN: ${{ github.workspace }}/build/updater-validation/SourcePackages/artifacts/sparkle/Sparkle/bin
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - name: Check out release source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate release source and configuration
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          HAS_SPARKLE_KEY: ${{ secrets.MSGBLAST_SPARKLE_PRIVATE_KEY != '' }}
+          HAS_R2_ACCESS_KEY: ${{ secrets.MSGBLAST_R2_ACCESS_KEY_ID != '' }}
+          HAS_R2_SECRET_KEY: ${{ secrets.MSGBLAST_R2_SECRET_ACCESS_KEY != '' }}
+        run: |
+          git merge-base --is-ancestor "$GITHUB_SHA" "origin/$DEFAULT_BRANCH"
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] && [ "$GITHUB_REF_NAME" != "$DEFAULT_BRANCH" ]; then
+            echo 'Manual releases must run from the default branch.' >&2
+            exit 1
+          fi
+          python3 - <<'PY'
+          import os, sys
+          sys.path.insert(0, 'scripts')
+          import automate_release as auto
+          version = auto.release_version(os.environ['MSGBLAST_RELEASE_VERSION'])
+          auto.object_prefix(auto.required_environment('MSGBLAST_PUBLIC_BASE_URL'))
+          for name in ('MSGBLAST_R2_ACCOUNT_ID', 'MSGBLAST_R2_BUCKET', 'MSGBLAST_PUBLIC_KEY'):
+              auto.required_environment(name)
+          for name in ('HAS_SPARKLE_KEY', 'HAS_R2_ACCESS_KEY', 'HAS_R2_SECRET_KEY'):
+              if os.environ[name] != 'true':
+                  raise SystemExit('Missing release secret: ' + name)
+          from pathlib import Path
+          if not Path('release-notes/' + version + '.md').is_file():
+              raise SystemExit('Write release-notes/' + version + '.md before releasing.')
+          PY
+          xcodebuild -version
+
+      - name: Install disk-image metadata libraries
+        run: |
+          python3 -m venv "$RUNNER_TEMP/msgblast-installer-python"
+          "$RUNNER_TEMP/msgblast-installer-python/bin/python" -m pip install -r scripts/installer-requirements.txt
+          echo "$RUNNER_TEMP/msgblast-installer-python/bin" >> "$GITHUB_PATH"
+
+      - name: Test release tooling
+        run: python3 -m unittest discover -s scripts/tests -p 'test_*.py' -v
+
+      - name: Build isolated demo-icon Debug app and run core regressions
+        run: |
+          xcodebuild -project msgblast.xcodeproj -scheme msgblast \
+            -derivedDataPath build/updater-validation \
+            -destination 'platform=macOS,arch=arm64' \
+            ASSETCATALOG_COMPILER_APPICON_NAME=AppIconDemo \
+            -only-testing:msgblastTests test -quiet
+
+      - name: Exercise real Sparkle updater with isolated fixtures
+        run: python3 scripts/test_updates.py --derived-data build/updater-validation
+
+      - name: Prepare and publish ad-hoc release
+        env:
+          MSGBLAST_ED_KEY_FILE: ${{ runner.temp }}/msgblast-sparkle-private-key
+          MSGBLAST_SPARKLE_PRIVATE_KEY: ${{ secrets.MSGBLAST_SPARKLE_PRIVATE_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.MSGBLAST_R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.MSGBLAST_R2_SECRET_ACCESS_KEY }}
+          AWS_EC2_METADATA_DISABLED: 'true'
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+        run: |
+          umask 077
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          Path(os.environ['MSGBLAST_ED_KEY_FILE']).write_text(os.environ['MSGBLAST_SPARKLE_PRIVATE_KEY'].strip() + '\n')
+          PY
+          unset MSGBLAST_SPARKLE_PRIVATE_KEY
+          python3 scripts/automate_release.py --version "$MSGBLAST_RELEASE_VERSION"
+
+      - name: Retain successful release artifacts
+        if: success()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: msgblast-release-${{ github.run_id }}-${{ github.run_attempt }}
+          path: build/releases/*/publish/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Remove temporary signing key
+        if: always()
+        env:
+          MSGBLAST_ED_KEY_FILE: ${{ runner.temp }}/msgblast-sparkle-private-key
+        run: rm -f -- "$MSGBLAST_ED_KEY_FILE"

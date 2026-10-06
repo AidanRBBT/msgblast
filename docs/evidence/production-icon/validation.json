@@ -1,0 +1,13 @@
+{
+  "source_artwork": "output/icon-gradients/32-WhiteToClearSoftFade-Polished.icon",
+  "app_resource": "msgblast/AppIcon.icon",
+  "icon_json_sha256": "f023627333e82eed9695b85fbb4aad4411d9a9ded5d0b770f7b39e1161cfddec",
+  "layer_sha256": "3bed78a21c2aec7801733cc210bb03349c7efef68b971bb0ed1a4ac7deec4a33",
+  "capture": "Unedited 256px PNG extracted from AppIcon.icns compiled by Xcode in an isolated Release build",
+  "limitations": "Compile-only validation with a separate bundle identifier. App was not launched, installed, or given macOS permissions.",
+  "checks": [
+    "Isolated Release build succeeded",
+    "33 Python release/publication tests passed",
+    "Development icon and changed layer artwork are rejected by the release preflight"
+  ]
+}

@@ -17,3 +17,4 @@ output/*
 output/icon-gradients/*
 !output/icon-gradients/32-WhiteToClearSoftFadeBlueGreen.icon/
 !output/icon-gradients/32-WhiteToClearSoftFadeBlue.icon/
+!output/icon-gradients/32-WhiteToClearSoftFade-Polished.icon/

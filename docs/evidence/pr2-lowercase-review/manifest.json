@@ -1,0 +1,31 @@
+{
+  "reviewed_integration": "310438a56ec673e3588861b6e57e3b221068af9d",
+  "verified_fix_revision": "27c2dd73746b49cf97aa4e04c2b6c82eb5316dfa",
+  "review_run": "20261005-141244-c45b0686",
+  "capture": "Actual CUA native screenshots, blue demo icon, embedded demo mode and actual core-verified localhost fixture policy; seeded synthetic Cursor then Grok preferences. No providers, real Messages sends or Contacts writes.",
+  "store_isolation": "Dedicated directory under the per-user temporary root, verified by UpdateConfiguration from the actual framework.",
+  "video": "Actual before/after interaction captures with edited three-second holds, not continuous screen recording. Shows blocked Cursor, selecting simulated analyst, generated report, and blocked Grok with saved report retained. The transient picker menu is not visible in screenshot API; selection before/after is shown.",
+  "limits": "Incoming synthetic replies are not restored after fixture relaunch. Grok saved-report capture therefore has waiting/stale labels; launch rejection is proven by executable regressions, not that screenshot alone. Regular-instance view was excluded from evidence.",
+  "source_sha256": {
+    "msgblast/App/PersonalAgentController.swift": "f4fae45ab3b0152f9da7c35f1084d22fdfde6fc4d0354fa4929c83a2153e1c63",
+    "msgblast/Windows/PersonalAgentView.swift": "548fec62cb49eeb9e6cc18476045f0343046ec4e2bc1454932ff3414a3a360ea",
+    "msgblast/Windows/WindowCoordinator.swift": "3e9d378310600228fdee1b73f3b7b78955995a11ae6cc3bc7a57c2d16173872b",
+    "msgblast/Core/LocalPersonalAgent.swift": "9c05e636fa88a2d67b7d2918a1a8c56a6df4d71b5aeff469fa164b0eda7086ae",
+    "msgblastTests/PersonalAgentTests.swift": "873608fbe1cc9b4fa7cd5c28d945f7f08a4b5500c5b7f6ccc49ad8a959ecbe86"
+  },
+  "ui_controller_view_unchanged_by_grok_fix": true,
+  "validation": {
+    "core_tests": 60,
+    "python_release_tests": 32,
+    "controller_shutdown_and_persistence": "passed before/after Grok fix",
+    "real_sparkle_cases": 4,
+    "grok_red": {
+      "failed_tests": 2,
+      "launch_marker_executed": true
+    },
+    "grok_green": "Full60 core tests pass; discovery, adapter, arguments and process launch rejected; saved raw values/reports decode.",
+    "security_followup": "P1 closure independently verified; no new gate holes found.",
+    "native_automatic": "Not executed; macOS authentication blocked prior runner initialization. Manual native workflow captured.",
+    "live_remaining_cli_enforcement": "Unverified; transport fixtures and primary docs/local help only."
+  }
+}

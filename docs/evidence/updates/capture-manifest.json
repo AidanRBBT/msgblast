@@ -1,0 +1,24 @@
+{
+  "branch": "codex/sparkle-updates",
+  "source_sha256": {
+    "msgblast/App/AppUpdater.swift": "24ebcd6de9d0a1089c3a5220dc7d6a18a074bbc87dbeb2a9d4e98ed63df8a566",
+    "msgblast/App/msgblastApp.swift": "1648ad56bf2dffd916bebfe031d0b232f679f804d947d5bace25a9bb33b87e37",
+    "msgblast/App/AppModel.swift": "872f21d58732afb9e0008cc2ea4c812099b091e0672b3aa1253380ead38dac4b",
+    "msgblast/App/UpdateProbe.swift": "deaeaac0048a15f00fc5acacb3fd24e8599f05035a4a0d5e9c4f677dca9fcab9",
+    "msgblast/Windows/Views.swift": "021601820c2c5c987159bc159a0e16549ac2444b56dfa002ad55eab5fe7bf083",
+    "msgblast/Core/UpdateConfiguration.swift": "2a3ea05d8e0f2ae491cf506c7893941a5e921b0f1a9613a500c0350acc458053",
+    "msgblast/Core/UpdateTermination.swift": "c6c9b212da15fa9c920e0562c3fdd022ac4321f9015c2ed28b07236ddf3d8238",
+    "scripts/test_updates.py": "303daa37f959c3c13f4eaae115d214ea10cd5772ceb6037f8184f67f18982776",
+    ".github/workflows/release-adhoc.yml": "d680e204dbfd8a088da389fe6d3fbc95f6929307c03ccfa30c2f537328d3a729",
+    "README.md": "1d3d341e9655039385c0fd019cc613609c98e3f7c28aef2b77d76ba8e727a9a6",
+    "msgblast/AppIconDemo.icon/icon.json": "3eb16439e00e58d3dd076170eb59aeb7d0c363bbab97b808826eb4a578c2a5bf"
+  },
+  "capture": "Refreshed actual CUA native app screenshots after fixture-icon correction; video uses condensed screenshot holds; synthetic signed localhost fixture",
+  "version_before": "0.1.1 (1)",
+  "version_after": "0.1.2 (2)",
+  "preferences_retained": true,
+  "draft_and_attachment_retained": true,
+  "macos_only": true,
+  "fixture_icon": "AppIconDemo; blue saved exploration 32; source precondition enforced before creating fixtures",
+  "reviewed_base_sha": "5a4c9e4d371a80f043903514ae3b95a9ee00cd71"
+}
