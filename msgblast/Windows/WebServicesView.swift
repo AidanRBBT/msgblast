@@ -35,13 +35,6 @@ struct AgentsWorkspaceView: View {
     var body: some View {
         VStack(spacing: 0) {
             if showingComparison {
-                HStack {
-                    Button { showingComparison = false; web.setComparison(nil) } label: { Label("New comparison", systemImage: "plus") }
-                        .accessibilityLabel("New comparison").disabled(busy)
-                    Spacer()
-                    Text(web.fixture ? "Local fixture · no real sends" : model.demo ? "Live web agents · simulated Messages" : "")
-                        .font(.caption).foregroundStyle(.secondary)
-                }.padding(10)
                 comparisonPanes
             } else {
                 agentPicker
@@ -52,6 +45,18 @@ struct AgentsWorkspaceView: View {
         .background(Color(nsColor: .textBackgroundColor))
         .overlay { if showingConnectionIntro { connectionIntro } }
         .task { web.connectSelected() }
+        .toolbar {
+            ToolbarItem(placement: .navigation) {
+                Button {
+                    showingConnectionIntro = false
+                    showingComparison = false
+                    web.setComparison(nil)
+                } label: {
+                    Label("New Blast", systemImage: "plus").labelStyle(.titleAndIcon)
+                }
+                .accessibilityLabel("New Blast").disabled(busy)
+            }
+        }
     }
 
     private var connectionIntro: some View {

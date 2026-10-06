@@ -251,7 +251,7 @@ struct MainView: View {
     }
     private var demoControls: some View {
         HStack(spacing: 14) {
-            Label("Simulated", systemImage: "testtube.2").foregroundStyle(.orange)
+            Label(model.webAgents.fixture ? "Local fixture · no real sends" : "Live web agents · simulated Messages", systemImage: "testtube.2").foregroundStyle(.orange)
             Toggle("Simulate one failure", isOn: $model.demoFailureOnce).toggleStyle(.checkbox)
             Spacer()
             Button("Reset sample data") { model.resetDemo() }
