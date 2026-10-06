@@ -14,6 +14,10 @@ The initial request includes any saved local transcript; later requests send jus
 
 An incomplete or canceled provider request can consume usage without returning a reply. Its saved receipt blocks automatic continuation until you explicitly acknowledge it. Quit waits for active broadcasts and cleans up outstanding native request processes. Fixtures simulate replies and session IDs and never call the real CLIs or provider services.
 
+Validation: the 103-test full unit suite, 22 focused account/conversation tests, app-model/lifecycle fixtures, and the native reopen/follow-up UI test passed. The focused tests cover stable per-comparison working directories, exact session-ID reuse, malformed/missing/mismatched metadata, post-start cancellation, explicit recovery, reopening transcripts, and restoring drafts through the new-comparison screen. Native UI assertions verify that selected ChatGPT/Claude panes contain no WebKit views. These fixture results do not prove live provider-owned session creation, authentication, usage accounting, or resume after a provider CLI update. No live login or inference was performed for this validation.
+
+Session handling follows [Codex non-interactive mode](https://developers.openai.com/codex/noninteractive) and [Claude Code programmatic conversations](https://code.claude.com/docs/en/headless#continue-conversations). Existing chats from the provider websites and unrelated CLI sessions are not imported by this change.
+
 ## Comparison reports
 
 Click **Summarize** in the top-right toolbar of a comparison window, a separate conversation window, or the floating shared composer. A separate, resizable **Comparison report** window opens and starts the personal agent selected last time (or the first detected CLI on first use). The report leads with **Best next action** and its reasoning, then compares the responses and lists open questions. Select a different personal agent in the report window and click **Update report** to use it.

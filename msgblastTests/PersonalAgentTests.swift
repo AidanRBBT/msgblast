@@ -35,14 +35,24 @@ final class PersonalAgentTests: XCTestCase {
         session.connect(); await session.refresh()
         let id = UUID()
         let sending = Task { await session.send("Pending", comparisonID: id) }
-        while !session.isSending { await Task.yield() }
+        for _ in 0..<100 {
+            if session.state.attempts.first?.status == .attempting { break }
+            await Task.yield()
+        }
+        XCTAssertEqual(session.state.attempts.first?.status, .attempting)
         await session.cancelAndWait()
         let attempt = await sending.value
-        XCTAssertTrue([WebSendStatus.notSent, .uncertain].contains(try XCTUnwrap(attempt?.status)))
+        XCTAssertEqual(attempt?.status, .uncertain)
         XCTAssertFalse(session.isSending)
         XCTAssertTrue(session.snapshot.messages.isEmpty)
         let afterShutdown = await session.send("No request after shutdown", comparisonID: id)
         XCTAssertNil(afterShutdown)
+        let reopened = WebAgentSession(provider: .chatgpt, storageURL: directory.appendingPathComponent("chat.json"), fixture: true)
+        let blocked = await reopened.send("Continue", comparisonID: id)
+        XCTAssertNil(blocked)
+        reopened.acknowledgeIncompleteRequest()
+        let continued = await reopened.send("Continue", comparisonID: id)
+        XCTAssertEqual(continued?.status, .observed)
     }
 
     @MainActor
@@ -51,10 +61,11 @@ final class PersonalAgentTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: directory) }
         for provider in [PersonalAgentProvider.codex, .claude] {
             let sessionID = "00000000-0000-0000-0000-000000000001"
-            let output = provider == .codex ? "printf 'A conversational reply' > answer.txt\nprintf '%s' '{\"type\":\"thread.started\",\"thread_id\":\"\(sessionID)\"}'" : "printf '%s' '{\"result\":\"A conversational reply\",\"is_error\":false,\"session_id\":\"\(sessionID)\"}'"
-            try executable(provider.executable, script: "/bin/cat > received.txt\n/usr/bin/grep -q 'Earlier reply' received.txt || exit 8\n/usr/bin/grep -q 'Follow-up' received.txt || exit 9\n" + output, in: directory)
+            let output = provider == .codex ? "previous=\nfor argument in \"$@\"; do\nif [ \"$previous\" = '--output-last-message' ]; then answer_file=\"$argument\"; fi\nprevious=\"$argument\"\ndone\nprintf 'A conversational reply' > \"$answer_file\"\nprintf '%s' '{\"type\":\"thread.started\",\"thread_id\":\"\(sessionID)\"}'" : "printf '%s' '{\"result\":\"A conversational reply\",\"is_error\":false,\"session_id\":\"\(sessionID)\"}'"
+            let workingDirectory = directory.appendingPathComponent("stable workspace/" + provider.rawValue, isDirectory: true)
+            try executable(provider.executable, script: "/bin/pwd > working-directory.txt\n/bin/cat > received.txt\n/usr/bin/grep -q 'Earlier reply' received.txt || exit 8\n/usr/bin/grep -q 'Follow-up' received.txt || exit 9\n" + output, in: directory)
             let agent = InstalledPersonalAgent(provider: provider, executableURL: directory.appendingPathComponent(provider.executable), path: "/usr/bin:/bin")
-            let result = try await LocalPersonalAgent.reply(to: [WebPageMessage(role: "assistant", text: "Earlier reply"), WebPageMessage(role: "user", text: "Follow-up")], using: agent)
+            let result = try await LocalPersonalAgent.reply(to: [WebPageMessage(role: "assistant", text: "Earlier reply"), WebPageMessage(role: "user", text: "Follow-up")], using: agent, workingDirectory: workingDirectory)
             XCTAssertEqual(result.text, "A conversational reply")
             XCTAssertEqual(result.sessionID, sessionID)
             let resumedArgs = try provider.arguments(in: directory, persistentConversation: true, sessionID: sessionID)
@@ -64,9 +75,31 @@ final class PersonalAgentTests: XCTestCase {
             XCTAssertFalse(resumedArgs.contains("--no-session-persistence"))
             XCTAssertTrue(resumedArgs.contains(provider == .codex ? "--ignore-user-config" : "--tools"))
             XCTAssertTrue(resumedArgs.contains(provider == .codex ? "features.shell_tool=false" : "dontAsk"))
-            try executable(provider.executable, script: "/bin/cat > received.txt\ntest \"$(/bin/cat received.txt)\" = 'Continue the same thread' || exit 9\n" + output, in: directory)
-            let resumed = try await LocalPersonalAgent.reply(to: [WebPageMessage(role: "user", text: "Continue the same thread")], using: agent, sessionID: sessionID)
+            let initialDirectory = try String(contentsOf: workingDirectory.appendingPathComponent("working-directory.txt"), encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)
+            XCTAssertEqual(URL(fileURLWithPath: initialDirectory).resolvingSymlinksInPath().path, workingDirectory.resolvingSymlinksInPath().path)
+            try executable(provider.executable, script: "found_session=0\nfor argument in \"$@\"; do if [ \"$argument\" = '\(sessionID)' ]; then found_session=1; fi; done\ntest \"$found_session\" = 1 || exit 8\n/bin/pwd > resumed-directory.txt\n/bin/cat > received.txt\ntest \"$(/bin/cat received.txt)\" = 'Continue the same thread' || exit 9\n" + output, in: directory)
+            let resumed = try await LocalPersonalAgent.reply(to: [WebPageMessage(role: "user", text: "Continue the same thread")], using: agent, sessionID: sessionID, workingDirectory: workingDirectory)
             XCTAssertEqual(resumed.sessionID, sessionID)
+            let resumedDirectory = try String(contentsOf: workingDirectory.appendingPathComponent("resumed-directory.txt"), encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)
+            XCTAssertEqual(URL(fileURLWithPath: resumedDirectory).resolvingSymlinksInPath().path, workingDirectory.resolvingSymlinksInPath().path)
+        }
+    }
+
+    @MainActor
+    func testConversationRejectsMissingMalformedAndMismatchedSessionMetadata() async throws {
+        let directory = try fixtureDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let expectedID = "00000000-0000-0000-0000-000000000001"
+        for provider in [PersonalAgentProvider.codex, .claude] {
+            for returnedID in ["", "malformed", "00000000-0000-0000-0000-000000000002"] {
+                let output = provider == .codex ? "printf 'Reply' > answer.txt\nprintf '%s' '{\"type\":\"thread.started\",\"thread_id\":\"\(returnedID)\"}'" : "printf '%s' '{\"result\":\"Reply\",\"is_error\":false,\"session_id\":\"\(returnedID)\"}'"
+                try executable(provider.executable, script: output, in: directory)
+                let agent = InstalledPersonalAgent(provider: provider, executableURL: directory.appendingPathComponent(provider.executable), path: "/usr/bin:/bin")
+                do {
+                    _ = try await LocalPersonalAgent.reply(to: [WebPageMessage(role: "user", text: "Continue")], using: agent, sessionID: expectedID)
+                    XCTFail("A mismatched or absent session must not be accepted")
+                } catch PersonalAgentError.invalidResponse { }
+            }
         }
     }
 
