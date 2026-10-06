@@ -1,0 +1,17 @@
+{
+  "0.4.3": [
+    "Send one prompt and compare your agents’ replies side by side.",
+    "Keep each Blast and its follow-ups together.",
+    "Sign in without losing your prompt or existing drafts."
+  ],
+  "0.5.0": [
+    "ChatGPT and Claude website chats are selected by default.",
+    "Add optional Codex and Claude Code agents in Settings.",
+    "Switch accounts and navigate saved comparisons more easily."
+  ],
+  "0.5.1": [
+    "Codex and Claude Code now use your configured skills and tools.",
+    "Existing conversations keep their history and drafts.",
+    "Updated the green app icon."
+  ]
+}

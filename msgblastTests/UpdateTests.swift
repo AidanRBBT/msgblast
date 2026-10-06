@@ -2,6 +2,44 @@ import XCTest
 import msgblastCore
 
 final class UpdateTests: XCTestCase {
+    func testReleaseHistoryShowsOnlyInstalledAndEarlierVersionsInNumericOrder() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        for version in ["0.1.0", "0.5.1", "0.6.0", "0.10.0", "1.0.0", "draft"] {
+            try "# msgblast \(version)\n\n- Changes for \(version)".write(to: directory.appendingPathComponent("\(version).md"), atomically: true, encoding: .utf8)
+        }
+        try "{\"0.10.0\":[\"Short highlight\"]}".write(to: directory.appendingPathComponent("highlights.json"), atomically: true, encoding: .utf8)
+        try "[\"0.1.0\"]".write(to: directory.appendingPathComponent("unpublished.json"), atomically: true, encoding: .utf8)
+        let history = ReleaseHistory(directory: directory, installedVersion: "0.10.0")
+        XCTAssertEqual(history.entries.map(\.version), ["0.10.0", "0.6.0", "0.5.1"])
+        XCTAssertEqual(history.current?.version, "0.10.0")
+        XCTAssertTrue(history.current?.notes.contains("Changes for 0.10.0") == true)
+        XCTAssertEqual(history.current?.highlights, ["Short highlight"])
+        XCTAssertEqual(history.entries.last?.highlights, ["Changes for 0.5.1"])
+        let missing = ReleaseHistory(directory: directory, installedVersion: "0.9.0")
+        XCTAssertNil(missing.current, "Do not label an older release as the installed version")
+        XCTAssertEqual(missing.entries.map(\.version), ["0.6.0", "0.5.1"])
+    }
+
+    func testReleaseHighlightsStayShortAndPreserveContributorCredits() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let notes = "# msgblast 0.6.0\n\n- One\n- Two\n- Three\n- Details\n\n## Contributors\n\nThanks to [@helper](https://github.com/helper)."
+        try notes.write(to: directory.appendingPathComponent("0.6.0.md"), atomically: true, encoding: .utf8)
+        let entry = try XCTUnwrap(ReleaseHistory(directory: directory, installedVersion: "0.6.0").current)
+        XCTAssertEqual(entry.highlights, ["One", "Two", "Three"])
+        XCTAssertEqual(entry.contributors, "Thanks to [@helper](https://github.com/helper).")
+        XCTAssertTrue(entry.notes.contains("Details"), "The full notes remain available")
+    }
+
+    func testReleaseHistoryHandlesUnavailableNotes() {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        XCTAssertTrue(ReleaseHistory(directory: directory, installedVersion: "0.6.0").entries.isEmpty)
+        XCTAssertTrue(ReleaseHistory(directory: directory, installedVersion: "Unknown").entries.isEmpty)
+    }
+
     private let key = Data(repeating: 7, count: 32).base64EncodedString()
     private func configuration(_ feed: String = "https://updates.example.com/appcast.xml", id: String = "com.msgblast.mac", demo: Bool = false, args: [String] = [], fixture: Bool = false, allowFixture: Bool = false, app: Bool = true) -> UpdateConfiguration {
         UpdateConfiguration(bundleURL: URL(fileURLWithPath: app ? "/Applications/msgblast.app" : "/tmp/msgblast"), bundleIdentifier: id,
