@@ -1,0 +1,30 @@
+{
+  "status": "complete",
+  "verdict": "Ready to merge within the reviewed scope",
+  "base": "f5d34a29425279851bf5142ef9918025e3241f3d",
+  "scope": [
+    "msgblast/Core/WebAgentSession.swift",
+    "msgblast/Core/WebPageScript.swift",
+    "msgblast/Windows/WebServicesView.swift",
+    "msgblastTests/MultiWebAgentTests.swift",
+    "msgblastUITests/WebServiceWorkflowTests.swift"
+  ],
+  "intent": "Confirm current ChatGPT sends, remove redundant Open buttons, keep only the embedded ChatGPT sidebar initially closed, and clear recovered comparison-readiness warnings.",
+  "reviewers": [
+    "correctness",
+    "independent adversarial fallback"
+  ],
+  "findings": [],
+  "coverage": {
+    "depth": "focused",
+    "criteria": [
+      "AGENTS.md"
+    ],
+    "independent_read": "Two local read-only passes: complete five-file diff, then readiness-recovery delta. No external export or cross-model coverage.",
+    "tests": "116 XCTest cases pass; automated UI suite not run. Native final app inspected through CUA."
+  },
+  "limits": [
+    "New sends after the final transcript change use local WebKit fixtures. The existing live ChatGPT send was inspected read-only and its one uncertain receipt manually reconciled with a backup.",
+    "Future website changes and long-running background operation remain unverified."
+  ]
+}

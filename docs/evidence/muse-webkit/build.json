@@ -1,0 +1,13 @@
+{
+  "sourceSHA256": "1474f562ea5f8aa933fa95de24e77ce246b0193a0720c28e19726433f5e8c02d",
+  "scope": "All MsgBlast Swift files, Info.plist, and build_web_preview.sh",
+  "coreTests": {
+    "passed": 52,
+    "failed": 0,
+    "skipped": 0,
+    "resultBundle": "Test-MsgBlast-2026.10.02_13-15-42--0700.xcresult"
+  },
+  "uiAutomation": "blocked by macOS testing authorization/helper timeout",
+  "directUI": "passed synthetic shared send, reply display, retained draft, and Messages-only retry",
+  "evidence": "actual final fixture app screenshots; MP4 is sampled frames with edited timing"
+}

@@ -7,6 +7,11 @@ struct msgblastApp: App {
     @StateObject private var startup = AppStartup()
     private var model: AppModel? { startup.model }
     @StateObject private var updater = AppUpdater()
+    private let preferredWindowSize = NSSize(width: 1600, height: 1100)
+    private var initialWindowSize: NSSize {
+        let screen = NSScreen.main?.visibleFrame.size ?? preferredWindowSize
+        return NSSize(width: min(preferredWindowSize.width, screen.width), height: min(preferredWindowSize.height, screen.height))
+    }
     var body: some Scene {
         WindowGroup("msgblast") {
             Group {
@@ -14,8 +19,8 @@ struct msgblastApp: App {
                 else if let model {
                     MainView(model: model).onAppear { lifecycle.configure(model: model); updater.configure(delegate: lifecycle); if model.coordinator == nil { model.coordinator = WindowCoordinator(model: model) } }
                 }
-            }
-        }.defaultSize(width: 920, height: 660).windowToolbarStyle(.unified)
+            }.background(InitialWindowFrame(size: preferredWindowSize))
+        }.defaultSize(width: initialWindowSize.width, height: initialWindowSize.height).windowToolbarStyle(.unified)
         .commands {
             CommandGroup(after: .appInfo) {
                 Button("Check for Updates…") { updater.checkForUpdates() }
@@ -68,5 +73,35 @@ private final class AppStartup: ObservableObject {
         // Keep comparison menus in sync without constructing the model for an
         // uninstalled copy (its initializer starts Messages history polling).
         observation = model?.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
+    }
+}
+
+// Apply the launch size once, after SwiftUI restores the window's previous frame.
+// Subsequent user resizing is left alone.
+private struct InitialWindowFrame: NSViewRepresentable {
+    let size: NSSize
+    func makeNSView(context: Context) -> InitialWindowSizingView {
+        let view = InitialWindowSizingView()
+        view.preferredSize = size
+        return view
+    }
+    func updateNSView(_ nsView: InitialWindowSizingView, context: Context) {}
+}
+
+private final class InitialWindowSizingView: NSView {
+    var preferredSize = NSSize(width: 1600, height: 1100)
+    private var applied = false
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        guard let window, !applied else { return }
+        applied = true
+        let size = preferredSize
+        DispatchQueue.main.async { [weak window] in
+            guard let window, let screen = window.screen ?? NSScreen.main else { return }
+            let bounds = screen.visibleFrame
+            let width = min(size.width, bounds.width), height = min(size.height, bounds.height)
+            window.setFrame(NSRect(x: bounds.midX - width / 2, y: bounds.midY - height / 2,
+                                   width: width, height: height), display: true)
+        }
     }
 }

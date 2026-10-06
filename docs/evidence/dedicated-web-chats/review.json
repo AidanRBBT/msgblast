@@ -1,0 +1,47 @@
+{
+  "status": "complete",
+  "verdict": "Ready to merge",
+  "scope": {
+    "base": "5d467de0343f09ef65805672daf1c70eba0ae933",
+    "branch": "codex/webkit-services",
+    "head_sha": "5d467de0343f09ef65805672daf1c70eba0ae933",
+    "pr_url": null,
+    "files_changed": 9
+  },
+  "intent": "Give each selected web service a dedicated saved conversation per comparison; restore its original conversation on follow-up and reopening, while preserving legacy Muse mappings and persistent WebKit login IDs.",
+  "intent_confidence": "explicit",
+  "reviewers": [
+    "correctness",
+    "adversarial"
+  ],
+  "findings": [],
+  "actionable_findings": [],
+  "triage_groups": [],
+  "pre_existing_findings": [],
+  "requirements_completeness": null,
+  "learnings": [],
+  "agent_native_gaps": [],
+  "deployment_notes": [],
+  "residual_risks": [
+    "Authenticated provider behavior remains unverified. Fixtures do not establish real-provider URL assignment, server-side history restoration, or login/redirect behavior."
+  ],
+  "testing_gaps": [],
+  "coverage": {
+    "depth": "focused",
+    "criteria": [
+      "AGENTS.md (instruction-file fallback; applies to all changed files)"
+    ],
+    "scope": "local-aligned working tree",
+    "adversarial": "Separate local reviewer context; same model family, not cross-model. External private-code export route was rejected earlier by automatic approval review; no peer job started.",
+    "plan": "No matching plan; explicit conversational intent reviewed.",
+    "not_assessed": [
+      "learnings",
+      "agent-native gaps",
+      "deployment notes",
+      "compound packs"
+    ],
+    "validator": "No validator dispatched on focused path."
+  },
+  "artifact_path": "/tmp/compound-engineering-501/ce-code-review/20261005-193926-eb31dbd2",
+  "run_id": "20261005-193926-eb31dbd2"
+}

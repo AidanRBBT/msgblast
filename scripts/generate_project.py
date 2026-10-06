@@ -23,11 +23,13 @@ icon = obj('msgblast/AppIcon.icon', '{isa = PBXFileReference; lastKnownFileType 
 demo_icon = obj('msgblast/AppIconDemo.icon', '{isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = "msgblast/AppIconDemo.icon"; sourceTree = SOURCE_ROOT;}')
 notice = obj('msgblast/ThirdPartyNotices.txt', '{isa = PBXFileReference; lastKnownFileType = text; path = "msgblast/ThirdPartyNotices.txt"; sourceTree = SOURCE_ROOT;}')
 discover = obj('msgblast/Resources/Discover', '{isa = PBXFileReference; lastKnownFileType = folder; path = "msgblast/Resources/Discover"; sourceTree = SOURCE_ROOT;}')
+muse_avatar = obj('msgblast/Resources/MuseAvatar.jpg', '{isa = PBXFileReference; lastKnownFileType = image.jpeg; path = "msgblast/Resources/MuseAvatar.jpg"; sourceTree = SOURCE_ROOT;}')
+web_agent_icons = obj('msgblast/Resources/WebAgentIcons', '{isa = PBXFileReference; lastKnownFileType = folder; path = "msgblast/Resources/WebAgentIcons"; sourceTree = SOURCE_ROOT;}')
 products = {}
 for name, kind, ext in [('msgblastCore','wrapper.framework','.framework'),('msgblast','wrapper.application','.app'),('msgblastTests','wrapper.cfbundle','.xctest'),('msgblastUITests','wrapper.cfbundle','.xctest')]:
     products[name] = obj(name+'product', '{isa = PBXFileReference; explicitFileType = '+kind+'; path = '+name+ext+'; sourceTree = BUILT_PRODUCTS_DIR;}')
 product_group = obj('products', '{isa = PBXGroup; name = Products; sourceTree = "<group>"; children = '+seq(list(products.values()))+';}')
-main_group = obj('mainGroup', '{isa = PBXGroup; sourceTree = "<group>"; children = '+seq(list(files.values())+[icon, demo_icon, notice, discover, product_group])+';}')
+main_group = obj('mainGroup', '{isa = PBXGroup; sourceTree = "<group>"; children = '+seq(list(files.values())+[icon, demo_icon, notice, discover, muse_avatar, web_agent_icons, product_group])+';}')
 sparkle_package = obj('SparklePackage', '{isa = XCRemoteSwiftPackageReference; repositoryURL = "https://github.com/sparkle-project/Sparkle"; requirement = {kind = exactVersion; version = 2.10.0;};}')
 sparkle_product = obj('SparkleProduct', '{isa = XCSwiftPackageProductDependency; package = '+sparkle_package+'; productName = Sparkle;}')
 targets = {}
@@ -52,12 +54,14 @@ for name in products:
     if name == 'msgblastCore':
         settings.update({'DEFINES_MODULE':'YES', 'DYLIB_INSTALL_NAME_BASE':'"@rpath"', 'SKIP_INSTALL':'YES', 'OTHER_LDFLAGS':'"$(inherited) -lsqlite3"'})
     if name == 'msgblast':
-        settings.update({'GENERATE_INFOPLIST_FILE':'NO', 'INFOPLIST_FILE':'msgblast/Info.plist', 'CODE_SIGN_ENTITLEMENTS':'msgblast/msgblast.entitlements', 'MSGBLAST_APP_BUNDLE_IDENTIFIER':'com.msgblast.mac', 'PRODUCT_BUNDLE_IDENTIFIER':'"$(MSGBLAST_APP_BUNDLE_IDENTIFIER)"', 'ASSETCATALOG_COMPILER_APPICON_NAME':'AppIcon', 'MARKETING_VERSION':'0.1.0', 'CURRENT_PROJECT_VERSION':'1', 'SPARKLE_FEED_URL':'""', 'SPARKLE_PUBLIC_ED_KEY':'""'})
+        settings.update({'GENERATE_INFOPLIST_FILE':'NO', 'INFOPLIST_FILE':'msgblast/Info.plist', 'CODE_SIGN_ENTITLEMENTS':'msgblast/msgblast.entitlements', 'MSGBLAST_APP_BUNDLE_IDENTIFIER':'com.msgblast.mac', 'PRODUCT_BUNDLE_IDENTIFIER':'"$(MSGBLAST_APP_BUNDLE_IDENTIFIER)"', 'ASSETCATALOG_COMPILER_APPICON_NAME':'AppIcon', 'MARKETING_VERSION':'0.3.0', 'CURRENT_PROJECT_VERSION':'1', 'SPARKLE_FEED_URL':'""', 'SPARKLE_PUBLIC_ED_KEY':'""'})
         icon_build = obj('appIconBuild', '{isa = PBXBuildFile; fileRef = '+icon+';}')
         demo_icon_build = obj('demoAppIconBuild', '{isa = PBXBuildFile; fileRef = '+demo_icon+';}')
         notice_build = obj('thirdPartyNoticeBuild', '{isa = PBXBuildFile; fileRef = '+notice+';}')
         discover_build = obj('discoverResourcesBuild', '{isa = PBXBuildFile; fileRef = '+discover+';}')
-        phases.append(obj('appResources', '{isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = '+seq([icon_build, demo_icon_build, notice_build, discover_build])+'; runOnlyForDeploymentPostprocessing = 0;}'))
+        muse_avatar_build = obj('museAvatarBuild', '{isa = PBXBuildFile; fileRef = '+muse_avatar+';}')
+        web_agent_icons_build = obj('webAgentIconsBuild', '{isa = PBXBuildFile; fileRef = '+web_agent_icons+';}')
+        phases.append(obj('appResources', '{isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = '+seq([icon_build, demo_icon_build, notice_build, discover_build, muse_avatar_build, web_agent_icons_build])+'; runOnlyForDeploymentPostprocessing = 0;}'))
         embed = obj('embedCoreBuild','{isa = PBXBuildFile; fileRef = '+products['msgblastCore']+'; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy,);};}')
         phases.append(obj('embedCore','{isa = PBXCopyFilesBuildPhase; buildActionMask = 2147483647; dstPath = ""; dstSubfolderSpec = 10; files = '+seq([embed])+'; name = "Embed Frameworks"; runOnlyForDeploymentPostprocessing = 0;}'))
     config = configs(name, settings)

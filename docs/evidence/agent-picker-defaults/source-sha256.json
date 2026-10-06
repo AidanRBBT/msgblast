@@ -1,0 +1,7 @@
+{
+  "msgblast/Core/WebServices.swift": "0b5eb916ae5cb809fa8293e93918f873809480db5a12a7e087abd869e2538ce1",
+  "msgblast/Windows/WebServicesView.swift": "3e74fa0e312a87796072cf6fb77872691ee9bb6a4eac91c1d827893c6304da65",
+  "msgblastTests/MultiWebAgentTests.swift": "34c4cc3988de7ad1d20cd48e4a904aba798f7d187add8895ce6ea6d21927698b",
+  "msgblastUITests/WebServiceWorkflowTests.swift": "c486a7c7404d7397db96d96387e7299b1ee1d3747e052e77e08d6e815e283f72",
+  "README.md": "e585445a69eff4687431ef0094800eb202f2909a50abb4dfb23c4e7588ca06da"
+}

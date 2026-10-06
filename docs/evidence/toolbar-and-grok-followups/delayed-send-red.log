@@ -1,0 +1,15 @@
+Test Suite 'Selected tests' started at 2026-10-05 23:31:52.681.
+Test Suite 'msgblastTests.xctest' started at 2026-10-05 23:31:52.683.
+Test Suite 'MultiWebAgentTests' started at 2026-10-05 23:31:52.683.
+Test Case '-[msgblastTests.MultiWebAgentTests testGrokFollowUpWaitsForSubmitToBecomeEnabledAndClicksOnce]' started.
+/Users/contains/.codex/worktrees/webkit-services/msgblast/msgblastTests/MultiWebAgentTests.swift:331: error: -[msgblastTests.MultiWebAgentTests testGrokFollowUpWaitsForSubmitToBecomeEnabledAndClicksOnce] : XCTAssertEqual failed: ("Optional(msgblastCore.WebSendStatus.notSent)") is not equal to ("Optional(msgblastCore.WebSendStatus.observed)")
+/Users/contains/.codex/worktrees/webkit-services/msgblast/msgblastTests/MultiWebAgentTests.swift:332: error: -[msgblastTests.MultiWebAgentTests testGrokFollowUpWaitsForSubmitToBecomeEnabledAndClicksOnce] : XCTAssertEqual failed: ("nil") is not equal to ("Optional(https://grok.com/c/0256a772-3db8-4586-b97d-2d29f596e0cd)")
+/Users/contains/.codex/worktrees/webkit-services/msgblast/msgblastTests/MultiWebAgentTests.swift:334: error: -[msgblastTests.MultiWebAgentTests testGrokFollowUpWaitsForSubmitToBecomeEnabledAndClicksOnce] : XCTAssertEqual failed: ("Optional(0)") is not equal to ("Optional(1)")
+/Users/contains/.codex/worktrees/webkit-services/msgblast/msgblastTests/MultiWebAgentTests.swift:335: error: -[msgblastTests.MultiWebAgentTests testGrokFollowUpWaitsForSubmitToBecomeEnabledAndClicksOnce] : XCTAssertEqual failed: ("["First question"]") is not equal to ("["First question", "Delayed follow-up"]")
+Test Case '-[msgblastTests.MultiWebAgentTests testGrokFollowUpWaitsForSubmitToBecomeEnabledAndClicksOnce]' failed (1.936 seconds).
+Test Suite 'MultiWebAgentTests' failed at 2026-10-05 23:31:54.619.
+	 Executed 1 test, with 4 failures (0 unexpected) in 1.936 (1.936) seconds
+Test Suite 'msgblastTests.xctest' failed at 2026-10-05 23:31:54.619.
+	 Executed 1 test, with 4 failures (0 unexpected) in 1.936 (1.936) seconds
+Test Suite 'Selected tests' failed at 2026-10-05 23:31:54.619.
+	 Executed 1 test, with 4 failures (0 unexpected) in 1.936 (1.938) seconds
