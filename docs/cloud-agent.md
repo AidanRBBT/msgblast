@@ -56,7 +56,49 @@ gh run list -R mgalpert/msgblast --workflow validate.yml --limit 5
 gh run view RUN_ID -R mgalpert/msgblast --json status,conclusion,headSha,url,event
 ```
 
-Confirm `headSha` is the revision under review. Do not dispatch `release-adhoc.yml` as a test.
+Confirm `headSha` is the revision under review. On a pull request, `github.sha` is the temporary merge commit. Preview builds checkout `pull_request.head.sha` instead and record that branch head in the manifest. Do not dispatch `release-adhoc.yml` as a test.
+
+## Branch preview apps
+
+`validate.yml` builds downloadable previews when the pull request head branch starts with `cursor/` and the head repository is this one, and when someone dispatches the workflow on a chosen branch. It does not use `pull_request_target`, release secrets, the Sparkle seed, R2, the release counter, `appcast.xml`, or `latest.zip`.
+
+`scripts/build_preview_apps.py` copies the project to a temporary workspace, copies the saved blue-green icon over `AppIcon.icon` only in that workspace, and leaves the committed green `msgblast/AppIcon.icon` and blue `msgblast/AppIconDemo.icon` unchanged. It builds Debug for arm64 with signing disabled, then ad-hoc signs inside out with `msgblastDebug.entitlements` and packages each app with `ditto -c -k --sequesterRsrc --keepParent`.
+
+| Variant | App | Bundle ID | Icon | Fixture | Saved state |
+| --- | --- | --- | --- | --- | --- |
+| Development | `msgblast Dev.app` | `com.msgblast.development` | saved `32-WhiteToClearSoftFadeBlueGreen.icon`, compiled as `AppIcon` | no | `~/Library/Application Support/msgblast-Dev` |
+| Demo | `msgblast Demo.app` | `com.msgblast.demo` | saved `32-WhiteToClearSoftFadeBlue.icon` via `AppIconDemo` | yes, `msgblastDemo` true | `~/Library/Application Support/msgblast-Demo` |
+
+The demo app calls the existing simulated Cedar, Lumen, and Orbit setup because `msgblastDemo` is true. Selecting the blue icon does not do that by itself. The development app is the functional branch build and can read real Messages. Both apps clear the Sparkle feed and public key, set `msgblastDisableUpdates`, and turn automatic checks off. `AppUpdater` does not start Sparkle unless updates are enabled, and only `com.msgblast.mac` without demo mode can enable the production feed. Neither preview is named `msgblast.app`, so moving one to `/Applications` does not replace the installed production app.
+
+`UserDefaults.standard` is stored per bundle ID, so the two previews and `com.msgblast.mac` do not share preferences. The app does not use the keychain. Application Support is not derived from the bundle ID; `msgblastSupportDirectory` selects `msgblast-Dev` or `msgblast-Demo`, and any other value falls back to the production `msgblast` folder or the demo folder. Launching with the `--demo` argument still uses the shared suite `com.msgblast.demo-permissions`. Opening the downloadable demo from Finder does not pass that argument. The demo support folder is the same one local `scripts/build_demo.sh` builds already use, so those demo builds share fixture state with each other and stay separate from production and from `msgblast Dev`.
+
+A quarantined ZIP can App Translocate. Debug builds then show an install gate that names the actual app file and says to leave `msgblast.app` alone. Ad-hoc signature means the first launch may need System Settings → Privacy & Security → Open Anyway.
+
+The development app needs its own macOS permissions. They do not come from the production app, and a rebuild changes the ad-hoc code hash, so macOS may ask again:
+
+- Full Disk Access, to read `~/Library/Messages/chat.db`
+- Contacts
+- Automation for Messages
+
+The fixture app uses simulated chats and does not need those permissions for its demo data. It can still need Open Anyway.
+
+The job uploads both ZIPs and `preview-manifest.json` as `msgblast-branch-previews-<head sha>` with `retention-days: 14`. GitHub deletes them 14 days after the run. The manifest records the head SHA, variant, fixture flag, run URL, SHA-256, compiled icon sample, and run instructions. Download them from that run's artifacts. They are not published to the update host.
+
+## Pull request evidence
+
+`.github/workflows/pr-evidence.yml` runs on pull request open, synchronize, reopen, and edit. It uses the workflow from the pull request and `contents: read`. It does not use `pull_request_target`.
+
+`scripts/check_pr_evidence.py` requires:
+
+- a Screenshots section with an embedded `https` image
+- a Video section with a `<video>` embed, a `https` `.mp4`, `.webm`, or `.mov` link, or a `github.com/user-attachments` link
+- no local-only paths and no placeholder wording
+- `Evidence-SHA:` equal to the pull request head SHA
+
+Cursor branches also require both preview names, a fixture label, the Actions run URL, and a SHA-256 checksum, and they reject a production `latest.zip` or `downloads/` URL. An uploaded `.xcresult` or a screenshot-only ZIP does not satisfy the video check.
+
+The script cannot tell whether the picture shows the change. A human has to do that. Refresh the embeds when the head SHA or the demonstrated behavior changes. For this repository's native UI, capture the branch revision on an authorized isolated Mac. Ubuntu cannot record that UI, and this workflow does not claim that it did. Documentation and other nonvisual changes still need images and a playable video of the relevant terminal, API, or artifact workflow when that workflow can be recorded. State an exception in the sections when it cannot; do not leave the sections empty.
 
 ## GitHub access observed October 6, 2026
 
@@ -97,4 +139,4 @@ Follow [AGENTS.md](../AGENTS.md) and [automated-releases.md](automated-releases.
 4. Verify the run SHA and success, then the feed and `releases/VERSION-BUILD.json`. With User-Agent `msgblast-release-verifier`, confirm `latest.zip` is a no-store 302 to the manifest ZIP. Download through that URL, compare SHA-256, and inspect `Info.plist` (`msgblast`, `com.msgblast.mac`, the allocated version and build) and the compiled green icon.
 5. Do not edit the README or redeploy the worker for an app release. Ad-hoc signing is unnotarized. A failed final public check can happen after the feed upload; inspect the feed and manifest before any retry. Rollback is a new higher version and build.
 
-Production artwork is `output/icon-gradients/32-WhiteToClearSoftFade-Polished.icon`, copied to `msgblast/AppIcon.icon`. Development artwork is the blue-green duplicate. Demo and updater fixtures use `AppIconDemo`.
+Production artwork is `output/icon-gradients/32-WhiteToClearSoftFade-Polished.icon`, copied to `msgblast/AppIcon.icon`. Development artwork is the blue-green duplicate and is copied onto `AppIcon.icon` only inside the preview build workspace. Demo and updater fixtures use `AppIconDemo`. The preview job samples the compiled `AppIcon.icns` in each ZIP and fails if the development app is not blue-green or the fixture app is not blue.
