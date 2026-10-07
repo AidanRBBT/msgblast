@@ -13,7 +13,7 @@ struct msgblastApp: App {
         return NSSize(width: min(preferredWindowSize.width, screen.width), height: min(preferredWindowSize.height, screen.height))
     }
     var body: some Scene {
-        WindowGroup(Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "msgblast") {
+        WindowGroup(Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "msgblast", id: "main") {
             Group {
                 if startup.needsInstallation { InstallationView() }
                 else if let model {
@@ -22,6 +22,7 @@ struct msgblastApp: App {
             }.background(InitialWindowFrame(size: preferredWindowSize))
         }.defaultSize(width: initialWindowSize.width, height: initialWindowSize.height).windowToolbarStyle(.unified)
         .commands {
+            BlastCommands()
             CommandGroup(after: .appInfo) {
                 Button("Check for Updates…") { updater.checkForUpdates() }
                     .disabled(updater.configuration.isEnabled && !updater.canCheckForUpdates)
@@ -40,6 +41,51 @@ struct msgblastApp: App {
         }
     }
 
+}
+
+struct MainWindowActions {
+    var newBlast: () -> Void
+    var showAgents: () -> Void
+    var showDiscover: () -> Void
+    var canStartBlast: Bool
+}
+
+private struct MainWindowActionsKey: FocusedValueKey { typealias Value = MainWindowActions }
+private struct DiscoverSearchActionKey: FocusedValueKey { typealias Value = () -> Void }
+extension FocusedValues {
+    var mainWindowActions: MainWindowActions? {
+        get { self[MainWindowActionsKey.self] }
+        set { self[MainWindowActionsKey.self] = newValue }
+    }
+    var discoverSearch: (() -> Void)? {
+        get { self[DiscoverSearchActionKey.self] }
+        set { self[DiscoverSearchActionKey.self] = newValue }
+    }
+}
+
+private struct BlastCommands: Commands {
+    @Environment(\.openWindow) private var openWindow
+    @FocusedValue(\.mainWindowActions) private var actions
+    @FocusedValue(\.discoverSearch) private var find
+    var body: some Commands {
+        CommandGroup(replacing: .newItem) {
+            Button("New Blast") {
+                if let actions { actions.newBlast() }
+                else { openWindow(id: "main") }
+            }
+                .keyboardShortcut("n").disabled(actions?.canStartBlast == false)
+        }
+        CommandGroup(after: .sidebar) {
+            Button("Show Agents") { actions?.showAgents() }
+                .keyboardShortcut("1").disabled(actions == nil)
+            Button("Show Discover") { actions?.showDiscover() }
+                .keyboardShortcut("2").disabled(actions == nil)
+        }
+        CommandGroup(after: .textEditing) {
+            Button("Find in Discover…") { find?() }
+                .keyboardShortcut("f").disabled(find == nil || actions == nil)
+        }
+    }
 }
 
 @main

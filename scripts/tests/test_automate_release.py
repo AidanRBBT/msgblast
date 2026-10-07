@@ -97,10 +97,16 @@ class AutomatedReleaseTests(unittest.TestCase):
 
     def feed_bytes(self, build):
         return ("<rss xmlns:sparkle=\"http://www.andymatuschak.org/xml-namespaces/sparkle\"><channel><item>"
-                "<sparkle:version>" + str(build) + "</sparkle:version></item></channel></rss>").encode()
+                "<sparkle:version>" + str(build) + "</sparkle:version>"
+                "<sparkle:shortVersionString>0.1.1</sparkle:shortVersionString></item></channel></rss>").encode()
+
+    def published_manifest(self, build, mode="ad-hoc"):
+        self.store.objects[self.prefix + f"releases/0.1.1-{build}.json"] = json.dumps(
+            {"version": "0.1.1", "build": build, "signing_mode": mode}).encode()
 
     def snapshot(self):
         self.store.objects[self.prefix + "appcast.xml"] = self.feed_bytes(1)
+        self.published_manifest(1)
         with patch.object(auto, "verify_feed"):
             return auto.current_release(self.store, self.prefix, self.root, self.tools, self.key_file)
 
@@ -118,12 +124,50 @@ class AutomatedReleaseTests(unittest.TestCase):
             empty = auto.current_release(self.store, self.prefix, self.root, self.tools, self.key_file)
             self.assertEqual(empty["build"], 0)
             self.store.objects[self.prefix + "appcast.xml"] = self.feed_bytes(7)
+            self.published_manifest(7)
             snapshot = auto.current_release(self.store, self.prefix, self.root, self.tools, self.key_file)
         self.assertEqual(snapshot["build"], 7)
         verify.assert_called_once()
         with patch.object(self.store, "get", side_effect=auto.ReleaseError("Access denied")):
             with self.assertRaisesRegex(auto.ReleaseError, "Access denied"):
                 auto.current_release(self.store, self.prefix, self.root, self.tools, self.key_file)
+
+    def test_unknown_published_signing_history_stops_before_a_release(self):
+        self.store.objects[self.prefix + "appcast.xml"] = self.feed_bytes(1)
+        with patch.object(auto, "verify_feed"):
+            with self.assertRaisesRegex(auto.ReleaseError, "manifest"):
+                auto.current_release(self.store, self.prefix, self.root, self.tools, self.key_file)
+
+    def test_published_developer_id_cannot_downgrade_if_mode_configuration_disappears(self):
+        self.key_file.write_text(base64.b64encode(b"0" * 32).decode())
+        self.store.objects[self.prefix + "appcast.xml"] = self.feed_bytes(1)
+        self.published_manifest(1, "developer-id")
+        environment = {"MSGBLAST_PUBLIC_BASE_URL": self.base, "MSGBLAST_ED_KEY_FILE": str(self.key_file),
+            "MSGBLAST_SPARKLE_BIN": str(self.tools), "MSGBLAST_PUBLIC_KEY": "fixture-public-key",
+            "MSGBLAST_R2_ACCOUNT_ID": "a" * 32, "MSGBLAST_R2_BUCKET": "msgblast-releases",
+            "AWS_ACCESS_KEY_ID": "fixture-access", "AWS_SECRET_ACCESS_KEY": "fixture-secret"}
+        # Missing and empty repository variables both resolve to ad-hoc in the workflow.
+        for mode in (None, "ad-hoc"):
+            with self.subTest(mode=mode):
+                if mode is not None:
+                    environment["MSGBLAST_SIGNING_MODE"] = mode
+                with patch.dict(auto.os.environ, environment, clear=True), \
+                     patch.object(auto, "R2Store", return_value=self.store), \
+                     patch.object(auto, "verify_feed"), patch.object(auto, "reserve_build", return_value=2) as reserve, \
+                     patch.object(auto.release, "ROOT", self.root), patch.object(auto, "prepare_installer"), \
+                     patch.object(auto.release, "prepare") as prepare, \
+                     contextlib.redirect_stderr(io.StringIO()):
+                    self.assertEqual(auto.main(["--version", "0.6.1"]), 1)
+                reserve.assert_not_called()
+                prepare.assert_not_called()
+        self.assertEqual(self.store.writes, [])
+
+    def test_publisher_rejects_a_prepared_signing_downgrade_before_upload(self):
+        snapshot = self.snapshot()
+        snapshot["signing_mode"] = "developer-id"
+        with self.assertRaisesRegex(auto.ReleaseError, "downgrade"):
+            self.publish_release(snapshot)
+        self.assertEqual(self.store.writes, [])
 
     def test_counter_reservations_survive_failed_builds_without_reusing_archive_names(self):
         self.assertEqual(auto.reserve_build(self.store, self.prefix, self.root, 7), 8)
@@ -218,9 +262,16 @@ class AutomatedReleaseTests(unittest.TestCase):
         self.assertEqual(self.store.writes, [])
 
     def test_main_carries_reserved_build_feed_snapshot_revision_and_summary(self):
+        self.exercise_main("ad-hoc")
+
+    def test_developer_id_keeps_counter_feed_and_publication_contract(self):
+        self.exercise_main("developer-id")
+
+    def exercise_main(self, signing_mode):
         # A deterministic fixture seed never authenticates production artifacts.
         self.key_file.write_text(base64.b64encode(b"0" * 32).decode())
         self.store.objects[self.prefix + "appcast.xml"] = self.feed_bytes(1)
+        self.published_manifest(1)
         revision = "f" * 40
         summary = self.root / "summary.md"
         environment = {
@@ -237,6 +288,13 @@ class AutomatedReleaseTests(unittest.TestCase):
             "GITHUB_RUN_ATTEMPT": "2",
             "GITHUB_STEP_SUMMARY": str(summary),
         }
+
+        if signing_mode == "developer-id":
+            environment.update(MSGBLAST_SIGNING_MODE=signing_mode,
+                MSGBLAST_APPLE_TEAM_ID="ABCDEFGHIJ",
+                MSGBLAST_DEVELOPER_ID_IDENTITY="Developer ID Application: Example (ABCDEFGHIJ)",
+                MSGBLAST_NOTARY_PROFILE="fixture-notary",
+                MSGBLAST_NOTARY_KEYCHAIN=str(self.root / "signing.keychain-db"))
 
         def prepare(options):
             publish = options.output / "publish"
@@ -268,15 +326,35 @@ class AutomatedReleaseTests(unittest.TestCase):
             self.assertEqual(auto.main(["--version", "v0.1.0"]), 0)
         options = preparation.call_args.args[0]
         self.assertEqual((options.build, options.previous_build), (2, 1))
-        self.assertEqual(options.signing_mode, "ad-hoc")
-        self.assertIsNone(options.identity)
-        self.assertIsNone(options.notary_profile)
+        self.assertEqual(options.signing_mode, signing_mode)
+        if signing_mode == "developer-id":
+            self.assertEqual(options.identity, environment["MSGBLAST_DEVELOPER_ID_IDENTITY"])
+            self.assertEqual(options.team_id, "ABCDEFGHIJ")
+            self.assertEqual(options.notary_profile, "fixture-notary")
+            self.assertEqual(options.notary_keychain, (self.root / "signing.keychain-db").resolve())
+            self.assertIn("Developer ID", summary.read_text())
+        else:
+            self.assertIsNone(options.identity)
+            self.assertIsNone(options.notary_profile)
         self.assertEqual(options.output, (self.root / "build/releases/0.1.0-2-123-2").resolve())
         publication.assert_called_once()
         self.assertEqual(json.loads(self.store.objects[self.prefix + "release-counter.json"])["build"], 2)
         self.assertIn(revision, summary.read_text())
         self.assertIn("msgblast 0.1.0 (2) published", summary.read_text())
         self.assertIn(self.base + "downloads/msgblast-0.1.0-2.zip", summary.read_text())
+
+    def test_missing_developer_id_configuration_cannot_fall_back_or_reserve_a_build(self):
+        self.key_file.write_text(base64.b64encode(b"0" * 32).decode())
+        environment = {"MSGBLAST_SIGNING_MODE": "developer-id",
+            "MSGBLAST_PUBLIC_BASE_URL": self.base, "MSGBLAST_ED_KEY_FILE": str(self.key_file),
+            "MSGBLAST_SPARKLE_BIN": str(self.tools), "MSGBLAST_PUBLIC_KEY": "fixture-public-key",
+            "MSGBLAST_R2_ACCOUNT_ID": "a" * 32, "MSGBLAST_R2_BUCKET": "msgblast-releases",
+            "AWS_ACCESS_KEY_ID": "fixture-access", "AWS_SECRET_ACCESS_KEY": "fixture-secret"}
+        with patch.dict(auto.os.environ, environment, clear=True), \
+             patch.object(auto, "R2Store") as storage, \
+             contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(auto.main(["--version", "0.6.1"]), 1)
+        storage.assert_not_called()
 
     def test_main_rejects_malformed_key_before_storage_or_signing_without_echo(self):
         environment = {

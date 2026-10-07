@@ -20,8 +20,9 @@ final class UpdateProbe: NSObject, SPUUserDriver {
     static func verifyRelaunch() -> Never {
         let model = AppModel()
         do {
-            try model.save()
-            let data = try JSONSerialization.data(withJSONObject: ["build": Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "", "draft": model.state.draft])
+            let recovery = Bundle.main.object(forInfoDictionaryKey: "msgblastUpdateRecoveryFixture") as? Bool == true
+            if recovery { try model.saveForTermination() } else { try model.save() }
+            let data = try JSONSerialization.data(withJSONObject: ["build": Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "", "draft": model.state.draft, "recovery": recovery])
             try data.write(to: model.local.url.deletingLastPathComponent().appendingPathComponent("relaunch.json"), options: .atomic)
             exit(0)
         } catch { log("relaunch verification failed: \(error)"); exit(1) }
@@ -33,6 +34,10 @@ final class UpdateProbe: NSObject, SPUUserDriver {
         log("app initialized")
         let driver = UpdateProbe()
         log("model initialized")
+        if Bundle.main.object(forInfoDictionaryKey: "msgblastUpdateRecoveryFixture") as? Bool == true {
+            driver.model.state.draft = "New draft after unreadable state"
+            log("unreadable-state fixture; new in-memory draft entered")
+        }
         driver.lifecycle.configure(model: driver.model)
         app.delegate = driver.lifecycle
         if ProcessInfo.processInfo.arguments.contains("--update-probe-busy") {

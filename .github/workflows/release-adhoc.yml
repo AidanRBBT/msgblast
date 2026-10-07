@@ -1,4 +1,4 @@
-name: Release msgblast without Apple credentials
+name: Release msgblast
 
 on:
   push:
@@ -23,6 +23,9 @@ jobs:
     timeout-minutes: 60
     env:
       DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
+      MSGBLAST_SIGNING_MODE: ${{ vars.MSGBLAST_SIGNING_MODE || 'ad-hoc' }}
+      MSGBLAST_APPLE_TEAM_ID: ${{ vars.MSGBLAST_APPLE_TEAM_ID }}
+      MSGBLAST_DEVELOPER_ID_IDENTITY: ${{ vars.MSGBLAST_DEVELOPER_ID_IDENTITY }}
       MSGBLAST_RELEASE_VERSION: ${{ inputs.version || github.ref_name }}
       MSGBLAST_PUBLIC_BASE_URL: ${{ vars.MSGBLAST_PUBLIC_BASE_URL }}
       MSGBLAST_R2_ACCOUNT_ID: ${{ vars.MSGBLAST_R2_ACCOUNT_ID }}
@@ -42,6 +45,11 @@ jobs:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           HAS_SPARKLE_KEY: ${{ secrets.MSGBLAST_SPARKLE_PRIVATE_KEY != '' }}
           HAS_R2_ACCESS_KEY: ${{ secrets.MSGBLAST_R2_ACCESS_KEY_ID != '' }}
+          HAS_DEVELOPER_ID_P12: ${{ secrets.MSGBLAST_DEVELOPER_ID_P12 != '' }}
+          HAS_DEVELOPER_ID_P12_PASSWORD: ${{ secrets.MSGBLAST_DEVELOPER_ID_P12_PASSWORD != '' }}
+          HAS_NOTARY_API_KEY: ${{ secrets.MSGBLAST_NOTARY_API_KEY != '' }}
+          MSGBLAST_NOTARY_KEY_ID: ${{ vars.MSGBLAST_NOTARY_KEY_ID }}
+          MSGBLAST_NOTARY_ISSUER_ID: ${{ vars.MSGBLAST_NOTARY_ISSUER_ID }}
           HAS_R2_SECRET_KEY: ${{ secrets.MSGBLAST_R2_SECRET_ACCESS_KEY != '' }}
         run: |
           git merge-base --is-ancestor "$GITHUB_SHA" "origin/$DEFAULT_BRANCH"
@@ -60,6 +68,16 @@ jobs:
           for name in ('HAS_SPARKLE_KEY', 'HAS_R2_ACCESS_KEY', 'HAS_R2_SECRET_KEY'):
               if os.environ[name] != 'true':
                   raise SystemExit('Missing release secret: ' + name)
+          mode = os.environ['MSGBLAST_SIGNING_MODE']
+          if mode not in ('ad-hoc', 'developer-id'):
+              raise SystemExit('MSGBLAST_SIGNING_MODE must be ad-hoc or developer-id')
+          if mode == 'developer-id':
+              for name in ('MSGBLAST_APPLE_TEAM_ID', 'MSGBLAST_DEVELOPER_ID_IDENTITY',
+                           'MSGBLAST_NOTARY_KEY_ID', 'MSGBLAST_NOTARY_ISSUER_ID'):
+                  auto.required_environment(name)
+              for name in ('HAS_DEVELOPER_ID_P12', 'HAS_DEVELOPER_ID_P12_PASSWORD', 'HAS_NOTARY_API_KEY'):
+                  if os.environ[name] != 'true':
+                      raise SystemExit('Missing Developer ID release secret: ' + name)
           from pathlib import Path
           if not Path('release-notes/' + version + '.md').is_file():
               raise SystemExit('Write release-notes/' + version + '.md before releasing.')
@@ -94,7 +112,17 @@ jobs:
       - name: Exercise real Sparkle updater with isolated fixtures
         run: python3 scripts/test_updates.py --derived-data build/updater-validation
 
-      - name: Prepare and publish ad-hoc release
+      - name: Install temporary Developer ID and notarization credentials
+        if: env.MSGBLAST_SIGNING_MODE == 'developer-id'
+        env:
+          MSGBLAST_DEVELOPER_ID_P12: ${{ secrets.MSGBLAST_DEVELOPER_ID_P12 }}
+          MSGBLAST_DEVELOPER_ID_P12_PASSWORD: ${{ secrets.MSGBLAST_DEVELOPER_ID_P12_PASSWORD }}
+          MSGBLAST_NOTARY_API_KEY: ${{ secrets.MSGBLAST_NOTARY_API_KEY }}
+          MSGBLAST_NOTARY_KEY_ID: ${{ vars.MSGBLAST_NOTARY_KEY_ID }}
+          MSGBLAST_NOTARY_ISSUER_ID: ${{ vars.MSGBLAST_NOTARY_ISSUER_ID }}
+        run: python3 scripts/ci_signing.py setup
+
+      - name: Prepare and publish signed release
         env:
           MSGBLAST_ED_KEY_FILE: ${{ runner.temp }}/msgblast-sparkle-private-key
           MSGBLAST_SPARKLE_PRIVATE_KEY: ${{ secrets.MSGBLAST_SPARKLE_PRIVATE_KEY }}
@@ -121,6 +149,10 @@ jobs:
           path: build/releases/*/publish/
           if-no-files-found: error
           retention-days: 30
+
+      - name: Remove temporary Apple signing credentials
+        if: always() && env.MSGBLAST_SIGNING_MODE == 'developer-id'
+        run: python3 scripts/ci_signing.py cleanup
 
       - name: Remove temporary signing key
         if: always()

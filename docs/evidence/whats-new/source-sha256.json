@@ -1,0 +1,13 @@
+{
+  "msgblast/Core/ReleaseHistory.swift": "4f0389df70e6f402a166b820620a6253a26e969489d669747e7d26edfd273280",
+  "msgblast/Windows/WhatsNewView.swift": "2dba581f4d8ebacc7076314bc9d48456b903fe400bda57edd4d6b4b4d0e0ec4a",
+  "msgblast/Windows/Views.swift": "ef753ffbaaf378e88ed5f38c49888fc960e060bdefe0f2ce8ac1dc819f3cb771",
+  "msgblast/Windows/DiscoverView.swift": "2a5cd81cd141bb834836e7b64d3ab07ab0256e45b906437ee76287882d2b8162",
+  "msgblastTests/UpdateTests.swift": "2153cce90d7d96a1dcbae59b40101f8871de6ec56fb64d71e3e0357a4c82ce9a",
+  "scripts/generate_project.py": "3339b35f49406f51744d4b8eedbbf75a5c8b2a8eaa1d8c75d4bcb5d9b31904ed",
+  "msgblast.xcodeproj/project.pbxproj": "d07e4196229c56cc71e8e8ae01676c05c3e26915ba9c024cc9f30cf89e161a9e",
+  "release-notes/0.6.0.md": "786c323b9659147add3aaa22c20094712ab3c488bf423906c88a26ef765eac61",
+  "release-notes/0.6.1.md": "af6c4f4d2f98af92d403c408962f4d79bba476148dbe3384e25dc0b78fc1be60",
+  "release-notes/highlights.json": "36f9a032941c2163212bdd284e8581f799bc9c719a5b57185f47bcc3e73d4312",
+  "release-notes/unpublished.json": "5f07ec74b5b9c5ce4abfdd93229ae75e7bf00dc55b4376b97b0591df28caeb29"
+}

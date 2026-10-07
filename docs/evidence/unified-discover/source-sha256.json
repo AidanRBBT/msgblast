@@ -1,0 +1,13 @@
+{
+  "source_revision": "cb2db22a79a9e96de19ab56aefa1aef39bdce408",
+  "files": {
+    "msgblast/App/AppModel.swift": "242a8c24255c1b5def69d57f031da517c19d2bc0831cce494f67ec44a812d4ba",
+    "msgblast/Contacts/ContactSearch.swift": "ac55b9bc8b2d9fd9c9653382aaf37c04a0dcc30b9c56dfff3f8c02e1eca7462f",
+    "msgblast/Core/DiscoverCatalog.swift": "5ae7b2215f7ea50231c262bb7c359164000cfe2ebb322771a962753d76fb77bd",
+    "msgblast/Permissions/MessagesAccessGuide.swift": "2dae381cdc82611b3f08640c6dba50de60088f9be8aeab2d1c28552de79a7115",
+    "msgblast/Windows/DiscoverView.swift": "3613a53a0299f4258c92c88b77deb61896162278bc72e61fa8409398528f99c8",
+    "msgblast/Windows/Views.swift": "8091e4705235d452d70735893fb9da8ef322ead5f766953bd6447075c19b0344",
+    "msgblastTests/DiscoverTests.swift": "232c0cc1c12edf631143936b61bb11d98b68671780de20ef8c6b8bbaa4642989",
+    "release-notes/0.6.0.md": "786c323b9659147add3aaa22c20094712ab3c488bf423906c88a26ef765eac61"
+  }
+}
