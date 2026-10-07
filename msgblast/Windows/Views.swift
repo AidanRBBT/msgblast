@@ -194,6 +194,7 @@ struct MainView: View {
     @Environment(\.controlActiveState) private var controlActiveState
     @ObservedObject var model: AppModel
     @ObservedObject private var web: WebAgents
+    private let updater: AppUpdater
     private enum DetailSelection { case agents, discover }
     @State private var selection = DetailSelection.agents
     @State private var showingComparison = false
@@ -203,9 +204,10 @@ struct MainView: View {
     private var showingAgents: Bool { selection == .agents && !showingComparison }
     private var selectedComparisonID: UUID? { selection == .agents && showingComparison ? web.comparisonID : nil }
 
-    init(model: AppModel) {
+    init(model: AppModel, updater: AppUpdater) {
         self.model = model
         self.web = model.webAgents
+        self.updater = updater
     }
 
     var body: some View {
@@ -242,7 +244,12 @@ struct MainView: View {
                     if model.state.comparisons.isEmpty { Text("No comparisons").foregroundStyle(.secondary) }
                 }
             }.listStyle(.sidebar).navigationTitle("msgblast")
-                .safeAreaInset(edge: .bottom, spacing: 0) { WhatsNewSidebar().padding(12) }
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    VStack(spacing: 8) {
+                        UpdateSidebar(updater: updater)
+                        WhatsNewSidebar()
+                    }.padding(12)
+                }
                 .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 330)
         } detail: {
             if selection == .discover {
