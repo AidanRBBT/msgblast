@@ -120,7 +120,7 @@ struct AgentsWorkspaceView: View {
                     if let comparison = nativeComparison {
                         ForEach(comparison.members) { member in
                             if !web.displayed.isEmpty || member.id != comparison.members.first?.id { Divider() }
-                            ConversationView(model: model, comparisonID: comparison.id, memberID: member.id, embedded: true)
+                            ConversationView(model: model, comparisonID: comparison.id, memberID: member.id)
                                 .frame(width: width)
                         }
                     }
