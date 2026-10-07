@@ -37,7 +37,7 @@ class FeedbackDiagnosticTests(unittest.TestCase):
         self.assertIn("includeDiagnostics: Bool = false", core)
         self.assertIn("@Published var includeDiagnostics = false", view)
         self.assertIn("msgblast does not upload this report.", core)
-        self.assertIn("msgblast does not upload this report.", view)
+        self.assertIn("Reports aren’t sent to msgblast automatically.", view)
         self.assertIn('Button("Send Feedback…")', app)
         self.assertIn("FeedbackWindowController.show", app)
         self.assertNotIn("URLSession", view)

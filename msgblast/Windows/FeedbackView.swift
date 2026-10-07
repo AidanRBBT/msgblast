@@ -57,7 +57,7 @@ final class FeedbackSession: ObservableObject {
             temporaryDirectories.append(url.deletingLastPathComponent())
             let picker = NSSharingServicePicker(items: [url])
             picker.show(relativeTo: view.bounds, of: view, preferredEdge: .minY)
-            message = "Choose where to send \(url.lastPathComponent). msgblast does not upload it."
+            message = "Choose an app and recipient for \(url.lastPathComponent). Reports aren’t sent to msgblast automatically."
         } catch {
             message = error.localizedDescription
         }
@@ -104,12 +104,17 @@ final class FeedbackWindowController: NSObject, NSWindowDelegate {
     init(model: AppModel?, updater: AppUpdater) {
         session = FeedbackSession(facts: FeedbackFacts.capture(model: model, updater: updater))
         super.init()
-        let host = NSHostingController(rootView: FeedbackView(session: session))
-        let window = NSWindow(contentViewController: host)
+        let host = NSHostingView(rootView: FeedbackView(session: session))
+        host.sizingOptions = []
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 560, height: 600),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered, defer: false)
+        window.contentView = host
         window.title = "Send Feedback"
-        window.setContentSize(NSSize(width: 560, height: 680))
-        window.minSize = NSSize(width: 480, height: 520)
-        window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+        window.setContentSize(NSSize(width: 560, height: 600))
+        window.minSize = NSSize(width: 480, height: 420)
+        window.center()
         window.isReleasedWhenClosed = false
         window.delegate = self
         session.window = window
@@ -130,10 +135,26 @@ struct FeedbackView: View {
     @ObservedObject var session: FeedbackSession
 
     var body: some View {
+        VStack(spacing: 0) {
+            ScrollView {
+                form
+                    .padding(20)
+            }
+            Divider()
+            exportButtons
+                .padding(16)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var form: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("msgblast does not upload this report.")
+            Text("Choose where your feedback goes")
                 .font(.headline)
-            Text("Save or share it yourself. Write only what you want a person to read. Leave out message transcripts, phone numbers, and files.")
+            Text("Save a ZIP to your Mac, or use Share to choose an app and recipient. Reports aren’t sent to msgblast automatically.")
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("Include only what you want to share. Leave out message transcripts, phone numbers, and files.")
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             Picker("Kind", selection: $session.kind) {
@@ -144,7 +165,7 @@ struct FeedbackView: View {
             Text("Feedback note").font(.headline)
             TextEditor(text: $session.note)
                 .font(.body)
-                .frame(minHeight: 120)
+                .frame(height: 120)
                 .accessibilityLabel("Feedback note")
             TextField("Reply email, optional", text: $session.contact)
                 .accessibilityLabel("Reply email, optional")
@@ -167,7 +188,7 @@ struct FeedbackView: View {
                         .accessibilityLabel("Diagnostic preview")
                         .accessibilityValue(session.diagnosticsPreview)
                 }
-                .frame(minHeight: 140, maxHeight: 220)
+                .frame(height: 160)
                 .padding(8)
                 .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
             } else {
@@ -177,16 +198,18 @@ struct FeedbackView: View {
             if let message = session.message {
                 Text(message).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
-            HStack {
-                Spacer()
-                Button(session.shareTitle) { session.share() }
-                    .disabled(!session.canExport)
-                Button(session.saveTitle) { session.save() }
-                    .keyboardShortcut(.defaultAction)
-                    .disabled(!session.canExport)
-            }
         }
-        .padding(20)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var exportButtons: some View {
+        HStack {
+            Spacer()
+            Button(session.shareTitle) { session.share() }
+                .disabled(!session.canExport)
+            Button(session.saveTitle) { session.save() }
+                .keyboardShortcut(.defaultAction)
+                .disabled(!session.canExport)
+        }
     }
 }
