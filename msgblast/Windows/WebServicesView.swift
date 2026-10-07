@@ -80,6 +80,8 @@ struct AgentsWorkspaceView: View {
 
     private var nativeComparison: Comparison? { web.comparisonID.flatMap { model.comparison($0) } }
 
+    private var comparisonChatCount: Int { web.displayed.count + (nativeComparison?.members.count ?? 0) }
+
     private var agentPicker: some View {
         GeometryReader { geometry in
             ScrollView {
@@ -108,24 +110,54 @@ struct AgentsWorkspaceView: View {
     private func tileSize(_ geometry: GeometryProxy) -> CGFloat { min(100, max(48, (geometry.size.width - 80) / 3)) }
 
     private var comparisonPanes: some View {
+        ScrollViewReader { proxy in
+            VStack(spacing: 0) {
+                chatNavigation(proxy)
+                Divider()
+                chatColumns
+            }
+        }
+        .background(ChatWindowFrame(chatCount: comparisonChatCount))
+    }
+
+    private func chatNavigation(_ proxy: ScrollViewProxy) -> some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: 8) {
+                Text("Chats (\(comparisonChatCount))").font(.caption).foregroundStyle(.secondary)
+                ForEach(web.displayed, id: \.provider) { session in
+                    Button(session.provider.name) { proxy.scrollTo(session.provider.rawValue, anchor: .leading) }
+                        .accessibilityLabel("Show \(session.provider.name) chat")
+                }
+                if let comparison = nativeComparison {
+                    ForEach(comparison.members) { member in
+                        Button(member.name) { proxy.scrollTo(member.id.uuidString, anchor: .leading) }
+                            .accessibilityLabel("Show \(member.name) chat")
+                    }
+                }
+            }.buttonStyle(.bordered).padding(10)
+        }
+    }
+
+    private var chatColumns: some View {
         GeometryReader { geometry in
-            let columns = web.displayed.count + (nativeComparison?.members.count ?? 0)
+            let columns = comparisonChatCount
             let width = max(320, (geometry.size.width - CGFloat(max(0, columns - 1))) / CGFloat(max(1, columns)))
             ScrollView(.horizontal) {
                 HStack(spacing: 0) {
                     ForEach(web.displayed, id: \.provider) { session in
                         if session.provider != web.displayed.first?.provider { Divider() }
-                        WebAgentPane(session: session, account: model.personalAgent, busy: busy, sendNative: { sendDirect($0, to: session) }).frame(width: width)
+                        WebAgentPane(session: session, account: model.personalAgent, busy: busy, sendNative: { sendDirect($0, to: session) })
+                            .frame(width: width).id(session.provider.rawValue)
                     }
                     if let comparison = nativeComparison {
                         ForEach(comparison.members) { member in
                             if !web.displayed.isEmpty || member.id != comparison.members.first?.id { Divider() }
                             ConversationView(model: model, comparisonID: comparison.id, memberID: member.id, embedded: true)
-                                .frame(width: width)
+                                .frame(width: width).id(member.id.uuidString)
                         }
                     }
                 }.frame(height: geometry.size.height)
-            }
+            }.scrollIndicators(.visible)
         }
     }
 
@@ -538,4 +570,37 @@ private let webDefaultAvatars: [WebProvider: Data] = Dictionary(uniqueKeysWithVa
 private func webAgent(_ session: WebAgentSession) -> Agent {
     Agent(name: session.provider.name, handles: [], avatar: session.provider == .muse ? session.avatar ?? museDefaultAvatar : webDefaultAvatars[session.provider],
           colorIndex: WebProvider.allCases.firstIndex(of: session.provider)! + 4)
+}
+
+// Resize only when the open-chat count changes; ordinary manual resizing stays intact.
+private struct ChatWindowFrame: NSViewRepresentable {
+    let chatCount: Int
+    func makeNSView(context: Context) -> ChatWindowSizingView { ChatWindowSizingView() }
+    func updateNSView(_ view: ChatWindowSizingView, context: Context) {
+        guard view.chatCount != chatCount else { return }
+        view.chatCount = chatCount
+        view.needsLayout = true
+    }
+}
+
+private final class ChatWindowSizingView: NSView {
+    var chatCount = -1
+    private var appliedCount: Int?
+    override func layout() {
+        super.layout()
+        guard let window, bounds.width > 0, appliedCount != chatCount else { return }
+        let count = chatCount
+        appliedCount = count
+        DispatchQueue.main.async { [weak self, weak window] in
+            guard let self, let window, self.chatCount == count,
+                  !window.styleMask.contains(.fullScreen), let screen = window.screen else { return }
+            let available = screen.visibleFrame
+            let surroundingWidth = max(0, window.frame.width - self.bounds.width)
+            let width = WindowLayout.chatWindowWidth(count: count, surroundingWidth: surroundingWidth, screenWidth: available.width)
+            var frame = window.frame
+            frame.size.width = width
+            frame.origin.x = min(max(frame.minX, available.minX), available.maxX - width)
+            window.setFrame(frame, display: true)
+        }
+    }
 }

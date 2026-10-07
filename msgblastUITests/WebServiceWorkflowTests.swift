@@ -2,6 +2,35 @@ import XCTest
 
 final class WebServiceWorkflowTests: XCTestCase {
     @MainActor
+    func testSevenChatsResizeWindowAndRemainReachable() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--demo", "--isolated-demo"]
+        app.launch()
+        defer { app.terminate() }
+        XCTAssertTrue(app.buttons["Maple"].waitForExistence(timeout: 5))
+        for name in ["Maple", "Echo", "Flint"] { app.buttons[name].click() }
+        app.buttons["Send & compare"].click()
+        XCTAssertTrue(app.staticTexts["Chats (7)"].waitForExistence(timeout: 15))
+        let wideWidth = app.windows.firstMatch.frame.width
+        for name in ["Muse", "ChatGPT", "Claude", "Grok", "Cedar", "Lumen", "Orbit"] {
+            let tab = app.buttons["Show \(name) chat"]
+            XCTAssertTrue(tab.exists)
+            tab.click()
+        }
+        for name in ["Muse", "ChatGPT", "Claude", "Grok"] { app.buttons["Recipient \(name)"].click() }
+        XCTAssertTrue(app.staticTexts["Chats (3)"].waitForExistence(timeout: 5))
+        let narrowed = NSPredicate { _, _ in app.windows.firstMatch.frame.width <= min(wideWidth, 1500) }
+        expectation(for: narrowed, evaluatedWith: app.windows.firstMatch)
+        waitForExpectations(timeout: 5)
+        for name in ["Muse", "ChatGPT", "Claude", "Grok"] { app.buttons["Recipient \(name)"].click() }
+        XCTAssertTrue(app.staticTexts["Chats (7)"].waitForExistence(timeout: 5))
+        let expanded = NSPredicate { _, _ in app.windows.firstMatch.frame.width >= wideWidth - 1 }
+        expectation(for: expanded, evaluatedWith: app.windows.firstMatch)
+        waitForExpectations(timeout: 5)
+        capture(app, name: "Seven reachable chats — isolated fixture")
+    }
+
+    @MainActor
     func testWebDefaultsAndOptionalCLIConversationsStaySeparate() {
         let app = XCUIApplication()
         app.launchArguments = ["--demo", "--isolated-demo"]
