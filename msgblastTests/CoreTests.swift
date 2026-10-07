@@ -1,6 +1,69 @@
 import XCTest
 @testable import msgblastCore
 final class CoreTests: XCTestCase {
+    func testJoiningAgentReceivesOnlySharedContextAndKeepsItAfterMembershipChanges() throws {
+        let members = ["A", "B"].map { Member(agentID: UUID(), name: $0, chat: Chat(id: $0, handle: $0, lastActivity: 0)) }
+        var comparison = Comparison(prompt: "Original ask", members: members)
+        var shared = FollowUp(text: "Shared follow-up", memberIDs: members.map(\.id))
+        for member in members { shared.states[member.id.uuidString] = .submitted }
+        var privateMessage = FollowUp(text: "Private detail", memberIDs: [members[0].id])
+        privateMessage.states[members[0].id.uuidString] = .submitted
+        comparison.followUps = [shared, privateMessage]
+        let context = comparison.joiningContext()
+        XCTAssertEqual(context.map(\.text), ["Original ask", "Shared follow-up"])
+        comparison.sharedContext = Array(context.dropFirst())
+        comparison.members.append(Member(agentID: UUID(), name: "C", chat: Chat(id: "C", handle: "C", lastActivity: 0)))
+        let restored = try JSONDecoder().decode(Comparison.self, from: JSONEncoder().encode(comparison))
+        XCTAssertEqual(restored.joiningContext().map(\.text), ["Original ask", "Shared follow-up"])
+    }
+
+    func testJoiningContextRecoversSharedWebReceiptsWithoutPrivateMessages() {
+        var comparison = Comparison(prompt: "Original", members: [])
+        comparison.webProviders = [.muse, .chatgpt]
+        func receipt(_ text: String, _ offset: Double) -> WebSendAttempt {
+            var attempt = WebSendAttempt(text: text, status: .observed)
+            attempt.comparisonID = comparison.id
+            attempt.created = Date(timeIntervalSince1970: offset)
+            return attempt
+        }
+        let receipts: [WebProvider: [WebSendAttempt]] = [
+            .muse: [receipt("Original", 0), receipt("Shared", 1), receipt("Private", 2), receipt("Shared", 3)],
+            .chatgpt: [receipt("Original", 0), receipt("Shared", 1), receipt("Shared", 3)]
+        ]
+        XCTAssertEqual(comparison.joiningContext(webAttempts: receipts).map(\.text), ["Original", "Shared", "Shared"])
+        XCTAssertFalse(comparison.joiningPrompt(webAttempts: receipts).contains("Private"))
+    }
+
+    func testLegacyPrivateRepeatDoesNotCreateAnExtraSharedFollowUp() {
+        var comparison = Comparison(prompt: "Original", members: [])
+        comparison.webProviders = [.muse, .chatgpt]
+        func receipt(_ text: String, _ offset: Double) -> WebSendAttempt {
+            var attempt = WebSendAttempt(text: text, status: .observed)
+            attempt.comparisonID = comparison.id
+            attempt.created = Date(timeIntervalSince1970: offset)
+            return attempt
+        }
+        XCTAssertEqual(comparison.joiningContext(webAttempts: [
+            .muse: [receipt("Original", 0), receipt("Repeat", 1), receipt("Repeat", 2)],
+            .chatgpt: [receipt("Original", 0), receipt("Repeat", 1)]
+        ]).map(\.text), ["Original", "Repeat"])
+    }
+
+    func testJoiningPayloadPreservesAttachmentAndMessageOrder() {
+        let originalFile = MessageAttachment(filename: "original.txt", path: "/fixture/original.txt")
+        let sharedFile = MessageAttachment(filename: "shared.txt", path: "/fixture/shared.txt")
+        var comparison = Comparison(prompt: "Original", members: [])
+        comparison.attachments = [originalFile]
+        comparison.sharedContext = [ConversationContextMessage(text: "Follow-up", attachments: [sharedFile])]
+        let parts = comparison.joiningPayload().parts
+        XCTAssertEqual(parts.count, 4)
+        XCTAssertEqual(parts[0].text, "Original")
+        XCTAssertEqual(parts[1].attachment, originalFile)
+        XCTAssertEqual(parts[2].text, "Follow-up")
+        XCTAssertEqual(parts[3].attachment, sharedFile)
+        XCTAssertTrue(parts.allSatisfy { $0.state == .ready })
+    }
+
     func testManualAccountCanBeCreatedWithoutAnExistingChat() throws {
         let email = try XCTUnwrap(Agent.manualAccount(for: "  msgisaway@outlook.com\n"))
         XCTAssertEqual(email.handles, ["msgisaway@outlook.com"])

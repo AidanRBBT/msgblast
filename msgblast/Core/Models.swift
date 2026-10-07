@@ -113,6 +113,7 @@ public struct Member: Codable, Identifiable, Hashable, Sendable {
 public struct FollowUp: Codable, Identifiable, Sendable {
     public var id = UUID()
     public var text: String
+    public var sharedWithAll: Bool?
     public var memberIDs: [UUID]
     public var states: [String: Submission] = [:]
     public var errors: [String: String] = [:]
@@ -147,12 +148,21 @@ public struct ConversationRecipients: Codable, Equatable, Sendable {
         }.map(\.id)
     }
 }
+public struct ConversationContextMessage: Codable, Sendable {
+    public var followUpID: UUID?
+    public var text: String
+    public var attachments: [MessageAttachment]
+    public init(text: String, attachments: [MessageAttachment] = [], followUpID: UUID? = nil) {
+        self.followUpID = followUpID; self.text = text; self.attachments = attachments
+    }
+}
 public struct Comparison: Codable, Identifiable, Sendable {
     public var id = UUID()
     public var prompt: String
     public var created = Date()
     public var members: [Member]
     public var followUps: [FollowUp] = []
+    public var sharedContext: [ConversationContextMessage]?
     public var allDraft: String = ""
     public var privateDrafts: [String: String] = [:]
     public var attachments: [MessageAttachment]?
@@ -163,6 +173,58 @@ public struct Comparison: Codable, Identifiable, Sendable {
     public var webProviders: [WebProvider]?
     public var webProviderIdentityVersion: Int?
     public init(prompt: String, members: [Member]) { self.prompt = prompt; self.members = members; webProviderIdentityVersion = 2 }
+    public func joiningContext(webAttempts: [WebProvider: [WebSendAttempt]] = [:]) -> [ConversationContextMessage] {
+        let original = ConversationContextMessage(text: prompt, attachments: attachments ?? [])
+        if let sharedContext { return [original] + sharedContext }
+        // Recover older blasts from receipts shared by all of their recipients.
+        let providers = webProviders ?? []
+        let memberIDs = Set(members.map(\.id))
+        let sharedFollowUps = followUps.filter { followUp in
+            !members.isEmpty && Set(followUp.memberIDs) == memberIDs
+                && followUp.memberIDs.allSatisfy { followUp.states[$0.uuidString] == .submitted }
+        }
+        func observedFollowUps(_ provider: WebProvider) -> [WebSendAttempt] {
+            var attempts = (webAttempts[provider] ?? []).filter { $0.comparisonID == id && $0.status == .observed }.sorted { $0.created < $1.created }
+            if let original = attempts.firstIndex(where: { $0.text == prompt }) { attempts.remove(at: original) }
+            return attempts
+        }
+        var candidates: [(Date, ConversationContextMessage)] = []
+        if let first = providers.first {
+            let attempts = observedFollowUps(first)
+            var counts = Dictionary(grouping: attempts, by: \.text).mapValues(\.count)
+            for provider in providers.dropFirst() {
+                let other = Dictionary(grouping: observedFollowUps(provider), by: \.text).mapValues(\.count)
+                for text in Array(counts.keys) { counts[text] = min(counts[text] ?? 0, other[text] ?? 0) }
+            }
+            if !members.isEmpty {
+                let nativeCounts = Dictionary(grouping: sharedFollowUps, by: \.text).mapValues(\.count)
+                for text in Array(counts.keys) { counts[text] = min(counts[text] ?? 0, nativeCounts[text] ?? 0) }
+            }
+            for attempt in attempts where (counts[attempt.text] ?? 0) > 0 {
+                candidates.append((attempt.created, ConversationContextMessage(text: attempt.text)))
+                counts[attempt.text, default: 0] -= 1
+            }
+        } else {
+            for followUp in sharedFollowUps {
+                let files = followUp.payloads?.values.first?.parts.compactMap(\.attachment) ?? []
+                candidates.append((followUp.created, ConversationContextMessage(text: followUp.text, attachments: files)))
+            }
+        }
+        return [original] + candidates.sorted { $0.0 < $1.0 }.map(\.1)
+    }
+    public func joiningPayload(webAttempts: [WebProvider: [WebSendAttempt]] = [:]) -> OutgoingPayload {
+        let context = joiningContext(webAttempts: webAttempts)
+        var payload = OutgoingPayload(text: "", attachments: [])
+        payload.parts = context.flatMap { OutgoingPayload(text: $0.text, attachments: $0.attachments).parts }
+        return payload
+    }
+    public func joiningPrompt(webAttempts: [WebProvider: [WebSendAttempt]] = [:]) -> String {
+        let context = joiningContext(webAttempts: webAttempts)
+        guard context.count > 1 else { return prompt }
+        return "You are joining an existing conversation. Here is the original ask and the follow-up messages sent to everyone, in order. Respond to the latest ask using this context.\n\n" + context.enumerated().map { index, message in
+            "\(index == 0 ? "Original ask" : "Follow-up \(index)"):\n\(message.text)"
+        }.joined(separator: "\n\n")
+    }
     public var title: String { String((prompt.isEmpty ? attachments?.map(\.filename).joined(separator: ", ") ?? "Attachment" : prompt).prefix(65)) }
 }
 public struct SavedFrame: Codable, Sendable { public var x: Double; public var y: Double; public var width: Double; public var height: Double

@@ -2,6 +2,55 @@ import XCTest
 
 final class WebServiceWorkflowTests: XCTestCase {
     @MainActor
+    func testAddAgentToExistingBlastInjectsSharedHistoryOnly() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--demo", "--isolated-demo"]
+        app.launch()
+        defer { app.terminate() }
+        let excluded = ["Cedar", "Lumen", "Orbit", "Maple", "Echo", "Flint", "Claude", "Grok"]
+        for name in excluded {
+            let button = app.buttons[name]
+            XCTAssertTrue(button.waitForExistence(timeout: 5))
+            if button.value as? String == "Selected" { button.click() }
+        }
+        // Confirm setup after launch tasks settle before exercising recipient joins.
+        for name in excluded {
+            let button = app.buttons[name]
+            if button.value as? String == "Selected" { button.click() }
+            XCTAssertEqual(button.value as? String, "Not selected")
+        }
+        let editor = app.textViews["Shared prompt"]
+        func broadcast(_ text: String) {
+            editor.click()
+            editor.typeKey("a", modifierFlags: .command)
+            editor.typeText(text)
+            XCTAssertTrue(app.buttons["Send & compare"].isEnabled)
+            app.buttons["Send & compare"].click()
+            let reply = app.staticTexts.containing(NSPredicate(format: "value CONTAINS %@", "Fixture reply: " + text)).firstMatch
+            XCTAssertTrue(reply.waitForExistence(timeout: 15))
+        }
+        broadcast("Original joining fixture ask")
+        broadcast("Shared joining fixture follow-up")
+        app.buttons["Recipient ChatGPT"].click()
+        broadcast("Private joining fixture detail")
+        capture(app, name: "Before adding Grok — isolated simulated chats")
+        app.buttons["Recipient Grok"].click()
+        let context = app.staticTexts.containing(NSPredicate(format: "value CONTAINS %@ AND value CONTAINS %@", "Original ask:", "Follow-up 1:")).firstMatch
+        XCTAssertTrue(context.waitForExistence(timeout: 15))
+        XCTAssertTrue((context.value as? String ?? context.label).contains("Shared joining fixture follow-up"))
+        XCTAssertFalse((context.value as? String ?? context.label).contains("Private joining fixture detail"))
+        XCTAssertEqual(app.buttons["Recipient Grok"].value as? String, "Selected")
+        capture(app, name: "Grok joined existing blast with shared context — isolated simulated chats")
+        app.buttons["Recipient Cedar"].click()
+        let cedar = app.buttons["Recipient Cedar"]
+        let deadline = Date().addingTimeInterval(15)
+        while cedar.value as? String != "Selected", Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.1)) }
+        XCTAssertEqual(cedar.value as? String, "Selected")
+        XCTAssertTrue(app.staticTexts["Shared joining fixture follow-up"].waitForExistence(timeout: 15))
+        capture(app, name: "Messages agent joined existing blast — isolated simulated chats")
+    }
+
+    @MainActor
     func testWebDefaultsAndOptionalCLIConversationsStaySeparate() {
         let app = XCUIApplication()
         app.launchArguments = ["--demo", "--isolated-demo"]

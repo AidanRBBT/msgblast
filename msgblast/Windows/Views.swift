@@ -609,6 +609,7 @@ struct RecipientPills: View {
         let recipientSet = Set(selection.recipientIDs(in: comparison.members))
         ScrollView(.horizontal) {
             HStack(spacing: 8) {
+                Text("Send to").font(.caption).foregroundStyle(.secondary)
                 ForEach(comparison.members) { member in
                     let included = recipientSet.contains(member.id)
                     Button {
@@ -624,6 +625,17 @@ struct RecipientPills: View {
                         .accessibilityValue(included ? "Selected" : "Not selected")
                         .help(included ? "Exclude \(member.name) from this message" : "Include \(member.name) in this message")
                         .disabled(model.busy)
+                }
+                ForEach(model.state.agents.filter { agent in !comparison.members.contains(where: { $0.id == agent.id }) }) { agent in
+                    Button {
+                        Task { await model.addAgent(agent, to: comparison.id); model.coordinator?.open(comparison.id) }
+                    } label: {
+                        Label(agent.name, systemImage: "plus.circle").font(.system(size: 13, weight: .medium))
+                            .padding(.horizontal, 12).padding(.vertical, 6)
+                    }.buttonStyle(.plain)
+                        .accessibilityLabel("Add \(agent.name) to conversation")
+                        .help("Add \(agent.name) with the original ask and shared follow-ups")
+                        .disabled(model.busy || model.route(agent) == nil)
                 }
             }
         }.scrollIndicators(.hidden).frame(height: 36)
