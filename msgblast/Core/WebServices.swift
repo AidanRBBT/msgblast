@@ -3,6 +3,11 @@ import CryptoKit
 
 public enum WebSendStatus: String, Codable, Sendable {
     case preparing, attempting, observed, notSent, uncertain, dismissed
+    public func showsAttemptBanner(for provider: WebProvider) -> Bool {
+        // Web receipt attribution can fail even when the page has replied.
+        // Keep uncertainty for resend protection, without presenting it as a chat error.
+        self != .observed && (self != .uncertain || provider.personalAgentProvider != nil)
+    }
     public func label(for provider: WebProvider) -> String {
         switch self {
         case .preparing: "Checking \(provider.name)…"
