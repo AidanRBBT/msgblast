@@ -24,6 +24,7 @@ struct msgblastApp: App {
         .commands {
             BlastCommands()
             CommandGroup(after: .appInfo) {
+                Button("Send Feedback…") { FeedbackWindowController.show(model: model, updater: updater) }
                 Button("Check for Updates…") { updater.checkForUpdates() }
                     .disabled(updater.configuration.isEnabled && !updater.canCheckForUpdates)
             }

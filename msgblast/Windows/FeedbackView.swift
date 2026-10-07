@@ -175,6 +175,11 @@ struct FeedbackView: View {
                 }
             }.pickerStyle(.segmented)
             Text("Feedback note").font(.headline)
+            if session.kind == .bug {
+                Text("Describe what happened, what you expected, and the steps to reproduce it.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             TextEditor(text: $session.note)
                 .font(.body)
                 .frame(height: 120)
