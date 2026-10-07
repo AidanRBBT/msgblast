@@ -415,7 +415,7 @@ final class WorkflowTests: XCTestCase {
         app.menuItems["Send Feedback…"].click()
         let feedback = app.windows["Send Feedback"]
         XCTAssertTrue(feedback.waitForExistence(timeout: 5))
-        XCTAssertTrue(feedback.staticTexts["Choose where your feedback goes"].exists)
+        XCTAssertTrue(feedback.staticTexts["Send feedback to msgblast"].exists)
         XCTAssertTrue(feedback.staticTexts["A diagnostic report is not included."].exists)
         let diagnostics = feedback.checkBoxes["Include a diagnostic report"]
         XCTAssertTrue(diagnostics.exists)

@@ -67,8 +67,8 @@ public enum DiagnosticReport {
         msgblast feedback package
         Diagnostics: \(choice)
 
-        This file is created only when you choose Save or Share.
-        msgblast does not upload this report.
+        This ZIP is a local copy created when you choose Save.
+        Send feedback submits your note, optional reply address, and chosen diagnostics privately to the msgblast team.
 
         feedback.txt is the note you typed. A reply address appears there only when you enter one.
         diagnostics.json is a separate opt-in file. It is \(choice).
@@ -98,7 +98,7 @@ public enum DiagnosticReport {
         return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
     }
 
-    private static func plain(_ raw: String) -> String {
+    static func plain(_ raw: String) -> String {
         String(raw.map { character in
             if character == "\n" || character == "\t" || character == "\r" { return character }
             return character.unicodeScalars.allSatisfy { $0.value >= 32 } ? character : " "

@@ -30,14 +30,14 @@ EXCLUDED = [
 
 
 class FeedbackDiagnosticTests(unittest.TestCase):
-    def test_diagnostics_are_opt_in_and_never_uploaded(self):
+    def test_diagnostics_are_opt_in_and_upload_requires_send(self):
         core = CORE.read_text()
         view = VIEW.read_text()
         app = APP.read_text()
         self.assertIn("includeDiagnostics: Bool = false", core)
         self.assertIn("@Published var includeDiagnostics = false", view)
-        self.assertIn("msgblast does not upload this report.", core)
-        self.assertIn("Reports aren’t sent to msgblast automatically.", view)
+        self.assertIn("This ZIP is a local copy created when you choose Save.", core)
+        self.assertIn("Only your note, optional reply email, and the diagnostics you choose are sent.", view)
         self.assertIn('Button("Send Feedback…")', app)
         self.assertIn("FeedbackWindowController.show", app)
         self.assertNotIn("URLSession", view)

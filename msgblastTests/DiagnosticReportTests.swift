@@ -46,7 +46,7 @@ final class DiagnosticReportTests: XCTestCase {
         XCTAssertTrue(feedback.contains("Contact: \(email)"))
         XCTAssertTrue(feedback.contains("Date: 2025-09-27"))
         XCTAssertTrue(readme.contains("Diagnostics: included"))
-        XCTAssertTrue(readme.contains("msgblast does not upload this report."))
+        XCTAssertTrue(readme.contains("This ZIP is a local copy created when you choose Save."))
         for topic in DiagnosticReport.excludedTopics { XCTAssertTrue(readme.contains(topic), topic) }
         let object = try JSONSerialization.jsonObject(with: Data(diagnostics.utf8)) as? [String: Any]
         XCTAssertEqual(Set(object.map { Array($0.keys) } ?? []), Set(DiagnosticReport.diagnosticKeys))

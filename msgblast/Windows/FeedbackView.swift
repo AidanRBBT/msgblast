@@ -11,8 +11,17 @@ final class FeedbackSession: ObservableObject {
     @Published var includeDiagnostics = false
     @Published var message: String?
     let facts: DiagnosticFacts
-    weak var window: NSWindow?
-    private var temporaryDirectories: [URL] = []
+    @Published private(set) var isSending = false
+    @Published private var sentRequest: DiagnosticRequest?
+    private var lastAttempt: (request: DiagnosticRequest, id: UUID)?
+    private var sendTask: Task<Void, Never>?
+
+    private var request: DiagnosticRequest {
+        DiagnosticRequest(kind: kind, note: note, contact: contact, includeDiagnostics: includeDiagnostics, facts: facts)
+    }
+
+    var canSend: Bool { canExport && !isSending && sentRequest != request }
+    var sendTitle: String { isSending ? "Sending…" : "Send feedback" }
 
     init(facts: DiagnosticFacts) { self.facts = facts }
 
@@ -26,7 +35,6 @@ final class FeedbackSession: ObservableObject {
     }
 
     var saveTitle: String { includeDiagnostics ? "Save Report with Diagnostics…" : "Save Report…" }
-    var shareTitle: String { includeDiagnostics ? "Share Report with Diagnostics…" : "Share Report…" }
     var diagnosticsPreview: String { DiagnosticReport.diagnosticsJSON(facts) }
 
     func save() {
@@ -50,30 +58,34 @@ final class FeedbackSession: ObservableObject {
         }
     }
 
-    func share() {
-        guard let package = makePackage(), let view = window?.contentView else { return }
-        do {
-            let url = try DiagnosticArchive.writeTemporary(package)
-            temporaryDirectories.append(url.deletingLastPathComponent())
-            let picker = NSSharingServicePicker(items: [url])
-            picker.show(relativeTo: view.bounds, of: view, preferredEdge: .minY)
-            message = "Choose an app and recipient for \(url.lastPathComponent). Reports aren’t sent to msgblast automatically."
-        } catch {
-            message = error.localizedDescription
+    func send() {
+        guard canSend, makePackage() != nil else { return }
+        let snapshot = request
+        let id = lastAttempt?.request == snapshot ? lastAttempt!.id : UUID()
+        lastAttempt = (snapshot, id)
+        isSending = true
+        message = "Sending your feedback to msgblast…"
+        let fixture = Bundle.main.object(forInfoDictionaryKey: "msgblastDemo") as? Bool == true
+        let endpoint = fixture
+            ? (Bundle.main.object(forInfoDictionaryKey: "msgblastFeedbackEndpoint") as? String).flatMap(URL.init(string:)) ?? FeedbackSubmission.productionEndpoint
+            : FeedbackSubmission.productionEndpoint
+        sendTask = Task { @MainActor in
+            defer { isSending = false; sendTask = nil }
+            do {
+                let receipt = try await FeedbackSubmission.send(snapshot, id: id, endpoint: endpoint, isLocalFixture: fixture)
+                sentRequest = snapshot
+                message = "Sent to msgblast. Report ID: \(receipt.id.uuidString.lowercased())"
+            } catch {
+                message = "\(error.localizedDescription) Your note is still here."
+            }
         }
     }
 
-    func cleanup() {
-        for directory in temporaryDirectories {
-            try? FileManager.default.removeItem(at: directory)
-        }
-        temporaryDirectories = []
-    }
+    func cleanup() { sendTask?.cancel() }
 
     private func makePackage() -> DiagnosticPackage? {
         do {
-            let package = try DiagnosticReport.make(DiagnosticRequest(
-                kind: kind, note: note, contact: contact, includeDiagnostics: includeDiagnostics, facts: facts))
+            let package = try DiagnosticReport.make(request)
             message = nil
             return package
         } catch {
@@ -117,7 +129,6 @@ final class FeedbackWindowController: NSObject, NSWindowDelegate {
         window.center()
         window.isReleasedWhenClosed = false
         window.delegate = self
-        session.window = window
         hostedWindow = window
     }
 
@@ -139,6 +150,7 @@ struct FeedbackView: View {
             ScrollView {
                 form
                     .padding(20)
+                    .disabled(session.isSending)
             }
             Divider()
             exportButtons
@@ -149,12 +161,12 @@ struct FeedbackView: View {
 
     private var form: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Choose where your feedback goes")
+            Text("Send feedback to msgblast")
                 .font(.headline)
-            Text("Save a ZIP to your Mac, or use Share to choose an app and recipient. Reports aren’t sent to msgblast automatically.")
+            Text("Send your note directly to the msgblast team. Include a diagnostic report if you’d like to help us investigate.")
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("Include only what you want to share. Leave out message transcripts, phone numbers, and files.")
+            Text("Only your note, optional reply email, and the diagnostics you choose are sent. Reports are stored privately. Leave out message transcripts, phone numbers, and files.")
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             Picker("Kind", selection: $session.kind) {
@@ -174,6 +186,7 @@ struct FeedbackView: View {
                     .font(.caption).foregroundStyle(.orange)
             }
             Toggle("Include a diagnostic report", isOn: $session.includeDiagnostics)
+            Text("Diagnostics never include:").font(.caption).foregroundStyle(.secondary)
             Text(DiagnosticReport.excludedTopics.map { "• \($0)" }.joined(separator: "\n"))
                 .font(.caption).foregroundStyle(.secondary)
             if session.includeDiagnostics {
@@ -205,11 +218,11 @@ struct FeedbackView: View {
     private var exportButtons: some View {
         HStack {
             Spacer()
-            Button(session.shareTitle) { session.share() }
-                .disabled(!session.canExport)
             Button(session.saveTitle) { session.save() }
+                .disabled(!session.canExport || session.isSending)
+            Button(session.sendTitle) { session.send() }
                 .keyboardShortcut(.defaultAction)
-                .disabled(!session.canExport)
+                .disabled(!session.canSend)
         }
     }
 }

@@ -1,0 +1,18 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "msgblast-feedback",
+  "main": "worker.mjs",
+  "account_id": "659c439216958cf1ab948ef03342ad18",
+  "compatibility_date": "2026-10-07",
+  "workers_dev": false,
+  "preview_urls": false,
+  // Local/template configuration. Production intake is integrated into msgblast-landing.
+  // Do not deploy this as a competing route over the live landing Worker.
+  "r2_buckets": [{ "binding": "FEEDBACK_BUCKET", "bucket_name": "msgblast-feedback" }],
+  "ratelimits": [{ "name": "FEEDBACK_RATE_LIMIT", "namespace_id": "10018", "simple": { "limit": 10, "period": 60 } }],
+  "observability": {
+    "enabled": true,
+    "logs": { "enabled": true, "head_sampling_rate": 1, "invocation_logs": false },
+    "traces": { "enabled": true, "head_sampling_rate": 0.01 }
+  }
+}
