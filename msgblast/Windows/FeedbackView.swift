@@ -5,10 +5,9 @@ import msgblastCore
 
 @MainActor
 final class FeedbackSession: ObservableObject {
-    @Published var kind: DiagnosticReportKind = .feedback
     @Published var note = ""
     @Published var contact = ""
-    @Published var includeDiagnostics = false
+    @Published var includeDiagnostics = true
     @Published var message: String?
     let facts: DiagnosticFacts
     @Published private(set) var isSending = false
@@ -17,7 +16,7 @@ final class FeedbackSession: ObservableObject {
     private var sendTask: Task<Void, Never>?
 
     private var request: DiagnosticRequest {
-        DiagnosticRequest(kind: kind, note: note, contact: contact, includeDiagnostics: includeDiagnostics, facts: facts)
+        DiagnosticRequest(kind: .feedback, note: note, contact: contact, includeDiagnostics: includeDiagnostics, facts: facts)
     }
 
     var canSend: Bool { canExport && !isSending && sentRequest != request }
@@ -163,23 +162,16 @@ struct FeedbackView: View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Send feedback to msgblast")
                 .font(.headline)
-            Text("Send your note directly to the msgblast team. Include a diagnostic report if you’d like to help us investigate.")
+            Text("Send your note directly to the msgblast team. A diagnostic report is included to help us investigate; you can uncheck it below.")
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             Text("Only your note, optional reply email, and the diagnostics you choose are sent. Reports are stored privately. Leave out message transcripts, phone numbers, and files.")
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            Picker("Kind", selection: $session.kind) {
-                ForEach(DiagnosticReportKind.allCases, id: \.rawValue) { kind in
-                    Text(kind.label).tag(kind)
-                }
-            }.pickerStyle(.segmented)
             Text("Feedback note").font(.headline)
-            if session.kind == .bug {
-                Text("Describe what happened, what you expected, and the steps to reproduce it.")
-                    .font(.caption).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            Text("Describe what happened, what you expected, and the steps to reproduce it.")
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             TextEditor(text: $session.note)
                 .font(.body)
                 .frame(height: 120)

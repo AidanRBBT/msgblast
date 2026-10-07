@@ -405,7 +405,7 @@ final class WorkflowTests: XCTestCase {
     }
 
     @MainActor
-    func testFeedbackDiagnosticsStayOffUntilChosen() {
+    func testFeedbackDiagnosticsDefaultOnAndCanBeExcluded() {
         let app = XCUIApplication()
         app.launchArguments = ["--demo", "--isolated-demo"]
         app.launch()
@@ -416,16 +416,19 @@ final class WorkflowTests: XCTestCase {
         let feedback = app.windows["Send Feedback"]
         XCTAssertTrue(feedback.waitForExistence(timeout: 5))
         XCTAssertTrue(feedback.staticTexts["Send feedback to msgblast"].exists)
-        XCTAssertTrue(feedback.staticTexts["A diagnostic report is not included."].exists)
+        XCTAssertTrue(feedback.staticTexts["Describe what happened, what you expected, and the steps to reproduce it."].exists)
+        XCTAssertFalse(feedback.segmentedControls["Kind"].exists)
         let diagnostics = feedback.checkBoxes["Include a diagnostic report"]
         XCTAssertTrue(diagnostics.exists)
+        XCTAssertEqual(diagnostics.value as? Int, 1)
+        XCTAssertTrue(feedback.buttons["Save Report with Diagnostics…"].exists)
+        diagnostics.click()
         XCTAssertEqual(diagnostics.value as? Int, 0)
+        XCTAssertTrue(feedback.staticTexts["A diagnostic report is not included."].exists)
         XCTAssertTrue(feedback.buttons["Save Report…"].exists)
-        XCTAssertFalse(feedback.buttons["Save Report with Diagnostics…"].exists)
         diagnostics.click()
         XCTAssertEqual(diagnostics.value as? Int, 1)
         XCTAssertTrue(feedback.staticTexts["This is the entire diagnostic file."].waitForExistence(timeout: 5))
-        XCTAssertFalse(feedback.staticTexts["A diagnostic report is not included."].exists)
         let preview = feedback.staticTexts["Diagnostic preview"].exists ? feedback.staticTexts["Diagnostic preview"] : feedback.textViews["Diagnostic preview"]
         XCTAssertTrue(preview.waitForExistence(timeout: 5))
         let previewText = (preview.value as? String) ?? preview.label
@@ -434,7 +437,7 @@ final class WorkflowTests: XCTestCase {
         XCTAssertFalse(previewText.contains("@"))
         XCTAssertTrue(feedback.buttons["Save Report with Diagnostics…"].exists)
         let shot = XCTAttachment(screenshot: feedback.screenshot())
-        shot.name = "Send Feedback — diagnostic preview opted in — isolated demo"
+        shot.name = "Send Feedback — diagnostic preview enabled by default — isolated demo"
         shot.lifetime = .keepAlways
         add(shot)
         feedback.buttons[XCUIIdentifierCloseWindow].click()
