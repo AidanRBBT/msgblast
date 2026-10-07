@@ -24,11 +24,15 @@ enum MusePageScript {
     const status = () => {
         let reason = '';
         const input = editor();
+        const chatVisible = [...document.querySelectorAll('[aria-label="Chat messages"],#hatch-chat-scroll')].some(visible);
+        const login = [...document.querySelectorAll('button,a')].some(e => visible(e) &&
+            (e.matches('[data-testid="login-button"]') || /^(log in|sign in|sign up)$/i.test(normalized(e.innerText || e.getAttribute('aria-label') || ''))));
+        const signedIn = login ? false : chatVisible ? true : null;
         if (!pathAllowed()) reason = 'Open this comparison’s Muse side chat before sending.';
-        else if (![...document.querySelectorAll('[aria-label="Chat messages"],#hatch-chat-scroll')].some(visible)) reason = 'Sign in to Muse and open a side chat.';
+        else if (login || !chatVisible) reason = 'Sign in to Muse and open a side chat.';
         else if (document.querySelector('[role="dialog"],[aria-modal="true"]')) reason = 'Finish the open Muse dialog first.';
         else if (!input || input.disabled || input.readOnly) reason = 'Waiting for Muse’s message field.';
-        return {url:location.href,ready:reason === '',reason:reason || 'Muse side chat ready',draft:input?.value || ''};
+        return {url:location.href,ready:reason === '',signedIn,reason:reason || 'Muse side chat ready',draft:input?.value || ''};
     };
     const inspect = () => ({...status(),messages:pathAllowed() ? messages() : [],submissionInterrupted:observation.interrupted});
     """#
@@ -95,7 +99,7 @@ enum MusePageScript {
     [data-message-role=user]{background:#1684ff;color:white;margin-left:45px} textarea{box-sizing:border-box;width:100%;min-height:65px;font:inherit;padding:12px;border:1px solid #8885;border-radius:14px}
     button{font:inherit;padding:8px 14px;margin:8px 0;border-radius:10px;border:1px solid #8885;cursor:pointer} [hidden]{display:none!important}
     </style></head><body><header><div data-hatch-avatar-host data-hatch-avatar-display-stage="chat-nav"><img hidden data-hatch-avatar-layer="ready" data-hatch-avatar-slot="current" alt="Synthetic personalized avatar" style="width:48px;height:48px;border-radius:50%"></div><strong id="thread-title">New Muse side chat</strong><small>Local fixture · no real sends</small></header>
-    <div id="login" hidden><p>Sign in to continue.</p><button onclick="login.hidden=true;chat.hidden=false">Sign in to fixture</button></div>
+    <div id="login" hidden><p>Sign in to continue.</p><button data-testid="login-button" onclick="login.hidden=true;chat.hidden=false">Sign in to fixture</button></div>
     <div id="chat"><div id="hatch-chat-scroll" aria-label="Chat messages"><article data-message-item data-message-id="welcome" data-message-role="assistant">Ready to compare an idea? Send a message from MsgBlast’s shared composer.</article></div>
     <textarea aria-label="Message" placeholder="Message"></textarea><button aria-label="Send" disabled>Send</button>
     <button onclick="chat.hidden=true;login.hidden=false">Sign out of fixture</button>

@@ -14,7 +14,7 @@ struct AgentsWorkspaceView: View {
     @Binding var showingComparison: Bool
     var newBlastRequest: UUID? = nil
     @State private var showingConnectionIntro = false
-    @State private var hasPresentedConnectionIntro = false
+    @State private var signInProviders: [WebProvider] = []
     private var busy: Bool { model.busy || model.webBroadcastBusy || web.sessions.contains { $0.isSending } }
     private var nativeRecipients: [Agent] { model.state.agents.filter { model.state.selection.contains($0.id) } }
     private var attachmentComparisonID: UUID? { showingComparison ? nativeComparison?.id : nil }
@@ -65,7 +65,7 @@ struct AgentsWorkspaceView: View {
                 Image(systemName: "person.crop.circle.badge.checkmark")
                     .font(.system(size: 34)).foregroundStyle(Color.accentColor)
                 Text("Connect your accounts").font(.title2.weight(.semibold))
-                Text("Sign in to each website in its pane. If you selected an optional CLI agent, connect its account in Settings. Then press Send & compare again.")
+                Text("Sign in to \(signInProviders.map(\.name).formatted(.list(type: .and))) in the chat panes. Then press Send & compare again.")
                     .multilineTextAlignment(.center)
                 Text("Your request is saved in the message box below. Signing in won’t send it.")
                     .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
@@ -163,6 +163,11 @@ struct AgentsWorkspaceView: View {
 
     private var composer: some View {
         VStack(alignment: .leading, spacing: 10) {
+            let signedOut = web.selected.filter { $0.provider.personalAgentProvider == nil && $0.snapshot.signedIn == false }
+            if !signedOut.isEmpty {
+                Text("Sign in required: \(signedOut.map { $0.provider.name }.formatted(.list(type: .and)))")
+                    .font(.caption).foregroundStyle(.orange).accessibilityIdentifier("Website sign-in status")
+            }
             if !web.selected.isEmpty && !attachments.isEmpty {
                 Text("Web agents support text here. Remove the attachments or deselect them to send.")
                     .font(.caption).foregroundStyle(.orange)
@@ -214,14 +219,6 @@ struct AgentsWorkspaceView: View {
             Task { await model.start() }
             return
         }
-        if !hasPresentedConnectionIntro && web.selected.contains(where: { !$0.snapshot.ready }) {
-            if !showingComparison { web.setComparison(nil) }
-            web.connectSelected()
-            showingComparison = true
-            hasPresentedConnectionIntro = true
-            showingConnectionIntro = true
-            return
-        }
         let originalDraft = model.state.draft
         let recipients = Set(nativeRecipients.map(\.id))
         let model = model
@@ -231,6 +228,12 @@ struct AgentsWorkspaceView: View {
         showingComparison = true
         Task { @MainActor in
             defer { model.webBroadcastBusy = false }
+            let needsSignIn = await web.signInRequired(for: sessions)
+            if !needsSignIn.isEmpty {
+                signInProviders = needsSignIn
+                showingConnectionIntro = true
+                return
+            }
             guard await web.prepareComparison(existingID, for: sessions) else { return }
             let comparisonID: UUID
             if let existingID { comparisonID = existingID }
