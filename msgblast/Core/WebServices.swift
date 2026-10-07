@@ -29,9 +29,17 @@ public struct WebSendAttempt: Codable, Equatable, Identifiable, Sendable {
     public var messageID: String?
     public var comparisonID: UUID?
     public var conversationURL: URL?
+    var receiptContext: WebReceiptContext?
     public init(text: String, status: WebSendStatus = .preparing) {
         self.text = text; self.status = status
     }
+}
+
+struct WebReceiptContext: Codable, Equatable, Sendable {
+    var originalURL: URL
+    var baseline: [WebPageMessage]
+    var existingPaths: Set<String>
+    var candidateURL: URL?
 }
 
 public struct WebWorkspaceState: Codable, Sendable {
