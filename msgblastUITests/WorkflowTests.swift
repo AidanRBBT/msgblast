@@ -2,6 +2,30 @@ import XCTest
 import AppKit
 final class WorkflowTests: XCTestCase {
     @MainActor
+    func testStandardShortcutsNavigateAndStartBlastWithoutLosingDraft() {
+        let app = launchFixture(separateWindows: false)
+        defer { app.terminate() }
+        let editor = app.textViews["Shared prompt"]
+        editor.click(); editor.typeKey("a", modifierFlags: .command)
+        editor.typeText("Saved keyboard shortcut draft")
+        app.typeKey("2", modifierFlags: .command)
+        XCTAssertTrue(app.textFields["Search Discover"].waitForExistence(timeout: 5))
+        app.typeKey("f", modifierFlags: .command)
+        app.typeText("nonexistent keyboard fixture")
+        XCTAssertEqual(app.textFields["Search Discover"].value as? String, "nonexistent keyboard fixture")
+        app.typeKey("n", modifierFlags: .command)
+        XCTAssertTrue(editor.waitForExistence(timeout: 5))
+        XCTAssertEqual(editor.value as? String, "Saved keyboard shortcut draft")
+        app.typeText(" preserved")
+        XCTAssertEqual(editor.value as? String, "Saved keyboard shortcut draft preserved")
+        app.typeKey("2", modifierFlags: .command)
+        XCTAssertTrue(app.textFields["Search Discover"].waitForExistence(timeout: 5))
+        app.typeKey("1", modifierFlags: .command)
+        XCTAssertTrue(editor.waitForExistence(timeout: 5))
+        XCTAssertEqual(editor.value as? String, "Saved keyboard shortcut draft preserved")
+    }
+
+    @MainActor
     func testPersonalAgentOpensComparisonReportWithBestNextAction() {
         let app = launchFixture(separateWindows: false)
         defer { app.terminate() }

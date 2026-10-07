@@ -1,0 +1,16 @@
+{
+  "msgblast/App/msgblastApp.swift": "a7d2f7c113e937258efcff251cda7c42fc8114bb9c625d5daae50ce76fd4ac71",
+  "msgblast/Core/AttachmentTextView.swift": "ddb56b70009078357fece5f70e5857e165ec2704a776c5d94cef543f53243d8e",
+  "msgblast/Windows/DiscoverView.swift": "01f9523d261df5cf56415111fb3afe550cfa84e638506d077fba234602d607da",
+  "msgblast/Windows/MessageEditor.swift": "6bb9ebd9a773ddb0030fb29ca5608935db120ab41447b6382b5ab58b09afcd08",
+  "msgblast/Windows/Views.swift": "4cfea312ea3d53ed9f2ed5f99a4222e55b359c2d6563757af179eadde0bc8cf6",
+  "msgblast/Windows/WebServicesView.swift": "6236c561569f0f64415567a0b22a1ded285554cb513086ebf1d58f165b82d772",
+  "msgblast/msgblast.entitlements": "a8bbf3895c8e2eda588a73769803ea41ce9433cad76323118eba192faae51ab8",
+  "msgblast/msgblastAdHoc.entitlements": "11afa956fe541d2a96dbf99ff8d9ae9b7c9b66162dc9a8f9fe3983469a3b36e8",
+  "msgblast/msgblastDebug.entitlements": "11afa956fe541d2a96dbf99ff8d9ae9b7c9b66162dc9a8f9fe3983469a3b36e8",
+  "msgblastTests/AttachmentTests.swift": "b9c766af1106fbe3f86927b044297bc220673abe5766f23c64154871cfd8b351",
+  "msgblastUITests/WorkflowTests.swift": "a3cae2873d95114bf396f9f4f2b9a32fecde1a8dd2b9b9cfe658680efef8abab",
+  "scripts/release.py": "5a7fdb4497acb07d7958eb5d02b5075f80ce86205d352f7d5572f0761bed486a",
+  "scripts/tests/test_release.py": "c41eed2a5850158326545b40ca0839f29ca0d6b80910fdc6038d4701327ad525",
+  "release-notes/0.6.2.md": "d7c5366133faeb1b4de4568b0569dcdb61f880a5ca6f89bfacee7f8157f67297"
+}

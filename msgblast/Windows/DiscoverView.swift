@@ -31,6 +31,7 @@ struct DiscoverView: View {
     private let catalog = DiscoverResources.catalog
     @State private var category: DiscoverCategory?
     @State private var actionError: String?
+    @FocusState private var searchFocused: Bool
     @State private var showingManualEntry = false
     private var canAdd: Bool { model.databaseAvailable && model.contactsAvailable && !model.busy }
     private var query: String { model.contactQuery }
@@ -47,6 +48,7 @@ struct DiscoverView: View {
                     HStack(spacing: 9) {
                         Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
                         TextField("Search agents, contacts, phone or email", text: $model.contactQuery)
+                            .focused($searchFocused)
                             .textFieldStyle(.plain).accessibilityLabel("Search Discover")
                             .onSubmit { Task { await model.searchDiscoverContacts(knownAgents: catalog?.discoverAgents ?? []) } }
                         if !query.isEmpty {
@@ -92,6 +94,7 @@ struct DiscoverView: View {
                 }
             }.padding(24)
         }
+        .focusedSceneValue(\.discoverSearch, { searchFocused = true })
         .onAppear { refreshAccess() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in refreshAccess() }
         .task(id: DiscoverSearchKey(query: query, contactsAvailable: model.contactsAvailable, databaseAvailable: model.databaseAvailable)) {
