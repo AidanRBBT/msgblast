@@ -3,6 +3,27 @@ import AppKit
 @testable import msgblastCore
 
 final class AttachmentTests: XCTestCase {
+    @MainActor func testCommandReturnSendsFromFocusedEditorAndShiftReturnKeepsNewline() throws {
+        let view = AttachmentTextView()
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 300, height: 100),
+                              styleMask: .borderless, backing: .buffered, defer: false)
+        window.contentView = view
+        XCTAssertTrue(window.makeFirstResponder(view))
+        var sends = 0
+        view.sendMessage = { sends += 1 }
+        let send = try XCTUnwrap(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: .command,
+            timestamp: 0, windowNumber: 0, context: nil, characters: "\r", charactersIgnoringModifiers: "\r", isARepeat: false, keyCode: 36))
+        XCTAssertTrue(view.performKeyEquivalent(with: send))
+        XCTAssertEqual(sends, 1)
+        let newline = try XCTUnwrap(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [.command, .shift],
+            timestamp: 0, windowNumber: 0, context: nil, characters: "\r", charactersIgnoringModifiers: "\r", isARepeat: false, keyCode: 36))
+        XCTAssertFalse(view.performKeyEquivalent(with: newline))
+        XCTAssertEqual(sends, 1)
+        XCTAssertTrue(window.makeFirstResponder(nil))
+        XCTAssertFalse(view.performKeyEquivalent(with: send), "Send shortcut must require this editor’s focus")
+        XCTAssertEqual(sends, 1)
+    }
+
     func testTransportCopiesRecipientsIntoSeparatePrivateDirectories() throws {
         let temporary = FileManager.default.temporaryDirectory.appendingPathComponent("msgblast-transport-test-" + UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: temporary) }

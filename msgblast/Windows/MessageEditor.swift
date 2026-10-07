@@ -21,8 +21,10 @@ struct MessageEditor: NSViewRepresentable {
     let attachmentsEnabled: Bool
     let importAttachment: (AttachmentImport) -> Void
     let send: () -> Void
+    var focusRequest: UUID? = nil
     final class Coordinator: NSObject, NSTextViewDelegate {
         var parent: MessageEditor
+        var lastFocusRequest: UUID?
         private var measurements: [(text: String, width: CGFloat, size: CGSize)] = []
         init(_ parent: MessageEditor) { self.parent = parent }
         func measure(_ text: String, width: CGFloat) -> CGSize {
@@ -62,6 +64,14 @@ struct MessageEditor: NSViewRepresentable {
         guard let view = scroll.documentView as? AttachmentTextView else { return }
         if view.string != text { view.string = text }
         view.importAttachment = importAttachment; view.sendMessage = send; view.attachmentsEnabled = attachmentsEnabled
+        if let focusRequest, context.coordinator.lastFocusRequest != focusRequest {
+            context.coordinator.lastFocusRequest = focusRequest
+            DispatchQueue.main.async { [weak view] in
+                guard let view, let window = view.window else { return }
+                window.makeFirstResponder(view)
+                view.setSelectedRange(NSRange(location: view.string.utf16.count, length: 0))
+            }
+        }
         let size = NSSize(width: scroll.contentSize.width, height: max(22, context.coordinator.measure(text, width: scroll.contentSize.width).height))
         if view.frame.size != size { view.frame.size = size }
     }

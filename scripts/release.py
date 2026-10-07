@@ -361,6 +361,8 @@ def prepare(options):
             if start < 0 or end < 0:
                 raise ReleaseError("Cannot read exported app entitlements")
             entitlements = plistlib.loads(result[start:end + len("</plist>")].encode())
+            if entitlements.get("com.apple.security.personal-information.addressbook") is not True:
+                raise ReleaseError("Exported app lost its Contacts Address Book entitlement")
             if entitlements.get("com.apple.security.automation.apple-events") is not True:
                 raise ReleaseError("Exported app lost its Messages Automation entitlement")
             if (options.signing_mode == "ad-hoc"

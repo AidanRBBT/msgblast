@@ -32,6 +32,14 @@ public final class AttachmentTextView: NSTextView {
         if sender.draggingPasteboard.availableType(from: [.fileURL, .png, .tiff]) != nil { return attachmentsEnabled ? .copy : [] }
         return super.draggingUpdated(sender)
     }
+    public override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        let modifiers = event.modifierFlags.intersection([.command, .shift, .option, .control])
+        if window?.firstResponder === self, [36, 76].contains(event.keyCode), modifiers == .command, let sendMessage {
+            sendMessage()
+            return true
+        }
+        return super.performKeyEquivalent(with: event)
+    }
     public override func keyDown(with event: NSEvent) {
         if [36, 76].contains(event.keyCode), !event.modifierFlags.contains(.shift) { sendMessage?() }
         else { super.keyDown(with: event) }

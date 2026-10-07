@@ -96,6 +96,7 @@ struct MessageInput: View {
     var disabled: Bool
     var attachmentsEnabled = true
     var send: () -> Void
+    var focusRequest: UUID? = nil
     @State private var dropTarget = false
     @State private var importing = false
     @State private var attachmentError: String?
@@ -110,7 +111,7 @@ struct MessageInput: View {
                     MessageEditor(text: $text, accessibilityName: accessibilityName, attachmentsEnabled: attachmentsEnabled && !unavailable, importAttachment: { selection in
                         importing = true
                         Task { await addAttachments(selection); importing = false }
-                    }, send: { if !unavailable && hasContent { send() } })
+                    }, send: { if !unavailable && hasContent { send() } }, focusRequest: focusRequest)
                         .overlay(alignment: .topLeading) {
                             if text.isEmpty { Text(placeholder).font(.system(size: 14)).foregroundStyle(Color(nsColor: .placeholderTextColor)).padding(.top, 2).allowsHitTesting(false).accessibilityHidden(true) }
                         }
@@ -118,7 +119,7 @@ struct MessageInput: View {
                         Button(action: send) { Image(systemName: "arrow.up").font(.system(size: 12, weight: .semibold)).frame(width: 22, height: 22) }
                             .buttonStyle(.plain).foregroundStyle(.white)
                             .background(unavailable ? Color.gray : Color.blue, in: Circle())
-                            .accessibilityLabel(sendLabel).help(sendLabel).disabled(unavailable)
+                            .accessibilityLabel(sendLabel).help("\(sendLabel) (Return or ⌘Return; ⇧Return for a new line)").disabled(unavailable)
                     }
                 }
                 .padding(.leading, 14).padding(.trailing, 7).padding(.vertical, 5)
@@ -196,6 +197,7 @@ struct MainView: View {
     private enum DetailSelection { case agents, discover }
     @State private var selection = DetailSelection.agents
     @State private var showingComparison = false
+    @State private var newBlastRequest: UUID? = UUID()
     private var sidebarSelectionColor: Color { Color.primary.opacity(controlActiveState == .inactive ? 0.06 : 0.10) }
     private var sidebarIconColor: Color { controlActiveState == .inactive ? .secondary : .accentColor }
     private var showingAgents: Bool { selection == .agents && !showingComparison }
@@ -249,12 +251,20 @@ struct MainView: View {
             VStack(spacing: 0) {
                 if model.demo { demoControls }
                 MessagesAccessBanner(model: model)
-                AgentsWorkspaceView(model: model, web: model.webAgents, showingComparison: $showingComparison)
+                AgentsWorkspaceView(model: model, web: model.webAgents, showingComparison: $showingComparison, newBlastRequest: newBlastRequest)
             }.navigationTitle("")
             }
         }
         .frame(minWidth: 760, minHeight: 560)
         .tint(.blue)
+        .focusedSceneValue(\.mainWindowActions, model.error != nil ? nil : MainWindowActions(
+            newBlast: {
+                selection = .agents; showingComparison = false
+                web.setComparison(nil); newBlastRequest = UUID()
+            },
+            showAgents: { selection = .agents; showingComparison = false },
+            showDiscover: { selection = .discover },
+            canStartBlast: !model.busy && !model.webBroadcastBusy && !web.sessions.contains { $0.isSending }))
         .onChange(of: model.webComparisonRequest) { _, _ in selection = .agents; showingComparison = true }
         .alert("msgblast", isPresented: Binding(get: { model.error != nil }, set: { if !$0 { model.error = nil } })) {
             Button("OK") { model.error = nil }

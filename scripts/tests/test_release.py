@@ -184,7 +184,7 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(export["method"], "developer-id")
         self.assertEqual(export["signingCertificate"], options.identity)
 
-    def fake_runner(self, options, *, notary_status="Accepted", mismatched_key=False):
+    def fake_runner(self, options, *, notary_status="Accepted", mismatched_key=False, contacts_entitlement=True):
         commands = []
 
         def fake(cmd):
@@ -212,7 +212,8 @@ class ReleaseTests(unittest.TestCase):
             if cmd[:2] == ["codesign", "-dv"]:
                 return "Authority=" + options.identity + "\nTeamIdentifier=" + options.team_id + "\nflags=0x10000(runtime)\n"
             if cmd[:3] == ["codesign", "-d", "--entitlements"]:
-                return plistlib.dumps({"com.apple.security.automation.apple-events": True,
+                return plistlib.dumps({"com.apple.security.personal-information.addressbook": contacts_entitlement,
+                                       "com.apple.security.automation.apple-events": True,
                                        "com.apple.security.cs.disable-library-validation": options.signing_mode == "ad-hoc"}).decode()
             if cmd[0] == "ditto":
                 if Path(cmd[1]).is_dir():
@@ -235,6 +236,25 @@ class ReleaseTests(unittest.TestCase):
             return ""
 
         return fake, commands
+
+    def test_all_app_signing_modes_declare_contacts_resource_access(self):
+        for name in ("msgblast.entitlements", "msgblastDebug.entitlements", "msgblastAdHoc.entitlements"):
+            with self.subTest(configuration=name):
+                entitlements = plistlib.loads((release.ROOT / "msgblast" / name).read_bytes())
+                self.assertIs(entitlements.get("com.apple.security.personal-information.addressbook"), True,
+                              "Hardened runtime otherwise blocks Contacts despite user approval")
+
+    def test_missing_contacts_entitlement_stops_release_before_notarization_and_packaging(self):
+        for mode in ("developer-id", "ad-hoc"):
+            with self.subTest(mode=mode):
+                options = self.options({"--output": str(self.root / mode)}) if mode == "developer-id" else release.parse_args(self.adhoc_args() + ["--output", str(self.root / mode)])
+                runner, commands = self.fake_runner(options, contacts_entitlement=False)
+                with patch.object(release, "run", side_effect=runner), patch.object(release, "check_tools"), contextlib.redirect_stdout(io.StringIO()):
+                    with self.assertRaisesRegex(release.ReleaseError, "Contacts.*entitlement"):
+                        release.prepare(options)
+                self.assertFalse(any(cmd[:3] == ["xcrun", "notarytool", "submit"] for cmd in commands))
+                self.assertFalse(any(cmd[0] == "ditto" and "-k" in cmd for cmd in commands))
+                self.assertFalse((options.output / "publish/release.json").exists())
 
     def test_prepare_verifies_and_records_actual_artifacts(self):
         options = self.options()

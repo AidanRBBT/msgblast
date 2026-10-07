@@ -1,0 +1,12 @@
+{
+  "installed_061_addressbook_entitlement": false,
+  "rebuilt_062_debug_addressbook_entitlement": true,
+  "tooling_tests": {
+    "passed": 72,
+    "apple_calls": "mocked"
+  },
+  "native_core_tests_passed_before_final_window_focus_change": 155,
+  "final_command_return_test_passed": true,
+  "native_ui_test": "runner failed before assertions: automation mode initialization timeout",
+  "actual_contacts_approval_and_fetch": "not exercised; no TCC reset or live app replacement"
+}

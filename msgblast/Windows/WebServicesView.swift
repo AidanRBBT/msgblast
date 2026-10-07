@@ -12,6 +12,7 @@ struct AgentsWorkspaceView: View {
     @ObservedObject var model: AppModel
     @ObservedObject var web: WebAgents
     @Binding var showingComparison: Bool
+    var newBlastRequest: UUID? = nil
     @State private var showingConnectionIntro = false
     @State private var hasPresentedConnectionIntro = false
     private var busy: Bool { model.busy || model.webBroadcastBusy || web.sessions.contains { $0.isSending } }
@@ -39,6 +40,7 @@ struct AgentsWorkspaceView: View {
         .background(Color(nsColor: .textBackgroundColor))
         .overlay { if showingConnectionIntro { connectionIntro } }
         .task { web.connectSelected() }
+        .onChange(of: newBlastRequest) { _, _ in showingConnectionIntro = false }
         .toolbar {
             ToolbarItem(placement: .navigation) {
                 Button {
@@ -154,7 +156,7 @@ struct AgentsWorkspaceView: View {
                          attachments: attachments, addAttachments: { await model.addAttachments($0, comparisonID: attachmentComparisonID) },
                          removeAttachment: { id in model.setAttachmentDraft(attachments.filter { $0.id != id }, comparisonID: attachmentComparisonID) },
                          placeholder: "Message", accessibilityName: "Shared prompt", sendLabel: "Send & compare",
-                         disabled: !canSend, attachmentsEnabled: web.selected.isEmpty, send: send)
+                         disabled: !canSend, attachmentsEnabled: web.selected.isEmpty, send: send, focusRequest: newBlastRequest)
         }.padding(20)
     }
 
