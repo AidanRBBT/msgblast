@@ -192,7 +192,7 @@ def instructions(variant):
             "use the blue msgblast Demo.app for fixtures and simulated demonstrations. It is not a fixture and can read real Messages. "
             "Grant this bundle Full Disk Access, Contacts, and Messages Automation. Those permissions belong to com.msgblast.development, "
             "do not transfer from com.msgblast.mac, and may need to be granted again after a rebuild because the ad-hoc code hash changes. "
-            "Preferences are the standard defaults for that bundle ID. Grok Bot uses silent secure storage when available; ad-hoc previews keep its key for the current session only. "
+            "Preferences are the standard defaults for that bundle ID. Grok Bot remembers its connection using hardware-encrypted storage when a Secure Enclave is available. Settings labels session-only storage if no secure backend is available. "
             "Saved state is in ~/Library/Application Support/msgblast-Dev." + shared)
 
 

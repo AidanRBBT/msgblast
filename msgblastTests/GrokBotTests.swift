@@ -6,13 +6,115 @@ import LocalAuthentication
 
 @MainActor
 final class GrokBotTests: XCTestCase {
+    func testAdHocConnectionCredentialsSurviveStorageReload() async throws {
+        guard SecureEnclave.isAvailable else { throw XCTSkip("This integration check needs a Secure Enclave") }
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("state.json")
+        let credentials = try GrokBotCredentials(webhookURL: "https://webhook.example/persistence", webhookKey: "fixture-persisted-key-00000000000000000000")
+        let saved = try await GrokBotCredentialStore.save(credentials, at: url)
+        XCTAssertTrue(saved, "Ad-hoc builds must remember the webhook connection without interactive Keychain access")
+        let restored = try await GrokBotCredentialStore.read(url)
+        XCTAssertEqual(restored?.webhookURL, credentials.webhookURL)
+        XCTAssertEqual(restored?.webhookKey, credentials.webhookKey)
+    }
+    func testPersistedCredentialsAreEncryptedAndOwnerOnly() throws {
+        guard SecureEnclave.isAvailable else { throw XCTSkip("Hardware encryption needs a Secure Enclave") }
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("state.json")
+        let credentials = try GrokBotCredentials(webhookURL: "https://webhook.example/private-address", webhookKey: "fixture-private-key-00000000000000000000")
+        try GrokBotCredentialVault.save(credentials, at: url)
+        let file = GrokBotCredentialVault.fileURL(for: url)
+        let bytes = try Data(contentsOf: file)
+        XCTAssertNil(bytes.range(of: Data(credentials.webhookKey.utf8)))
+        XCTAssertNil(bytes.range(of: Data(credentials.webhookURL.absoluteString.utf8)))
+        let attributes = try FileManager.default.attributesOfItem(atPath: file.path)
+        XCTAssertEqual((attributes[.posixPermissions] as? NSNumber)?.intValue, 0o600)
+        let folderAttributes = try FileManager.default.attributesOfItem(atPath: file.deletingLastPathComponent().path)
+        XCTAssertEqual((folderAttributes[.posixPermissions] as? NSNumber)?.intValue, 0o700)
+    }
+    func testTamperedCredentialsArePreservedAndOnlyExplicitSetupReplacesThem() async throws {
+        guard SecureEnclave.isAvailable else { throw XCTSkip("Hardware encryption needs a Secure Enclave") }
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("state.json")
+        let old = try GrokBotCredentials(webhookURL: "https://webhook.example/old", webhookKey: "fixture-old-key-00000000000000000000000")
+        try GrokBotCredentialVault.save(old, at: url)
+        let file = GrokBotCredentialVault.fileURL(for: url)
+        var envelope = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: file)) as? [String: Any])
+        var ciphertext = try XCTUnwrap(Data(base64Encoded: try XCTUnwrap(envelope["ciphertext"] as? String)))
+        ciphertext[ciphertext.count - 1] ^= 1
+        envelope["ciphertext"] = ciphertext.base64EncodedString()
+        let damaged = try JSONSerialization.data(withJSONObject: envelope)
+        try damaged.write(to: file)
+        do { _ = try await GrokBotCredentialStore.read(url); XCTFail("Tampering must fail authenticated decryption") }
+        catch let error as GrokBotServiceError { XCTAssertEqual(error, .keychain) }
+        XCTAssertEqual(try Data(contentsOf: file), damaged)
+        let new = try GrokBotCredentials(webhookURL: "https://webhook.example/new", webhookKey: "fixture-new-key-00000000000000000000000")
+        let saved = try await GrokBotCredentialStore.save(new, at: url)
+        XCTAssertTrue(saved)
+        let restored = try await GrokBotCredentialStore.read(url)
+        XCTAssertEqual(restored?.webhookKey, new.webhookKey)
+        XCTAssertEqual(restored?.webhookURL, new.webhookURL)
+    }
+    func testCredentialVaultCannotBeCopiedToAnotherProfile() throws {
+        guard SecureEnclave.isAvailable else { throw XCTSkip("Hardware encryption needs a Secure Enclave") }
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let first = directory.appendingPathComponent("first.json"), second = directory.appendingPathComponent("second.json")
+        let credentials = try GrokBotCredentials(webhookURL: "https://webhook.example/first", webhookKey: "fixture-first-key-000000000000000000000")
+        try GrokBotCredentialVault.save(credentials, at: first)
+        try FileManager.default.copyItem(at: GrokBotCredentialVault.fileURL(for: first), to: GrokBotCredentialVault.fileURL(for: second))
+        XCTAssertThrowsError(try GrokBotCredentialVault.read(second))
+        XCTAssertEqual(try GrokBotCredentialVault.read(first)?.webhookKey, credentials.webhookKey)
+    }
+    func testOversizedSymlinkedAndPublicCredentialFilesAreRejected() throws {
+        guard SecureEnclave.isAvailable else { throw XCTSkip("Valid encrypted file fixtures need a Secure Enclave") }
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("state.json")
+        let file = GrokBotCredentialVault.fileURL(for: url)
+        let credentials = try GrokBotCredentials(webhookURL: "https://webhook.example/file-safety", webhookKey: "fixture-file-key-0000000000000000000000")
+        try GrokBotCredentialVault.save(credentials, at: url)
+        let original = try Data(contentsOf: file)
+        XCTAssertEqual(try GrokBotCredentialVault.read(url)?.webhookKey, credentials.webhookKey)
+        var oversized = original
+        oversized.append(Data(repeating: 32, count: 33 * 1024))
+        try oversized.write(to: file)
+        XCTAssertThrowsError(try GrokBotCredentialVault.read(url))
+        try original.write(to: file)
+        try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: file.path)
+        XCTAssertThrowsError(try GrokBotCredentialVault.read(url))
+        try FileManager.default.removeItem(at: file)
+        let target = directory.appendingPathComponent("target")
+        try original.write(to: target)
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: target.path)
+        try FileManager.default.createSymbolicLink(at: file, withDestinationURL: target)
+        XCTAssertThrowsError(try GrokBotCredentialVault.read(url))
+        XCTAssertEqual(try Data(contentsOf: target), original)
+    }
+    func testKeychainBackendIgnoresAnUnusableHardwareVaultOnNonEnclaveMac() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("state.json")
+        let file = GrokBotCredentialVault.fileURL(for: url)
+        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        let copied = Data("copied, unusable hardware vault".utf8)
+        try copied.write(to: file)
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)
+        let credentials = try GrokBotCredentials(webhookURL: "https://webhook.example/keychain", webhookKey: "fixture-keychain-key-000000000000000000")
+        let restored = try GrokBotCredentialStore.readAvailableStorage(url, hardwareAvailable: false) { credentials }
+        XCTAssertEqual(restored?.webhookKey, credentials.webhookKey)
+        XCTAssertEqual(try Data(contentsOf: file), copied)
+    }
     func testKeychainWorkRunsAwayFromTheUIThread() async throws {
-        let worker = GrokBotKeychainWorker()
+        let worker = GrokBotCredentialWorker()
         let usedMainThread = try await worker.perform { Thread.isMainThread }
         XCTAssertFalse(usedMainThread, "Secure-storage work must not block the app's UI thread")
     }
     func testBlockedKeychainWorkTimesOutAndRejectsOverlappingOperations() async throws {
-        let worker = GrokBotKeychainWorker()
+        let worker = GrokBotCredentialWorker()
         let release = DispatchSemaphore(value: 0)
         let lateReturn = expectation(description: "The original operation can return after its caller timed out")
         defer { release.signal() }
@@ -34,14 +136,14 @@ final class GrokBotTests: XCTestCase {
         await fulfillment(of: [lateReturn], timeout: 2)
     }
     func testKeychainWorkerPreservesOperationFailures() async throws {
-        let worker = GrokBotKeychainWorker()
+        let worker = GrokBotCredentialWorker()
         do {
             let _: Bool = try await worker.perform { throw GrokBotServiceError.keychain }
             XCTFail("Keychain errors must remain errors")
         } catch let error as GrokBotServiceError { XCTAssertEqual(error, .keychain) }
     }
     func testCredentialQueriesNeverPermitInteractiveAuthentication() throws {
-        let query = GrokBotKeychain.query(URL(fileURLWithPath: "/tmp/synthetic-profile/state.json"))
+        let query = GrokBotCredentialStore.query(URL(fileURLWithPath: "/tmp/synthetic-profile/state.json"))
         XCTAssertEqual(query[kSecUseDataProtectionKeychain as String] as? Bool, true)
         XCTAssertEqual(query[kSecUseAuthenticationUI as String] as? String, kSecUseAuthenticationUIFail as String)
         let context = try XCTUnwrap(query[kSecUseAuthenticationContext as String] as? LAContext)

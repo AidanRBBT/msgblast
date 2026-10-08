@@ -782,7 +782,7 @@ extension WebAgentSession {
             if !shuttingDown, connected, isEnabled, grokBotCredentials != nil { Task { await refresh() } }
         }
         do {
-            let credentials = try await GrokBotKeychain.read(storageURL)
+            let credentials = try await GrokBotCredentialStore.read(storageURL)
             guard !shuttingDown else { return false }
             grokBotCredentials = credentials; grokBotRemembersConnection = credentials != nil
             grokBotNeedsKeychainRetry = false
@@ -806,7 +806,7 @@ extension WebAgentSession {
                 try await startGrokBotConnection()
                 setGrokBotConnectionActivity(.savingKey)
                 // Failure to remember a key must not prevent a session-only connection.
-                remembered = (try? await GrokBotKeychain.save(credentials, at: storageURL)) ?? false
+                remembered = (try? await GrokBotCredentialStore.save(credentials, at: storageURL)) ?? false
             }
             guard !shuttingDown else { return false }
             guard fixture || grokBotReplyURL != nil else { throw GrokBotServiceError.callbackUnavailable }

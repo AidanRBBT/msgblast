@@ -12,7 +12,7 @@ The open-source [cloudflared helper](https://github.com/cloudflare/cloudflared) 
 
 Connecting can take up to 90 seconds while the temporary address becomes reachable. An explicit webhook rejection keeps the request unsent and its draft intact; an unknown network result is not automatically retried.
 
-Settings distinguishes **Reading saved key**, **Starting reply tunnel**, and **Saving key**. Secure-storage operations run in the background, prohibit interactive authentication, and wait at most 15 seconds. The app uses the data-protection Keychain only when its signed entitlements provide an access group. A build without that capability, including the ad-hoc Dev build, keeps the entered credentials in memory for the current session and labels that limit in Settings. After quitting such a build, enter the webhook details again. No plaintext credential file or permissive Keychain ACL is used.
+Settings distinguishes **Reading saved key**, **Starting reply tunnel**, and **Saving key**. Secure-storage operations run in the background, prohibit interactive authentication, and wait at most 15 seconds. On Macs with a Secure Enclave, the app remembers the connection in an encrypted local vault across relaunches and ad-hoc rebuilds. The actual private key stays in the Secure Enclave; the file contains ciphertext and an opaque hardware-wrapped key representation. No plaintext credential or unwrapped private key is written, and no permissive Keychain ACL is used. On hardware without a Secure Enclave, the noninteractive data-protection Keychain is used when the app has the required signing entitlements. If neither backend is available, Settings explicitly labels the connection as lasting only until quit.
 
 Legacy file-based Keychain entries are left untouched and are not read. Existing users may need to enter their webhook details once after this change; the old entry is not deleted and no login-password or access-approval dialog is shown.
 
@@ -22,7 +22,7 @@ The routine's URL and key belong to a routine, not the generic xAI model API. A 
 
 The app opens an HTTP listener on a random port bound only to `127.0.0.1`. It launches cloudflared with a private, empty temporary configuration, the loopback origin and info-level logging. It does not read or change existing tunnel configuration or enable a system service. The helper establishes a temporary HTTPS `trycloudflare.com` address. Only authenticated JSON POSTs to `/reply/REQUEST_ID` are accepted; the listener serves no files, chat history, credentials or management API.
 
-Each request gets a random 256-bit callback credential. Grok Bot receives it in the webhook payload and uses it in the callback's Authorization header. The app stores only its SHA-256 hash with the saved request ID. Responses are matched to the original comparison, saved locally before acknowledgement, and identical callback retries do not append a second answer. Prompt/history and reply bodies are capped at 128 KiB. Remembered webhook credentials use the noninteractive data-protection Keychain, isolated by app bundle and storage directory; session-only credentials remain in memory until the app quits.
+Each request gets a random 256-bit callback credential. Grok Bot receives it in the webhook payload and uses it in the callback's Authorization header. The app stores only its SHA-256 hash with the saved request ID. Responses are matched to the original comparison, saved locally before acknowledgement, and identical callback retries do not append a second answer. Prompt/history and reply bodies are capped at 128 KiB. The credential vault uses ephemeral P-256 key agreement, HKDF-SHA256 and AES-GCM. Its directory is owner-only (0700), its atomically replaced file is owner-only (0600), reads are bounded to 32 KiB, and symlinked or publicly readable files are rejected. Authenticated encryption binds the contents to the app bundle identifier and profile path. The vault is tied to this Mac; moving to another Mac requires entering the routine key again. This protects saved data and does not isolate it from malicious software already running as the same local user. When neither secure backend is available, session-only credentials remain in memory until quit.
 
 Cloudflare relays the callback traffic, so this is not an end-to-end encrypted private connection between Grok Bot and the Mac. Request/reply processing and storage are in the app's inspectable Swift code; cloudflared is open source, while Cloudflare operates the relay network. The outbound prompt goes directly to Grok Bot.
 
@@ -42,7 +42,8 @@ The app stops its helper and listener on normal quit. Quitting, disconnecting, o
 
 ## Implementation and validation
 
-- `msgblast/Core/GrokBotService.swift`: bounded JSON payloads, direct webhook submission and Keychain credentials.
+- `msgblast/Core/GrokBotService.swift`: bounded JSON payloads, direct webhook submission and silent credential storage.
+- `msgblast/Core/GrokBotCredentialVault.swift`: hardware-backed encryption and private atomic credential files.
 - `msgblast/Core/GrokBotCallbackReceiver.swift`: loopback HTTP receiver, per-request authentication and callback deduplication.
 - `msgblast/Core/GrokBotTunnel.swift`: temporary helper process and lifecycle.
 - `msgblast/Core/WebAgentSession.swift`: comparison history, request receipts and native replies.

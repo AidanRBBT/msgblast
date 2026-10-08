@@ -108,7 +108,7 @@ public enum GrokBotServiceError: LocalizedError, Equatable {
         case .unauthorized: "Grok Bot rejected the webhook key. Check the connection in Settings."
         case .rejected(let code): "Grok Bot did not start this request (HTTP \(code)). Check the routine URL, key and paused state."
         case .unavailable: "The webhook result could not be confirmed. This request has not been resent."
-        case .keychain: "Grok Bot's connection could not be saved or read in macOS Keychain."
+        case .keychain: "Grok Bot's saved connection could not be read or written securely. Enter the webhook details again to replace it."
         case .keychainWaiting: "Secure local storage did not respond. Enter the webhook details to connect for this session, or retry loading the saved connection."
         case .callbackUnavailable: "The reply connection is unavailable. Keep msgblast open and reconnect Grok Bot."
         case .tunnelHelperMissing: "The bundled tunnel helper is missing. Reinstall msgblast to connect Grok Bot."
@@ -120,8 +120,8 @@ public enum GrokBotServiceError: LocalizedError, Equatable {
     }
 }
 
-enum GrokBotKeychain {
-    private static let worker = GrokBotKeychainWorker()
+enum GrokBotCredentialStore {
+    private static let worker = GrokBotCredentialWorker()
     static func query(_ storageURL: URL) -> [String: Any] {
         let context = LAContext()
         context.interactionNotAllowed = true
@@ -144,6 +144,15 @@ enum GrokBotKeychain {
         try await worker.perform { try readSynchronously(storageURL) }
     }
     private static func readSynchronously(_ storageURL: URL) throws -> GrokBotCredentials? {
+        try readAvailableStorage(storageURL, hardwareAvailable: SecureEnclave.isAvailable) {
+            try readProtectedKeychain(storageURL)
+        }
+    }
+    static func readAvailableStorage(_ storageURL: URL, hardwareAvailable: Bool, readKeychain: () throws -> GrokBotCredentials?) throws -> GrokBotCredentials? {
+        if hardwareAvailable, let credentials = try GrokBotCredentialVault.read(storageURL) { return credentials }
+        return try readKeychain()
+    }
+    private static func readProtectedKeychain(_ storageURL: URL) throws -> GrokBotCredentials? {
         // Ad-hoc Dev builds cannot claim a provisioned Keychain access group.
         guard supportsProtectedStorage else { return nil }
         var query = query(storageURL); query[kSecReturnData as String] = true; query[kSecMatchLimit as String] = kSecMatchLimitOne
@@ -157,6 +166,10 @@ enum GrokBotKeychain {
         try await worker.perform { try saveSynchronously(credentials, at: storageURL) }
     }
     private static func saveSynchronously(_ credentials: GrokBotCredentials, at storageURL: URL) throws -> Bool {
+        if SecureEnclave.isAvailable {
+            try GrokBotCredentialVault.save(credentials, at: storageURL)
+            return true
+        }
         guard supportsProtectedStorage else { return false }
         let query = query(storageURL), data = try JSONEncoder().encode(credentials)
         let status = SecItemUpdate(query as CFDictionary, [kSecValueData as String: data] as CFDictionary)
@@ -173,8 +186,8 @@ enum GrokBotKeychain {
 
 /// Security calls can stall in the system service. Bound the caller's wait without blocking the UI
 /// or queuing more credential mutations behind an operation that has not returned yet.
-final class GrokBotKeychainWorker: @unchecked Sendable {
-    private let queue = DispatchQueue(label: "com.msgblast.grokbot.keychain", qos: .userInitiated)
+final class GrokBotCredentialWorker: @unchecked Sendable {
+    private let queue = DispatchQueue(label: "com.msgblast.grokbot.credentials", qos: .userInitiated)
     private let lock = NSLock()
     private var running = false
 

@@ -55,7 +55,7 @@ struct GrokBotSettingsView: View {
                         }
                     }.disabled(busy || session.configuringGrokBot || session.hasPendingGrokBotRequests || webhookKey.isEmpty)
                     if saved { Label("Ready to send", systemImage: "checkmark.circle.fill").foregroundStyle(.green) }
-                    else if session.grokBotIsConfigured { Text(session.grokBotRemembersConnection ? "Connection saved" : "Connected for this session").foregroundStyle(.secondary) }
+                    else if session.grokBotIsConfigured { Text(session.grokBotRemembersConnection ? "Connection saved on this Mac" : "Connected for this session").foregroundStyle(.secondary) }
                 }
                 if let activity = session.grokBotConnectionActivity {
                     Text(activity.detail).font(.caption).foregroundStyle(.secondary)
@@ -69,9 +69,11 @@ struct GrokBotSettingsView: View {
                         }
                     }.disabled(busy || session.configuringGrokBot)
                 }
-                Text(session.grokBotIsConfigured && !session.grokBotRemembersConnection
-                     ? "This connection is available for the current session. You may need to enter the webhook key again after quitting. Keep this Mac awake for replies."
-                     : "Secure storage is used when available, without a Mac login password prompt. Keep msgblast open and this Mac awake while waiting for replies.")
+                if session.grokBotIsConfigured && !session.grokBotRemembersConnection {
+                    Text("The connection could not be saved securely. It lasts until you quit.")
+                        .font(.caption).foregroundStyle(.orange)
+                }
+                Text("Keep msgblast open and this Mac awake while waiting for replies.")
                     .font(.caption).foregroundStyle(.secondary)
                 if session.hasPendingGrokBotRequests {
                     Text("Wait for pending replies before changing this connection.").font(.caption).foregroundStyle(.secondary)
