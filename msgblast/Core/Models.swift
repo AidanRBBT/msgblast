@@ -176,6 +176,12 @@ public struct Comparison: Codable, Identifiable, Sendable {
     public var webProviders: [WebProvider]?
     public var webProviderIdentityVersion: Int?
     public init(prompt: String, members: [Member]) { self.prompt = prompt; self.members = members; webProviderIdentityVersion = 2; sharedContext = [] }
+    public mutating func completeSharedBroadcast(followUpID: UUID, recipients: Set<UUID>) {
+        guard !recipients.isEmpty, let index = followUps.firstIndex(where: { $0.id == followUpID }),
+              Set(followUps[index].memberIDs) == recipients else { return }
+        followUps[index].sharedWithAll = true
+        recordSharedFollowUp(followUps[index])
+    }
     public mutating func recordSharedMessage(_ message: ConversationContextMessage) {
         guard message.sharedWithAll == true else { return }
         var context = Array(joiningContext().dropFirst())

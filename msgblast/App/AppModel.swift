@@ -465,8 +465,8 @@ final class AppModel: ObservableObject {
         }
         if changed { try save() }
     }
-    func followUp(_ id: UUID, only memberID: UUID? = nil, recipients recipientIDs: [UUID]? = nil, retry attemptID: UUID? = nil, resumeUnsent: Bool = false) async {
-        guard let i = index(id), !busy else { return }
+    func followUp(_ id: UUID, only memberID: UUID? = nil, recipients recipientIDs: [UUID]? = nil, retry attemptID: UUID? = nil, resumeUnsent: Bool = false, newAttemptID: UUID? = nil) async {
+        guard let i = index(id), !busy, memberID == nil || !webBroadcastBusy else { return }
         do { try freezeSharedContext(id) } catch { self.error = error.localizedDescription; return }
         let comparison = state.comparisons[i]
         let selected = recipientIDs.map(Set.init)
@@ -492,6 +492,7 @@ final class AppModel: ObservableObject {
             }
             if attemptID == nil {
                 var attempt = FollowUp(text: text, memberIDs: targets.map(\.id))
+                if let newAttemptID { attempt.id = newAttemptID }
                 attempt.sharedWithAll = memberID == nil && comparison.webProviders == nil && Set(targets.map(\.id)) == Set(comparison.members.map(\.id))
                 for member in targets {
                     attempt.states[member.id.uuidString] = .ready
