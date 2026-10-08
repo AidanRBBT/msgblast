@@ -1,0 +1,34 @@
+[
+  {
+    "variant": "development",
+    "source_revision": "ba324c9a0af71f3a9b24735e6ad3210afae72479",
+    "bundle_id": "com.msgblast.development",
+    "fixture": false,
+    "support_directory": "msgblast-Dev-Integration-065",
+    "updates_disabled": true,
+    "compiled_icon_sha256": "c98ec59998f24b23d6d7eff18df429859fae6aa605baf25ff2ca692b1a2c7ccd",
+    "compiled_icon_color": "blue-green",
+    "compiled_icon_rgb": [
+      8.0,
+      143.0,
+      124.5
+    ],
+    "signing_mode": "ad-hoc hardened runtime"
+  },
+  {
+    "variant": "demo",
+    "source_revision": "ba324c9a0af71f3a9b24735e6ad3210afae72479",
+    "bundle_id": "com.msgblast.demo",
+    "fixture": true,
+    "support_directory": "msgblast-Demo-Integration-065",
+    "updates_disabled": true,
+    "compiled_icon_sha256": "3e233b2177364f165add299fa575edd050c02a43ec24d65dd0ebd65da6b0e4f7",
+    "compiled_icon_color": "blue",
+    "compiled_icon_rgb": [
+      64.75,
+      38.75,
+      216.0
+    ],
+    "signing_mode": "ad-hoc hardened runtime"
+  }
+]

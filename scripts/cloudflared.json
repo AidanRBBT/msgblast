@@ -1,0 +1,15 @@
+{
+  "version": "2026.10.0",
+  "source_revision": "18cdfe0a6fc7b72a0702d255a1f984e776ce0498",
+  "source_url": "https://github.com/cloudflare/cloudflared/tree/18cdfe0a6fc7b72a0702d255a1f984e776ce0498",
+  "assets": {
+    "arm64": {
+      "url": "https://github.com/cloudflare/cloudflared/releases/download/2026.10.0/cloudflared-darwin-arm64.tgz",
+      "sha256": "a2f79ff7b9420aa537d74af239f376da170bbabeb529aec416002adac6a72e70"
+    },
+    "x86_64": {
+      "url": "https://github.com/cloudflare/cloudflared/releases/download/2026.10.0/cloudflared-darwin-amd64.tgz",
+      "sha256": "903845b81828c8cb3c5d13d816a2de71c06a3da5785469df8eb0e1b736d92f9f"
+    }
+  }
+}

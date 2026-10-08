@@ -658,6 +658,11 @@ struct AppSettingsView: View {
             Section {
                 LocalAgentSettingsView(agent: model.personalAgent, web: model.webAgents, busy: model.busy || model.webBroadcastBusy)
             }
+            Section("Grok Bot") {
+                if let session = model.webAgents.sessions.first(where: { $0.provider == .grokbot }) {
+                    GrokBotSettingsView(session: session, busy: model.busy || model.webBroadcastBusy)
+                }
+            }
             Section("Updates") {
                 Text(updater.version).foregroundStyle(.secondary)
                 if updater.configuration.isEnabled {

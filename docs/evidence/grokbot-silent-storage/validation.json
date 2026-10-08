@@ -1,0 +1,35 @@
+{
+  "source_baseline": "b114ea965597646602ef5eb7a310cbd0aa1e52bf",
+  "source_files_sha256": {
+    "msgblast/Core/GrokBotService.swift": "2c00458e6b18412b8efedd97f9e76f16b725632d0fcdcb3bfd4d6ceabe3f12bc",
+    "msgblast/Core/WebAgentSession.swift": "2bb5e45d599a913abea0792f78be90ce2e5f2ef9c076340ae4665d9584911ad7",
+    "msgblast/Core/WebServices.swift": "f742753ac022d6595ee0798059927a0c2015913b73f0b5d00dd9e1c0ee5446b6",
+    "msgblast/Windows/GrokBotSettingsView.swift": "ab59abc260c62bf93e32868f821bfc156ca8dcb2024556d9f1fb1288d54dcd1f",
+    "msgblast/Windows/WebServicesView.swift": "d50f78ff869a3840c0ec2c326421e73838c8c61cd295a6178e1ec0f0e2256743",
+    "msgblastTests/GrokBotTests.swift": "e9a6e731cd67b8c6171185a19d93f9e3cd7ba33a511b38fa65deff20ae6afda7",
+    "docs/grokbot.md": "05a161b813218a0da16010124ebbe940834e56f5730a3ddfc5d0db4a3b843157",
+    "scripts/build_preview_apps.py": "b6acca86b3f9d70c28b157b043ad03f84f505f3bc0ea6cfffe22522b7bf49ed8",
+    "release-notes/0.7.0.md": "2568be77180543cf4685d2e8eb1b9207bb66ba4bd0813c2f9c7db2ca637803cd"
+  },
+  "native_passed": 208,
+  "native_failed": 0,
+  "native_skipped": 0,
+  "python_passed": 79,
+  "review": "20261008-110813-985f051d",
+  "followup": "20261008-110813-985f051d/followup/review.json",
+  "resolved": [
+    "15-second bounded background storage operations",
+    "No interactive or legacy Keychain access; no-access-group Dev uses credentials in memory",
+    "No stale remembered key after newer session-only configuration",
+    "No success after tunnel loss during saving",
+    "Disabled-agent setup survives its health probe"
+  ],
+  "ui_review": "Scoped manual review plus native build and actual gear navigation; Chats strip removed globally, web/CLI reload unchanged, Grok Bot fixture label retained.",
+  "live_validation": "Exactly one user-authorized live test sent to Grok Bot only. The webhook accepted it, Grok Bot desktop confirmed delivery, and the same msgblast comparison displayed msgblast connected. No password prompt.",
+  "capture": "Actual functional blue-green Dev chat before/after cleanup and navigation video. Test content is an authorized live test; no new requests sent for capture. Credentials/settings are not captured. Timing unedited, video re-encoded H.264.",
+  "limitations": [
+    "Entitled data-protection read/update/add not exercised by the ad-hoc Dev app.",
+    "External Grok review transport failed before egress; local adversarial review completed."
+  ],
+  "release_triggered": false
+}

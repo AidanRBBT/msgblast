@@ -63,32 +63,34 @@ import msgblastCore
         model.coordinator = WindowCoordinator(model: model)
         let recipient = model.state.agents[0]
         WebProvider.optionalProviders.forEach { model.webAgents.setEnabled(true, for: $0) }
-        let first = await model.prepareWebComparison("First comparison", recipientIDs: [recipient.id], providers: WebProvider.allCases)!
+        let first = await model.prepareWebComparison("First comparison", recipientIDs: [recipient.id], providers: WebProvider.webDefaults + WebProvider.optionalProviders)!
         let muse = model.webAgents.sessions.first { $0.provider == .muse }!
         precondition(muse.fixture)
-        model.webAgents.sessions.forEach { $0.connect() }
-        try await waitUntil { model.webAgents.sessions.allSatisfy { $0.snapshot.ready } }
-        let firstResults = await WebAgents.send("First comparison", to: model.webAgents.sessions, comparisonID: first)
+        model.webAgents.availableSessions.forEach { $0.connect() }
+        try await waitUntil { model.webAgents.availableSessions.allSatisfy { $0.snapshot.ready } }
+        let firstResults = await WebAgents.send("First comparison", to: model.webAgents.availableSessions, comparisonID: first)
         precondition(firstResults.values.allSatisfy { $0.status == .observed })
         let firstNativeSessions = Dictionary(uniqueKeysWithValues: model.webAgents.sessions.compactMap { session in session.state.localSessionIDs[first.uuidString].map { (session.provider, $0) } })
         await model.submit(first, retry: false)
-        let second = await model.prepareWebComparison("Second comparison", recipientIDs: [], providers: WebProvider.allCases)!
-        let secondResults = await WebAgents.send("Second comparison", to: model.webAgents.sessions, comparisonID: second)
+        let second = await model.prepareWebComparison("Second comparison", recipientIDs: [], providers: WebProvider.webDefaults + WebProvider.optionalProviders)!
+        let secondResults = await WebAgents.send("Second comparison", to: model.webAgents.availableSessions, comparisonID: second)
         precondition(secondResults.values.allSatisfy { $0.status == .observed })
-        for session in model.webAgents.sessions {
+        for session in model.webAgents.availableSessions {
             if session.provider.personalAgentProvider != nil {
                 precondition(firstNativeSessions[session.provider] != session.state.localSessionIDs[second.uuidString])
+            } else if session.provider == .dots {
+                precondition(firstResults[session.provider]?.conversationURL == secondResults[session.provider]?.conversationURL)
             } else { precondition(firstResults[session.provider]?.conversationURL != secondResults[session.provider]?.conversationURL) }
         }
         model.coordinator?.open(first)
-        try await waitUntil { model.webAgents.sessions.allSatisfy { session in
+        try await waitUntil { model.webAgents.availableSessions.allSatisfy { session in
             if session.provider.personalAgentProvider != nil {
                 return session.state.comparisonID == first && session.snapshot.messages.first?.text == "First comparison" && session.state.localSessionIDs[first.uuidString] == firstNativeSessions[session.provider]
             }
             return session.webView.url == firstResults[session.provider]?.conversationURL
         } }
         precondition(model.state.selection == [recipient.id])
-        precondition(model.webAgents.selected.map(\.provider) == WebProvider.allCases)
+        precondition(model.webAgents.selected.map(\.provider) == WebProvider.webDefaults + WebProvider.optionalProviders)
         precondition(model.webAgents.comparisonID == first)
         precondition(model.comparison(first)?.members.first?.submission == .submitted)
         model.webAgents.setEnabled(false, for: .codexCLI)
@@ -234,6 +236,6 @@ import msgblastCore
         let safeMember = safe.members.first { $0.id == third.id }!
         precondition(model.transcript(safe, member: safeMember).filter(\.outgoing).map(\.text) == ["Delayed broadcast original", "Delayed shared ask"])
         print("PASS: deterministic delayed web completion preserves the exact broadcast UUID; private send is blocked with draft retained, injected later private ledger remains unmarked, and a new agent receives only Original + Shared. Actual AgentBroadcast + AppModel with simulated transport.")
-        print("PASS: actual AppModel + WindowCoordinator restore comparison ID, native recipient, provider selection, four saved web URLs and separate Codex CLI/Claude Code sessions; disabled archived CLI remains readable without sending. All sends use local fixtures.")
+        print("PASS: actual AppModel + WindowCoordinator restore comparison ID, native recipient, provider selection, saved website URLs including the ongoing Dots thread and separate Codex CLI/Claude Code sessions; disabled archived CLI remains readable without sending. All sends use local fixtures.")
     }
 }

@@ -27,8 +27,10 @@ Planning a weekend, researching a purchase, or testing an idea? Write your quest
 | Connection | Agents | How it works |
 | --- | --- | --- |
 | Websites | **Muse, ChatGPT, Claude, Grok** | Selected by default on a new installation. Sign in inside msgblast and keep the chats in the app. |
+| Your dot | **Dots** | Select Dots to message your ongoing dot at chatgpt.com/dots. Its displayed avatar is saved locally. |
 | Messages | AI assistants you already text, including **Instinct, Fo, and Szn** | Connect existing one-to-one iMessage conversations. Photos and files are supported. |
 | Optional CLI conversations | **Codex CLI, Claude Code** | Enable each in Settings to add it alongside the websites. Uses the installed CLI’s sign-in, skills, tools, and connectors, subject to its permissions. |
+| Optional Bot webhook | **Grok Bot** | Separate from Grok's website. The Mac sends directly to your Bot's routine and receives replies through an app-managed temporary tunnel. [Setup and availability](docs/grokbot.md). |
 
 Each service’s own account, subscription, and usage limits apply. Web and CLI requests use text; attachments are available when only Messages agents are selected.
 
@@ -58,7 +60,7 @@ Check for updates from **msgblast → Check for Updates**.
 
 ## Web accounts and optional CLI agents
 
-Muse, ChatGPT, Claude, and Grok run as websites inside msgblast. Sign-ins persist between launches. Signing in through Safari, Chrome, a desktop app, or a CLI does not automatically sign you in to these embedded pages. Choose models and thinking settings in each service’s own controls.
+Muse, ChatGPT, Claude, Grok, and Dots run as websites inside msgblast. Dots is an optional selection and continues your existing dot conversation across blasts. Its rendered profile avatar, including custom pets, is saved locally and refreshed when it changes; signing out clears it. Sign-ins persist between launches. Signing in through Safari, Chrome, a desktop app, or a CLI does not automatically sign you in to these embedded pages. Choose models and thinking settings in each service’s own controls.
 
 Enable **Codex CLI** or **Claude Code** in **msgblast → Settings** to add a separate agent. Enabling a CLI does not replace its website. Each keeps its own saved history and draft, so you can compare the web account’s capabilities with the CLI’s configured skills, tools, and connectors. Manage local account sign-in and switching in Settings.
 

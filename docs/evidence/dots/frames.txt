@@ -1,0 +1,1 @@
+Screenshots captured directly from the same runtime during the continuous native workflow, except 06-relaunch-avatar.png captured after quit/relaunch. Video is trimmed to 24 seconds at normal speed. Website replies and avatar artwork are synthetic.

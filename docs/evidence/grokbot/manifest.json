@@ -1,0 +1,38 @@
+{
+  "base_sha": "eaae85803608abd37c4701d55326fd18db0a68db",
+  "variant": "isolated blue demo, com.msgblast.grokbot-preview",
+  "screenshots": [
+    "settings.png",
+    "agents.png",
+    "replies.png"
+  ],
+  "video": "workflow.mp4",
+  "demonstration": "Actual native UI. Webhook acceptance and Bot replies are simulated; no live Bot, real messages, or Contacts writes. Video timing is unedited; transcoded to H.264 and scaled for review.",
+  "checks": {
+    "native_core_tests": 201,
+    "python_tests": 74,
+    "feedback_tests": 12,
+    "actual_tunnel": "Authenticated synthetic HTTPS callback succeeded through the final Core receiver and real cloudflared tunnel. Startup allows 90 seconds. Helper stopped deterministically; only the unrelated pre-existing user service remained. No DNS settings changed.",
+    "comparison_and_lifecycle_harness": "passed with actual AppModel, WindowCoordinator and local web/CLI/Messages fixtures",
+    "sparkle_update_fixtures": "five passed (install/preserve, unreadable state, no update, invalid signature, failed download)"
+  },
+  "limits": [
+    "Live Grok Bot routine and credentials are not configured or tested.",
+    "Native macOS feature; no mobile UI change."
+  ],
+  "review": {
+    "status": "complete",
+    "run_id": "20261007-174308-d4ce51d1",
+    "all_seven_findings": "applied; HTTP rejection and connection-loss regressions reproduced before fixes, all final core tests passed",
+    "external_peer": "did not run; transport failed before egress; independent local adversarial fallback completed"
+  },
+  "source_hashes": {
+    "msgblast/Core/GrokBotService.swift": "c8ccdb405a1e25662931f3db316ba54269b4cb316167b807006d49bf1054fe96",
+    "msgblast/Core/GrokBotCallbackReceiver.swift": "b9026e67d0354f9a3986db47f78288ec7ca6c4906485704c3a98dc3a371c3fb5",
+    "msgblast/Core/GrokBotTunnel.swift": "8c4b4c8be4dd1fcc9eef799f2a82c227138712b9e8a4ec9574c08187bbfad37b",
+    "msgblast/Core/WebAgentSession.swift": "44e697a7a4256f8c44f40bcf74957d5faaa2e42c748230046d11421dbccb83dd",
+    "msgblast/Windows/GrokBotSettingsView.swift": "8f3ded95c4c8ad815fce8eb104781b274e1499526e6eebc301b633dbb33c35da",
+    "msgblast/Windows/WebServicesView.swift": "2c42c60de49462fb30e86c55cff2ed3b729da83af4bf852bd5cd06b3f1e9576b",
+    "msgblast/Windows/Views.swift": "66b7c6b75b1b0c84193d5a5820067242a13554a40e7b2a7c9a9b04c4e4e24750"
+  }
+}

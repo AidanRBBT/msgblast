@@ -1,3 +1,10 @@
+cloudflared 2026.10.0
+https://github.com/cloudflare/cloudflared
+The bundled executable is distributed under Apache License 2.0.
+Its full license, Go runtime license, and dependency notices are in
+Contents/Resources/CloudflaredNotices.txt. The pinned source and download
+checksums are in Contents/Resources/cloudflared.json.
+
 MIT License
 
 Copyright (c) 2026 Riko

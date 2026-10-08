@@ -7,13 +7,18 @@ struct WebPageScript {
     private var helpers: String {
         let selectors: (editor: String, send: String, messages: String, account: String)
         switch provider {
-        case .codexCLI, .claudeCode: preconditionFailure("CLI agents do not use page scripts")
+        case .codexCLI, .claudeCode, .grokbot: preconditionFailure("Native agents do not use page scripts")
         case .muse: return MusePageScript.helpers
         case .chatgpt:
             selectors = (#"textarea[aria-label="Chat with ChatGPT"],#prompt-textarea[contenteditable="true"],[contenteditable="true"][role="textbox"][aria-label="Ask ChatGPT"]"#,
                          #"button[data-testid="send-button"],button[aria-label="Send message"],button[aria-label="Send prompt"],button[aria-label="Send"]"#,
                          #"[data-message-author-role][data-message-id],[data-chatgpt-search-unit-key][data-chatgpt-search-message-ids]"#,
                          #"button[data-testid="accounts-profile-button"],button[aria-label="Open profile menu"]"#)
+        case .dots:
+            selectors = (#"[contenteditable="true"][role="textbox"][aria-label="Message"][data-composer-markdown]"#,
+                         #"button[aria-label="Send"]"#,
+                         #"article.message-row[data-message-id]"#,
+                         #"button[aria-label="Your dot actions"],button[data-orbit-profile-trigger][aria-label^="Open "][aria-label$="profile"]"#)
         case .claude:
             selectors = (#"[contenteditable="true"][data-testid="chat-input"],div[contenteditable="true"].ProseMirror"#,
                          #"button[aria-label="Send message"],button[data-testid="send-button"]"#,
@@ -43,7 +48,7 @@ struct WebPageScript {
                 window.addEventListener(event,e=>{if(e.isTrusted) observation.interrupted=true;},true);
         }
         const pathAllowed = () => location.protocol==='https:' && location.hostname===config.host &&
-            (config.provider==='claude' ? /^\/(new|chat\/[a-zA-Z0-9-]+)\/?$/.test(location.pathname) : /^(\/|\/c\/[a-zA-Z0-9-]+\/?)$/.test(location.pathname));
+            (config.provider==='dots' ? (location.pathname==='/dots/home' || /^\/dots\/[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(location.pathname)) : config.provider==='claude' ? /^\/(new|chat\/[a-zA-Z0-9-]+)\/?$/.test(location.pathname) : /^(\/|\/c\/[a-zA-Z0-9-]+\/?)$/.test(location.pathname));
         const messages = () => [...document.querySelectorAll(config.messages)].filter(e => !e.parentElement?.closest(config.messages)).map(e => {
             let role=e.getAttribute('data-message-author-role') || e.getAttribute('data-message-role');
             let id=e.getAttribute('data-message-id') || e.closest('[data-message-id]')?.getAttribute('data-message-id');
@@ -52,9 +57,10 @@ struct WebPageScript {
                 const ids=[...new Set((e.getAttribute('data-chatgpt-search-message-ids')||'').split(/\s+/).filter(Boolean))];
                 if (roleMatch && ids.length===1) { role=roleMatch[1]; id=ids[0]; }
             }
+            if (config.provider==='dots') role=e.classList.contains('self') ? 'user' : 'assistant';
             if (!role && config.provider==='claude') role=e.getAttribute('data-testid')==='user-message' ? 'user' : 'assistant';
             if (!role && config.provider==='grok') role=e.classList.contains('items-end') || e.closest('[data-role="user"],.items-end') ? 'user' : 'assistant';
-            const copy=e.cloneNode(true); copy.querySelectorAll('button,[role="button"],time').forEach(n=>n.remove());
+            const copy=(config.provider==='dots' ? e.querySelector('.message-text') || document.createElement('span') : e).cloneNode(true); copy.querySelectorAll('button,[role="button"],time').forEach(n=>n.remove());
             if (config.provider==='chatgpt') copy.querySelectorAll('h4[data-conversation-role]').forEach(n=>n.remove());
             copy.querySelectorAll('br,p,div,li,pre,blockquote').forEach(n=>n.append(document.createTextNode(' ')));
             if (!observation.ids.has(e)) observation.ids.set(e,`node-${++observation.nextID}`);
@@ -69,7 +75,7 @@ struct WebPageScript {
         };
         const status = () => {
             const input=editor(); let reason='';
-            const login=all('button[data-testid="login-button"]').length>0 || all('button,a').some(e=>/^(log in|sign in|sign up|sign up for free)$/i.test(normalized(e.innerText||e.getAttribute('aria-label')||'')));
+            const login=all('button[data-testid="login-button"]').length>0 || all('button,a').some(e=>/^(log in|sign in|sign up|sign up for free)$/i.test(normalized(e.innerText||e.getAttribute('aria-label')||'')) || (config.provider==='dots' && /^(log in|sign in)$/i.test(e.getAttribute('aria-label')||'')));
             const account=document.querySelector(config.account);
             const signedIn=login ? false : account ? true : null;
             const modal=all('[role="dialog"],[aria-modal="true"]').length>0;
@@ -82,7 +88,7 @@ struct WebPageScript {
             else if (modal) reason=`Finish the open dialog in ${config.name} first.`;
             else if (generating) reason=`Wait for ${config.name} to finish its current reply.`;
             else if (!input || input.disabled || input.readOnly || input.getAttribute('aria-disabled')==='true') reason=`Waiting for ${config.name}’s message field.`;
-            return {url:conversationLocation(),ready:!reason,signedIn,reason:reason||`${config.name} chat ready`,draft:draft(input)};
+            return {url:conversationLocation(),ready:!reason,signedIn,reason:reason||`${config.name} chat ready`,draft:draft(input),...(config.provider==='dots'?{signedOut:login && !all(config.account).length}:{})};
         };
         const submissionStatus = () => {
             const current=status();
@@ -99,7 +105,7 @@ struct WebPageScript {
     var inspect: String { provider == .muse ? MusePageScript.inspect : helpers + "\nreturn inspect();" }
     // Apply the initial pane layout once per document. A user's later choice wins.
     var configureInitialLayout: String {
-        guard provider == .chatgpt else { return "return;" }
+        guard provider == .chatgpt || provider == .dots else { return "return;" }
         return helpers + #"""
         if (observation.layoutConfigured) return;
         if (observation.interrupted) { observation.layoutConfigured=true; return; }
@@ -119,6 +125,47 @@ struct WebPageScript {
         toggle.click();
         """#
     }
+    // Crop the rendered profile avatar: pets use CSS sprite sheets, while other
+    // dot characters can use SVG/canvas. Never mistake a chat attachment for it.
+    var avatar: String {
+        if provider == .muse { return MusePageScript.avatar }
+        guard provider == .dots else { return "return {};" }
+        return helpers + #"""
+        if (!pathAllowed() || !document.querySelector(config.account)) return {};
+        const triggers=all('button[data-orbit-profile-trigger]').filter(e=>/^Open .+['’]s profile$/.test(e.getAttribute('aria-label')||''));
+        if (triggers.length!==1) return {};
+        const host=triggers[0].parentElement;
+        const avatars=[...host.querySelectorAll('span[role="presentation"]')].filter(visible);
+        if (avatars.length!==1) return {};
+        const avatar=avatars[0];
+        const describe=()=>{
+            const rect=avatar.getBoundingClientRect(),pet=avatar.querySelector('[data-codex-pet-id]');
+            if (!visible(avatar) || rect.width<=0 || rect.height<=0 || rect.top<0 || rect.left<0 || rect.right>innerWidth || rect.bottom>innerHeight) return null;
+            return {url:location.href,viewport:{width:innerWidth,height:innerHeight},rect:{x:rect.x,y:rect.y,width:rect.width,height:rect.height},
+                identity:location.pathname+'|'+(pet ? pet.getAttribute('data-codex-pet-id')+'|'+getComputedStyle(pet).backgroundImage : avatar.innerHTML)};
+        };
+        const before=describe();
+        if (!before) return {};
+        const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(before.identity));
+        const key=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('');
+        if (key!==(typeof previousKey==='string'?previousKey:'')) {
+            // A CSS sprite URL can be present before its pixels are decoded.
+            // Keep the old saved image until the new artwork can be painted.
+            const pet=avatar.querySelector('[data-codex-pet-id]');
+            if (pet) {
+                const source=getComputedStyle(pet).backgroundImage.match(/^url\((?:"([^"]*)"|'([^']*)'|([^)]*))\)$/);
+                if (!source) return {};
+                const image=new Image();image.src=source[1]??source[2]??source[3];
+                try { await image.decode(); } catch { return {}; }
+            }
+            try { await Promise.all([...avatar.querySelectorAll('img')].map(image=>image.decode())); }
+            catch { return {}; }
+        }
+        if (JSON.stringify(before)!==JSON.stringify(describe())) return {};
+        return {key,url:before.url,viewport:before.viewport,rect:before.rect};
+        """#
+    }
+
     var prepare: String {
         if provider == .muse { return MusePageScript.prepare }
         return helpers + #"""
@@ -158,15 +205,22 @@ struct WebPageScript {
 
     var fixture: String {
         if provider == .muse { return MusePageScript.fixture }
-        let input = provider == .claude ? #"<div class="ProseMirror" role="textbox" aria-label="Message Claude" contenteditable="true"></div>"# : "<textarea aria-label=\"\(provider == .chatgpt ? "Chat with ChatGPT" : "Ask Grok anything")\"></textarea>"
-        let send = provider == .grok ? #"data-testid="chat-submit" aria-label="Submit""# : #"aria-label="Send message""#
-        let account = provider == .chatgpt ? #"data-testid="accounts-profile-button""# : #"data-testid="user-menu-button""#
+        let input: String = switch provider {
+        case .dots: #"<div contenteditable="true" role="textbox" aria-label="Message" data-composer-markdown></div>"#
+        case .claude: #"<div class="ProseMirror" role="textbox" aria-label="Message Claude" contenteditable="true"></div>"#
+        case .chatgpt: #"<textarea aria-label="Chat with ChatGPT"></textarea>"#
+        default: #"<textarea aria-label="Ask Grok anything"></textarea>"#
+        }
+        let send = provider == .dots ? #"aria-label="Send""# : provider == .grok ? #"data-testid="chat-submit" aria-label="Submit""# : #"aria-label="Send message""#
+        let account = provider == .dots ? #"aria-label="Your dot actions""# : provider == .chatgpt ? #"data-testid="accounts-profile-button""# : #"data-testid="user-menu-button""#
+        let login = provider == .dots ? #"aria-label="Sign in""# : ""
+        let avatar = provider == .dots ? ##"<div id="fixture-dot-avatar"><button data-orbit-profile-trigger aria-label="Open Fixture’s profile"></button><span role="presentation" style="display:block;width:64px;height:64px"><svg width="64" height="64" viewBox="0 0 64 64"><rect x="4" y="4" width="56" height="56" rx="22" fill="#23b88d"/><circle cx="24" cy="27" r="4" fill="white"/><circle cx="40" cy="27" r="4" fill="white"/><path d="M22 40 Q32 48 42 40" fill="none" stroke="white" stroke-width="3"/></svg></span></div>"## : ""
         return """
         <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>
         :root{color-scheme:light dark;font:15px -apple-system,sans-serif}body{margin:0;padding:22px;background:Canvas;color:CanvasText}header{display:flex;gap:12px;align-items:center;border-bottom:1px solid #8884;padding-bottom:16px}small{color:#888}#transcript{min-height:150px;padding:20px 0}article{background:#8882;border-radius:16px;margin:12px 0;padding:14px}textarea,[contenteditable]{box-sizing:border-box;width:100%;min-height:70px;padding:12px;font:inherit;border:1px solid #8885;border-radius:14px}button{font:inherit;margin:8px 0;padding:8px 14px;border-radius:10px;border:1px solid #8885}[hidden]{display:none!important}
         </style></head><body><header><strong id="thread-title">New \(provider.name) chat</strong><small>Local fixture · no real sends</small></header>
-        <main id="chat"><button \(account)>Fixture account</button><div id="transcript"></div>\(input)<button id="fixture-send" \(send) disabled>Send</button><button onclick="chat.hidden=true;login.hidden=false">Sign out of fixture</button></main>
-        <div id="login" hidden><p>Sign in to continue.</p><button data-testid="login-button" onclick="chat.hidden=false;login.hidden=true">Sign in to fixture</button></div>
+        <main id="chat">\(avatar)<button \(account)>Fixture account</button><div id="transcript"></div>\(input)<button id="fixture-send" \(send) disabled>Send</button><button onclick="chat.hidden=true;login.hidden=false">Sign out of fixture</button>\(provider == .dots ? "<button onclick=\"changeFixtureAvatar()\">Change fixture avatar</button>" : "")</main>
+        <div id="login" hidden><p>Sign in to continue.</p><button data-testid="login-button" \(login) onclick="chat.hidden=false;login.hidden=true">Sign in to fixture</button></div>
         <script>
         const provider='\(provider.rawValue)',input=document.querySelector('textarea,[contenteditable]'),send=document.getElementById('fixture-send');
         const fixtureThreads = {},newPath='\(provider.newChatURL.path)';
@@ -177,11 +231,14 @@ struct WebPageScript {
           document.getElementById('transcript').innerHTML=location.pathname===newPath?'':(fixtureThreads[location.pathname]||'');
           updateFixtureTitle();
         }
+        if(provider==='dots' && location.pathname===newPath)history.replaceState({},'', '/dots/'+crypto.randomUUID());
         updateFixtureTitle();
+        function changeFixtureAvatar(){document.querySelector('#fixture-dot-avatar rect').setAttribute('fill','#8667df');}
         const value=()=>input.tagName==='TEXTAREA'?input.value:input.innerText;
         input.addEventListener('input',()=>send.disabled=!value().trim());
         send.addEventListener('click',()=>{const text=value();if(!text.trim())return;
         function add(role,text){const a=document.createElement('article');
+        if(provider==='dots'){a.className='message-row'+(role==='user'?' self':'');a.dataset.messageId=crypto.randomUUID();const body=document.createElement('div');body.className='message-text';body.textContent=text;a.append(body);document.getElementById('transcript').append(a);return;}
         if(provider==='chatgpt'){a.dataset.messageAuthorRole=role;a.dataset.messageId=crypto.randomUUID();}
         if(provider==='claude'){a.dataset.testid=role==='user'?'user-message':'assistant-message';}
         if(provider==='grok'){a.dataset.messageRole=role;a.dataset.messageId=crypto.randomUUID();a.className='message-bubble';}

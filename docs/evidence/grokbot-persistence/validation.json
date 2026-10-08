@@ -1,0 +1,26 @@
+{
+  "profile": "Isolated functional preview; synthetic URL/key; no Messages permission granted; no Bot request sent.",
+  "validation": [
+    "Regression failed on original session-only code.",
+    "213 core tests passed before review fixes; 24 focused tests passed after fixes, zero failures or skips.",
+    "79 Python tooling tests passed.",
+    "Actual quit/relaunch restored the synthetic connection without re-entry or a password/access dialog.",
+    "Actual rebuilt app with changed ad-hoc signature restored the same connection without re-entry or a password/access dialog.",
+    "Reply tunnel became ready after replacement.",
+    "Strict app and ZIP-reextracted signatures verified."
+  ],
+  "signature_before": "1d4e289ed925a29d91cfab6f3c6b32a1a48e85a8",
+  "signature_after": "c1ccf5ff2ff7d00697aad4db0b3dcfb796582151",
+  "source_sha256": {
+    "msgblast/Core/GrokBotCredentialVault.swift": "3fc64d70d8d6ca904f542f02ad94d45af0de6bb210f3f307ad576ad48836c72b",
+    "msgblast/Core/GrokBotService.swift": "9e77b8f5c46c3613ea0ec9623f8695cabb307ea087bbf554b4431a9abbb41710",
+    "msgblast/Core/WebAgentSession.swift": "237963148ff1a68794df871a1bdffbf77d6f07b38fe3b54c388698cbfe1685c0",
+    "msgblast/Windows/GrokBotSettingsView.swift": "cbd52417eed8c83584e436bd70738c5ee2716b39eac5d9f617ca90a21ab688c8",
+    "msgblastTests/GrokBotTests.swift": "62cc1fe16bf36d947e54cec7f0eb2730cb4dcb6e119a7a25e5cbce729f22606a"
+  },
+  "video": "Actual native settings interaction after verified relaunch and replacement. Quit, replacement and startup wait happened before recording; they are not shown. Unedited recorded timing, H.264 re-encode.",
+  "limits": [
+    "Hardware-backed persistence verified on this Secure Enclave Mac.",
+    "Non-Enclave platform selection tested with an injected DP Keychain read; real entitled Keychain and unsupported hardware remain untested."
+  ]
+}

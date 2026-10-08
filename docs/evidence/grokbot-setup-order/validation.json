@@ -1,0 +1,18 @@
+{
+  "change": "Grok Bot logo beside its enable switch; setup instructions and copy button precede webhook URL and key fields.",
+  "profile": "Isolated functional preview with empty credentials; no Messages permission granted.",
+  "inputs": "No message or webhook was sent.",
+  "validation": [
+    "Native Debug build passed.",
+    "App and ZIP re-extraction passed strict deep signature verification.",
+    "Native screenshot verified full section order.",
+    "Copy button followed by URL then key in keyboard navigation.",
+    "Bundled native Grok Bot icon matches the source file byte for byte and is visible in Settings at the standard 32-point size."
+  ],
+  "video": "Actual native copy button and keyboard navigation; unedited timing, H.264 re-encode.",
+  "source_sha256": {
+    "msgblast/Windows/GrokBotSettingsView.swift": "758647941cd6128fe6562dbf39ab2827bdfe71c9413879d157ffb8e51bb08dab",
+    "msgblast/Windows/WebServicesView.swift": "fc8997e432930aa175c6d0aabf1d5b35c80081b30c774286298b8d9fe5e1e230",
+    "msgblast/Resources/WebAgentIcons/grokbot.icns": "0174e1ce966156a20c07f5715bbf6577b39cec60bd539267395e5f5fa15bbf80"
+  }
+}
