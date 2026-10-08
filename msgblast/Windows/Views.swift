@@ -337,7 +337,6 @@ struct ConversationView: View {
     @ObservedObject var model: AppModel
     let comparisonID: UUID
     let memberID: UUID
-    var embedded = false
     var headerControls: ConversationHeaderControls?
     var body: some View {
         if let comparison = model.comparison(comparisonID), let member = comparison.members.first(where: { $0.id == memberID }) {
@@ -360,12 +359,10 @@ struct ConversationView: View {
                 } else {
                     TranscriptView(model: model, comparison: comparison, member: member)
                 }
-                if !embedded {
                 MessageInput(text: privateDraft, attachments: model.attachmentDraft(comparisonID: comparisonID, memberID: memberID), addAttachments: { await model.addAttachments($0, comparisonID: comparisonID, memberID: memberID) }, removeAttachment: { id in model.setAttachmentDraft(model.attachmentDraft(comparisonID: comparisonID, memberID: memberID).filter { $0.id != id }, comparisonID: comparisonID, memberID: memberID) }, placeholder: "Message", accessibilityName: "Private reply to \(member.name)", sendLabel: "Send privately", disabled: model.busy || member.anchor == nil) {
                     Task { await model.followUp(comparisonID, only: memberID) }
                 }.padding(12)
                 FollowUpStatus(model: model, comparison: comparison, only: memberID)
-                }
             }.frame(minWidth: 320, minHeight: 320).background(Color(nsColor: .textBackgroundColor))
         }
     }
@@ -568,7 +565,7 @@ struct ComparisonWorkspace: View {
                             ScrollView(.horizontal) {
                                 HStack(spacing: 0) {
                                     ForEach(comparison.members) { member in
-                                        ConversationView(model: model, comparisonID: comparisonID, memberID: member.id, embedded: true, headerControls: ConversationHeaderControls(selected: selection.selectedConversation == member.id, included: recipients.contains(member.id), selectConversation: {
+                                        ConversationView(model: model, comparisonID: comparisonID, memberID: member.id, headerControls: ConversationHeaderControls(selected: selection.selectedConversation == member.id, included: recipients.contains(member.id), selectConversation: {
                                             var updated = selection
                                             updated.selectConversation(member.id)
                                             model.setRecipients(updated, for: comparisonID)
