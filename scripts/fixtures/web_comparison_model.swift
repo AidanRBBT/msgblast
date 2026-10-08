@@ -1,12 +1,34 @@
 import AppKit
+import SwiftUI
 import msgblastCore
+
+@MainActor private final class DelayedBroadcastGate {
+    var messagesFinished = false
+}
 
 @main struct SideChatModelCheck {
     @MainActor static func waitUntil(_ check: () -> Bool) async throws {
         for _ in 0..<100 { if check() { return }; try await Task.sleep(for: .milliseconds(100)) }
         preconditionFailure("Model fixture did not reach expected state")
     }
-    @MainActor static func main() async throws {
+    @MainActor static func privateEditor(in view: NSView) -> AttachmentTextView? {
+        if let editor = view as? AttachmentTextView { return editor }
+        for child in view.subviews { if let editor = privateEditor(in: child) { return editor } }
+        return nil
+    }
+    @MainActor static func main() {
+        let application = NSApplication.shared
+        application.setActivationPolicy(.regular)
+        Task { @MainActor in
+            do { try await runChecks() }
+            catch { fatalError("Isolated model fixture failed: \(error)") }
+            application.stop(nil)
+            let wake = NSEvent.otherEvent(with: .applicationDefined, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil, subtype: 0, data1: 0, data2: 0)!
+            application.postEvent(wake, atStart: true)
+        }
+        application.run()
+    }
+    @MainActor static func runChecks() async throws {
         _ = NSApplication.shared
         let migrationStore = LocalStore(demo: true, isolated: true)
         let migrationDirectory = migrationStore.url.deletingLastPathComponent()
@@ -98,6 +120,120 @@ import msgblastCore
         precondition(model.comparison(first)?.followUps.last?.states[recipient.id.uuidString] == .submitted)
         precondition(muse.state.attempts.count == beforeRetry)
         print("PASS: attachment-only and text-plus-attachment native follow-ups submit their comparison drafts; native retry does not resend Muse. Controlled local fixture inputs.")
+        // Exercise the same private Messages call used by PR #27's pane composer.
+        model.coordinator = nil
+        model.state.selection = [recipient.id]
+        model.state.draft = "Native privacy original"
+        await model.start()
+        let privacyID = model.state.comparisons[0].id
+        let privacyIndex = model.index(privacyID)!
+        model.state.comparisons[privacyIndex].privateDrafts[recipient.id.uuidString] = "Native private detail"
+        await model.followUp(privacyID, only: recipient.id)
+        model.state.comparisons[privacyIndex].allDraft = "Native shared follow-up"
+        await model.followUp(privacyID)
+        let newcomer = model.state.agents[1]
+        await model.addAgent(newcomer, to: privacyID)
+        let joined = model.comparison(privacyID)!
+        let joinedMember = joined.members.first { $0.id == newcomer.id }!
+        let outgoing = model.transcript(joined, member: joinedMember).filter(\.outgoing).map(\.text)
+        precondition(outgoing == ["Native privacy original", "Native shared follow-up"])
+        precondition(joined.followUps.first?.sharedWithAll == false)
+        print("PASS: PR #27's private Messages pane entry point stays private with one original recipient; adding another agent sends only original + shared follow-up. Actual AppModel, isolated simulated Messages.")
+
+        model.webBroadcastBusy = true
+        model.state.comparisons[privacyIndex].privateDrafts[recipient.id.uuidString] = "Private draft during broadcast"
+        let beforePrivate = model.comparison(privacyID)!.followUps.count
+        await model.followUp(privacyID, only: recipient.id)
+        precondition(model.comparison(privacyID)!.followUps.count == beforePrivate, "Private send must wait for the web broadcast to finish")
+        precondition(model.comparison(privacyID)!.privateDrafts[recipient.id.uuidString] == "Private draft during broadcast")
+        model.webBroadcastBusy = false
+        model.state.selection = [recipient.id, newcomer.id]
+        model.state.draft = "Chronology original"
+        await model.start()
+        let orderID = model.state.comparisons[0].id
+        let orderIndex = model.index(orderID)!
+        var earlier = FollowUp(text: "Shared A", memberIDs: [recipient.id, newcomer.id])
+        earlier.sharedWithAll = true
+        earlier.created = model.state.comparisons[orderIndex].created
+        earlier.states = [recipient.id.uuidString: .submitted, newcomer.id.uuidString: .failed]
+        // Controlled receipt fixture: A reached the first recipient and failed before sending to the second.
+        model.appendDemo(earlier.text, chat: model.comparison(orderID)!.members.first { $0.id == recipient.id }!.chat, outgoing: true)
+        model.state.comparisons[orderIndex].followUps.append(earlier)
+        model.state.comparisons[orderIndex].allDraft = "Shared B"
+        await model.followUp(orderID)
+        precondition(model.comparison(orderID)!.joiningContext().map(\.text) == ["Chronology original", "Shared B"])
+        await model.followUp(orderID, retry: earlier.id)
+        await model.followUp(orderID, retry: earlier.id)
+        let third = model.state.agents[2]
+        await model.addAgent(third, to: orderID)
+        let ordered = model.comparison(orderID)!
+        let thirdMember = ordered.members.first { $0.id == third.id }!
+        precondition(model.transcript(ordered, member: thirdMember).filter(\.outgoing).map(\.text) == ["Chronology original", "Shared A", "Shared B"])
+        precondition(ordered.joiningContext().dropFirst().map(\.followUpID) == [earlier.id, ordered.followUps[1].id])
+        print("PASS: partial-failure receipt fixture -> B sent through AppModel -> A retried through AppModel -> new agent receives Original,A,B once, in original order. No real sends.")
+        model.state.selection = [recipient.id]
+        model.state.draft = "Delayed broadcast original"
+        await model.start()
+        let raceID = model.state.comparisons[0].id
+        let raceIndex = model.index(raceID)!
+        model.state.comparisons[raceIndex].webProviders = [.muse]
+        model.webBroadcastBusy = true
+        let broadcastID = UUID()
+        let gate = DelayedBroadcastGate()
+        let delayed = await AgentBroadcast.send(draft: "Delayed shared ask", currentDraft: { "Delayed shared ask" }, clearDraft: {}, web: { text in
+            while !gate.messagesFinished { try? await Task.sleep(for: .milliseconds(10)) }
+            precondition(!model.busy && model.webBroadcastBusy)
+            model.state.comparisons[raceIndex].privateDrafts[recipient.id.uuidString] = "Private reply while web is pending"
+            let privateWindow = NSWindow(contentRect: NSRect(x: 120, y: 120, width: 600, height: 650), styleMask: [.titled, .resizable], backing: .buffered, defer: false)
+            privateWindow.title = "Delayed broadcast — isolated Messages fixture"
+            privateWindow.contentView = NSHostingView(rootView: ConversationView(model: model, comparisonID: raceID, memberID: recipient.id))
+            NSApplication.shared.setActivationPolicy(.regular)
+            privateWindow.makeKeyAndOrderFront(nil)
+            NSApplication.shared.activate()
+            defer { privateWindow.orderOut(nil); privateWindow.contentView = nil }
+            privateWindow.contentView?.layoutSubtreeIfNeeded()
+            try! await waitUntil { privateWindow.contentView.flatMap { privateEditor(in: $0) } != nil }
+            let paneEditor = privateEditor(in: privateWindow.contentView!)!
+            precondition(paneEditor.accessibilityLabel() == "Private reply to \(recipient.name)")
+            let paneCount = model.comparison(raceID)!.followUps.count
+            paneEditor.sendMessage?()
+            try? await Task.sleep(for: .milliseconds(50))
+            precondition(model.comparison(raceID)!.followUps.count == paneCount)
+            precondition(model.comparison(raceID)!.privateDrafts[recipient.id.uuidString] == "Private reply while web is pending")
+            privateWindow.contentView?.layoutSubtreeIfNeeded()
+            privateWindow.contentView?.displayIfNeeded()
+            if let path = ProcessInfo.processInfo.environment["MSGBLAST_RACE_CAPTURE"], let view = privateWindow.contentView?.superview,
+               let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds) {
+                view.cacheDisplay(in: view.bounds, to: bitmap)
+                try! bitmap.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: path))
+            }
+            let before = model.comparison(raceID)!.followUps.count
+            await model.followUp(raceID, only: recipient.id)
+            precondition(model.comparison(raceID)!.followUps.count == before)
+            precondition(model.comparison(raceID)!.privateDrafts[recipient.id.uuidString] == "Private reply while web is pending")
+            // Controlled ledger insertion stresses identity independently of the new private-send guard.
+            var injected = FollowUp(text: "Injected private ledger reply", memberIDs: [recipient.id])
+            injected.sharedWithAll = false; injected.states[recipient.id.uuidString] = .submitted
+            model.state.comparisons[raceIndex].followUps.append(injected)
+            var receipt = WebSendAttempt(text: text, status: .observed)
+            receipt.comparisonID = raceID
+            return [.muse: receipt]
+        }, messages: { text in
+            model.state.comparisons[raceIndex].allDraft = text
+            await model.followUp(raceID, recipients: [recipient.id], newAttemptID: broadcastID)
+            gate.messagesFinished = true
+            return raceID
+        })
+        precondition(delayed.web[.muse]?.status == .observed)
+        model.state.comparisons[raceIndex].completeSharedBroadcast(followUpID: broadcastID, recipients: [recipient.id])
+        precondition(model.comparison(raceID)!.followUps.last!.sharedWithAll == false)
+        model.webBroadcastBusy = false
+        await model.followUp(raceID, only: recipient.id)
+        await model.addAgent(third, to: raceID)
+        let safe = model.comparison(raceID)!
+        let safeMember = safe.members.first { $0.id == third.id }!
+        precondition(model.transcript(safe, member: safeMember).filter(\.outgoing).map(\.text) == ["Delayed broadcast original", "Delayed shared ask"])
+        print("PASS: deterministic delayed web completion preserves the exact broadcast UUID; private send is blocked with draft retained, injected later private ledger remains unmarked, and a new agent receives only Original + Shared. Actual AgentBroadcast + AppModel with simulated transport.")
         print("PASS: actual AppModel + WindowCoordinator restore comparison ID, native recipient, provider selection, four saved web URLs and separate Codex CLI/Claude Code sessions; disabled archived CLI remains readable without sending. All sends use local fixtures.")
     }
 }

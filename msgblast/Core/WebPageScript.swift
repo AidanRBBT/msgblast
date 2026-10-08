@@ -69,18 +69,20 @@ struct WebPageScript {
         };
         const status = () => {
             const input=editor(); let reason='';
-            const login=all('button,a').some(e=>/^(log in|sign in|sign up|sign up for free)$/i.test(normalized(e.innerText||e.getAttribute('aria-label')||'')));
+            const login=all('button[data-testid="login-button"]').length>0 || all('button,a').some(e=>/^(log in|sign in|sign up|sign up for free)$/i.test(normalized(e.innerText||e.getAttribute('aria-label')||'')));
+            const account=document.querySelector(config.account);
+            const signedIn=login ? false : account ? true : null;
             const modal=all('[role="dialog"],[aria-modal="true"]').length>0;
             const generating=all('button[data-testid="stop-button"],button[aria-label="Stop generating"],button[aria-label="Stop response"],button[aria-label="Stop"] ').length>0;
             if (!pathAllowed()) reason=`Open a ${config.name} chat to send from MsgBlast.`;
             else if (login) reason=`Sign in to ${config.name} to send this request.`;
             // Responsive sidebars hide their account control without ending the session.
             // Still require known account markup and a visible, unique editor below.
-            else if (!document.querySelector(config.account)) reason=`${config.name}’s page layout is not recognized yet. Reload the page and try again.`;
+            else if (!account) reason=`${config.name}’s page layout is not recognized yet. Reload the page and try again.`;
             else if (modal) reason=`Finish the open dialog in ${config.name} first.`;
             else if (generating) reason=`Wait for ${config.name} to finish its current reply.`;
             else if (!input || input.disabled || input.readOnly || input.getAttribute('aria-disabled')==='true') reason=`Waiting for ${config.name}’s message field.`;
-            return {url:conversationLocation(),ready:!reason,reason:reason||`${config.name} chat ready`,draft:draft(input)};
+            return {url:conversationLocation(),ready:!reason,signedIn,reason:reason||`${config.name} chat ready`,draft:draft(input)};
         };
         const submissionStatus = () => {
             const current=status();
@@ -93,6 +95,7 @@ struct WebPageScript {
         const inspect = () => ({...status(),messages:pathAllowed()?messages():[],submissionInterrupted:observation.interrupted});
         """#
     }
+    var signInStatus: String { helpers + "\nreturn {...status(),messages:[]};" }
     var inspect: String { provider == .muse ? MusePageScript.inspect : helpers + "\nreturn inspect();" }
     // Apply the initial pane layout once per document. A user's later choice wins.
     var configureInitialLayout: String {
@@ -162,8 +165,8 @@ struct WebPageScript {
         <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>
         :root{color-scheme:light dark;font:15px -apple-system,sans-serif}body{margin:0;padding:22px;background:Canvas;color:CanvasText}header{display:flex;gap:12px;align-items:center;border-bottom:1px solid #8884;padding-bottom:16px}small{color:#888}#transcript{min-height:150px;padding:20px 0}article{background:#8882;border-radius:16px;margin:12px 0;padding:14px}textarea,[contenteditable]{box-sizing:border-box;width:100%;min-height:70px;padding:12px;font:inherit;border:1px solid #8885;border-radius:14px}button{font:inherit;margin:8px 0;padding:8px 14px;border-radius:10px;border:1px solid #8885}[hidden]{display:none!important}
         </style></head><body><header><strong id="thread-title">New \(provider.name) chat</strong><small>Local fixture · no real sends</small></header>
-        <div id="login" hidden><p>Sign in to continue.</p><button onclick="chat.hidden=false;login.hidden=true">Sign in to fixture</button></div>
         <main id="chat"><button \(account)>Fixture account</button><div id="transcript"></div>\(input)<button id="fixture-send" \(send) disabled>Send</button><button onclick="chat.hidden=true;login.hidden=false">Sign out of fixture</button></main>
+        <div id="login" hidden><p>Sign in to continue.</p><button data-testid="login-button" onclick="chat.hidden=false;login.hidden=true">Sign in to fixture</button></div>
         <script>
         const provider='\(provider.rawValue)',input=document.querySelector('textarea,[contenteditable]'),send=document.getElementById('fixture-send');
         const fixtureThreads = {},newPath='\(provider.newChatURL.path)';

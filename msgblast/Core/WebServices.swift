@@ -4,6 +4,12 @@ import CryptoKit
 public enum WebSendStatus: String, Codable, Sendable {
     case preparing, attempting, waiting, observed, notSent, uncertain, dismissed
     public var isUnresolved: Bool { [.attempting, .waiting, .uncertain].contains(self) }
+    public var confirmsSubmission: Bool { self == .observed || self == .waiting }
+    public func showsAttemptBanner(for provider: WebProvider) -> Bool {
+        // Web receipt attribution can fail even when the page has replied.
+        // Keep uncertainty for resend protection, without presenting it as a chat error.
+        self != .observed && (self != .uncertain || provider.usesNativeConversation)
+    }
     public func label(for provider: WebProvider) -> String {
         switch self {
         case .preparing: "Checking \(provider.name)…"
@@ -27,9 +33,20 @@ public struct WebSendAttempt: Codable, Equatable, Identifiable, Sendable {
     public var comparisonID: UUID?
     public var conversationURL: URL?
     public var callbackHash: Data?
+    // A safely observed chat identity survives invalidation of automatic receipt attribution.
+    var recoveryConversationURL: URL?
+    var receiptContext: WebReceiptContext?
+    var pinnedConversationURL: URL? { recoveryConversationURL ?? receiptContext?.candidateURL }
     public init(text: String, status: WebSendStatus = .preparing) {
         self.text = text; self.status = status
     }
+}
+
+struct WebReceiptContext: Codable, Equatable, Sendable {
+    var originalURL: URL
+    var baseline: [WebPageMessage]
+    var existingPaths: Set<String>
+    var candidateURL: URL?
 }
 
 public struct WebWorkspaceState: Codable, Sendable {
@@ -139,6 +156,8 @@ public struct WebPageMessage: Codable, Equatable, Identifiable, Sendable {
 public struct WebPageSnapshot: Decodable, Equatable, Sendable {
     public var url = ""
     public var ready = false
+    // Unknown while loading or when the account markup cannot be recognized.
+    public var signedIn: Bool?
     public var reason = "Open this agent to sign in here."
     public var draft = ""
     public var messages: [WebPageMessage] = []

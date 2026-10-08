@@ -4,6 +4,22 @@ import WebKit
 
 @MainActor
 final class WebServiceTests: XCTestCase {
+    func testUnconfirmedWebSubmissionsNeverShowAnAttemptBanner() {
+        for provider in WebProvider.webDefaults {
+            XCTAssertFalse(WebSendStatus.uncertain.showsAttemptBanner(for: provider), provider.name)
+            XCTAssertFalse(WebSendStatus.observed.showsAttemptBanner(for: provider), provider.name)
+            XCTAssertTrue(WebSendStatus.notSent.showsAttemptBanner(for: provider), provider.name)
+        }
+        for provider in [WebProvider.codexCLI, .claudeCode] {
+            XCTAssertTrue(WebSendStatus.uncertain.showsAttemptBanner(for: provider), "Native requests still need their acknowledgement flow")
+        }
+        var state = WebWorkspaceState()
+        state.attempts = [WebSendAttempt(text: "Hello", status: .attempting)]
+        let recovered = state.recoveringInFlight()
+        XCTAssertFalse(recovered.attempts[0].status.showsAttemptBanner(for: .chatgpt))
+        XCTAssertTrue(recovered.hasUnresolvedSend("Hello"), "Hiding an internal receipt warning must not permit automatic duplicate sends")
+    }
+
     func testOnlyMuseSideChatsAreAutomationDestinations() {
         XCTAssertTrue(WebProvider.muse.isChatURL(URL(string: "https://muse.ai/thread/new")!))
         XCTAssertTrue(WebProvider.muse.isChatURL(URL(string: "https://muse.ai/thread/abcdef01-1234-4567-8910-abcdef012345")!))

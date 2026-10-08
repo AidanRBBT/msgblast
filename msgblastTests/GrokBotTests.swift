@@ -20,6 +20,19 @@ final class GrokBotTests: XCTestCase {
         XCTAssertFalse(session.state.selected)
         XCTAssertEqual(agents.selected.map(\.provider), WebProvider.webDefaults)
     }
+    func testGrokBotDoesNotInspectWebsiteSignInOrReceiptRecovery() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let agents = WebAgents(directory: directory, fixture: true)
+        agents.setEnabled(true, for: .grokbot)
+        let session = try XCTUnwrap(agents.sessions.first { $0.provider == .grokbot })
+        let signedOut = await agents.signInRequired(for: [session])
+        XCTAssertTrue(signedOut.isEmpty)
+        let signIn = await session.checkSignIn()
+        XCTAssertNil(signIn)
+        await session.linkCurrentConversation()
+        XCTAssertFalse(session.needsConversationLink)
+    }
     func testRequestCarriesComparisonHistoryAndCallbackWithoutWebhookKey() throws {
         let id = UUID(), comparison = UUID(), callback = URL(string: "https://fixture.trycloudflare.com/reply/\(id)")!
         let payload = try GrokBotService.encodeRequest(id: id, comparisonID: comparison, message: "Follow up", history: [WebPageMessage(role: "assistant", text: "Earlier answer")], callbackURL: callback, callbackToken: "per-request-fixture-token")
@@ -31,6 +44,13 @@ final class GrokBotTests: XCTestCase {
         XCTAssertEqual(body["callback_url"] as? String, callback.absoluteString)
         XCTAssertNil(body["webhook_key"])
         XCTAssertThrowsError(try GrokBotService.encodeRequest(id: id, comparisonID: comparison, message: String(repeating: "x", count: 140_000), history: [], callbackURL: callback, callbackToken: "fixture"))
+    }
+    func testAcceptedBotRequestsQualifyAsSharedContextBeforeTheirReply() {
+        XCTAssertTrue(WebSendStatus.waiting.confirmsSubmission)
+        XCTAssertTrue(WebSendStatus.observed.confirmsSubmission)
+        for status in [WebSendStatus.preparing, .attempting, .uncertain, .notSent, .dismissed] {
+            XCTAssertFalse(status.confirmsSubmission)
+        }
     }
     func testConnectionAndReceiptsRejectUnsafeOrUnrelatedResults() throws {
         for address in ["http://webhook.example/trigger", "https://user:pass@webhook.example/trigger", "https://webhook.example/#fragment"] {
