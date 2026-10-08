@@ -428,6 +428,9 @@ private struct WebAgentPane: View {
                 if !session.snapshot.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !session.isSending {
                     Text("\(session.provider.name) has a draft. Send or clear it in the page before using the shared composer.").font(.caption).foregroundStyle(.orange).padding(8)
                 }
+                if session.provider == .dots {
+                    Text("Blasts continue your ongoing dot conversation.").font(.caption).foregroundStyle(.secondary).padding(.horizontal, 12)
+                }
                 EmbeddedServicePage(webView: session.webView)
             } else {
                 VStack(spacing: 18) {
@@ -536,6 +539,6 @@ private let webDefaultAvatars: [WebProvider: Data] = Dictionary(uniqueKeysWithVa
 )
 @MainActor
 private func webAgent(_ session: WebAgentSession) -> Agent {
-    Agent(name: session.provider.name, handles: [], avatar: session.provider == .muse ? session.avatar ?? museDefaultAvatar : webDefaultAvatars[session.provider],
+    Agent(name: session.provider.name, handles: [], avatar: session.avatar ?? (session.provider == .muse ? museDefaultAvatar : webDefaultAvatars[session.provider]),
           colorIndex: WebProvider.allCases.firstIndex(of: session.provider)! + 4)
 }

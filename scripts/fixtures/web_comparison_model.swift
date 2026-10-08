@@ -56,6 +56,8 @@ import msgblastCore
         for session in model.webAgents.sessions {
             if session.provider.personalAgentProvider != nil {
                 precondition(firstNativeSessions[session.provider] != session.state.localSessionIDs[second.uuidString])
+            } else if session.provider == .dots {
+                precondition(firstResults[session.provider]?.conversationURL == secondResults[session.provider]?.conversationURL)
             } else { precondition(firstResults[session.provider]?.conversationURL != secondResults[session.provider]?.conversationURL) }
         }
         model.coordinator?.open(first)
@@ -98,6 +100,6 @@ import msgblastCore
         precondition(model.comparison(first)?.followUps.last?.states[recipient.id.uuidString] == .submitted)
         precondition(muse.state.attempts.count == beforeRetry)
         print("PASS: attachment-only and text-plus-attachment native follow-ups submit their comparison drafts; native retry does not resend Muse. Controlled local fixture inputs.")
-        print("PASS: actual AppModel + WindowCoordinator restore comparison ID, native recipient, provider selection, four saved web URLs and separate Codex CLI/Claude Code sessions; disabled archived CLI remains readable without sending. All sends use local fixtures.")
+        print("PASS: actual AppModel + WindowCoordinator restore comparison ID, native recipient, provider selection, saved website URLs including the ongoing Dots thread and separate Codex CLI/Claude Code sessions; disabled archived CLI remains readable without sending. All sends use local fixtures.")
     }
 }

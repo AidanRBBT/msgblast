@@ -32,6 +32,8 @@ public struct WebSendAttempt: Codable, Equatable, Identifiable, Sendable {
 public struct WebWorkspaceState: Codable, Sendable {
     public var providerIdentityVersion = 2
     public var enabled: Bool?
+    public var dotsURL: URL?
+    public var savedAvatar: Data?
     var legacyLocalStatePresent = false
     public var sessionID = UUID()
     public var draft = ""
@@ -49,11 +51,13 @@ public struct WebWorkspaceState: Codable, Sendable {
     public var localPreviousSessionIDs: [String: [String]] = [:]
     public var localDrafts: [String: String] = [:]
     public init() {}
-    private enum CodingKeys: String, CodingKey { case providerIdentityVersion, enabled, sessionID, draft, selected, includeMuse, messageRecipients, comparisonID, attempts, conversationURLs, museConversations, localConversations, localSessionIDs, localDrafts, localConfiguredSessionIDs, localPreviousSessionIDs, localSessionPolicyVersions }
+    private enum CodingKeys: String, CodingKey { case providerIdentityVersion, enabled, dotsURL, savedAvatar, sessionID, draft, selected, includeMuse, messageRecipients, comparisonID, attempts, conversationURLs, museConversations, localConversations, localSessionIDs, localDrafts, localConfiguredSessionIDs, localPreviousSessionIDs, localSessionPolicyVersions }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         providerIdentityVersion = try c.decodeIfPresent(Int.self, forKey: .providerIdentityVersion) ?? 1
         enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled)
+        dotsURL = try c.decodeIfPresent(URL.self, forKey: .dotsURL)
+        savedAvatar = try c.decodeIfPresent(Data.self, forKey: .savedAvatar)
         legacyLocalStatePresent = c.contains(.localConversations) || c.contains(.localSessionIDs) || c.contains(.localDrafts)
         sessionID = try c.decode(UUID.self, forKey: .sessionID)
         draft = try c.decodeIfPresent(String.self, forKey: .draft) ?? ""
@@ -74,6 +78,8 @@ public struct WebWorkspaceState: Codable, Sendable {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(providerIdentityVersion, forKey: .providerIdentityVersion)
         try c.encodeIfPresent(enabled, forKey: .enabled)
+        try c.encodeIfPresent(dotsURL, forKey: .dotsURL)
+        try c.encodeIfPresent(savedAvatar, forKey: .savedAvatar)
         try c.encode(sessionID, forKey: .sessionID)
         try c.encode(draft, forKey: .draft)
         try c.encode(selected, forKey: .selected)
@@ -140,6 +146,7 @@ public struct WebPageSnapshot: Decodable, Equatable, Sendable {
     public var draft = ""
     public var messages: [WebPageMessage] = []
     public var submissionInterrupted: Bool?
+    public var signedOut: Bool?
     public init() {}
 }
 

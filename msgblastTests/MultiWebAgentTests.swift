@@ -36,6 +36,134 @@ final class MultiWebAgentTests: XCTestCase {
         }
     }
 
+    func testDotsIsAnIndependentOptInWebsiteAndRemembersSelection() throws {
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let web = WebAgents(directory: directory, fixture: true)
+        let dots = try XCTUnwrap(web.availableSessions.first { $0.provider.rawValue == "dots" })
+        XCTAssertEqual(dots.provider.homeURL.absoluteString, "https://chatgpt.com/dots")
+        XCTAssertFalse(dots.state.selected)
+        XCTAssertNil(dots.provider.personalAgentProvider)
+        let chatgpt = try XCTUnwrap(web.sessions.first { $0.provider == .chatgpt })
+        XCTAssertNotEqual(dots.state.sessionID, chatgpt.state.sessionID)
+        web.toggle(dots)
+        web.toggle(chatgpt)
+        let reopened = WebAgents(directory: directory, fixture: true)
+        XCTAssertTrue(reopened.selected.contains { $0.provider.rawValue == "dots" })
+        XCTAssertFalse(reopened.selected.contains { $0.provider == .chatgpt })
+    }
+
+    func testSelectingDotsOpensTheRedirectedDotWithoutNavigatingBackToLanding() async throws {
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let web = WebAgents(directory: directory, fixture: true)
+        let dots = try XCTUnwrap(web.availableSessions.first { $0.provider == .dots })
+        web.toggle(dots)
+        try await waitFor { dots.snapshot.ready && dots.state.dotsURL != nil }
+        let ready = await web.prepareComparison(nil, for: [dots])
+        XCTAssertTrue(ready)
+        XCTAssertEqual(dots.webView.url, dots.state.dotsURL)
+        let redirected = try XCTUnwrap(dots.webView.url)
+        // Model WebKit assigning the redirect URL before its finish callback/poll.
+        dots.updateState { $0.dotsURL = nil }
+        dots.webView(dots.webView, didStartProvisionalNavigation: nil)
+        let finish = Task { @MainActor in
+            await Task.yield()
+            dots.webView(dots.webView, didFinish: nil)
+        }
+        // Call directly on this actor: setup reaches its loading wait before
+        // the finish task can run. Do not race a separately scheduled opening task.
+        let maySubmit = await dots.openComparison(nil)
+        await finish.value
+        XCTAssertFalse(maySubmit, "A loading connection only prepares the dot; it never queues a send")
+        XCTAssertEqual(dots.webView.url, redirected, "Setup must keep the assigned dot, not load the landing route again")
+        XCTAssertEqual(dots.state.dotsURL, redirected)
+        XCTAssertTrue(dots.state.attempts.isEmpty)
+    }
+
+    func testDotsUsesItsOngoingConversationAcrossBlastsAndRelaunch() async throws {
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let storage = directory.appendingPathComponent(WebProvider.dots.storageFilename)
+        let session = WebAgentSession(provider: .dots, storageURL: storage, fixture: true)
+        session.connect()
+        try await waitFor { session.snapshot.ready }
+        let firstID = UUID(), secondID = UUID()
+        let first = await session.send("First dot question", comparisonID: firstID)
+        XCTAssertEqual(first?.status, .observed)
+        let dotURL = try XCTUnwrap(first?.conversationURL)
+        XCTAssertTrue(WebProvider.dots.isSavedConversation(dotURL))
+        let second = await session.send("Next blast question", comparisonID: secondID)
+        XCTAssertEqual(second?.status, .observed)
+        XCTAssertEqual(second?.conversationURL, dotURL)
+        XCTAssertEqual(session.snapshot.messages.filter { $0.role == "user" }.map(\.text), ["First dot question", "Next blast question"])
+        let restored = WebAgentSession(provider: .dots, storageURL: storage, fixture: true)
+        XCTAssertEqual(restored.state.dotsURL, dotURL)
+        restored.updateState { $0.comparisonID = nil }
+        restored.connect()
+        try await waitFor { restored.snapshot.ready }
+        XCTAssertEqual(restored.webView.url, dotURL)
+        for invalid in ["https://chatgpt.com/", "https://chatgpt.com/c/abc", "https://chatgpt.com/dots/not-a-dot", dotURL.absoluteString + "?a=1"] {
+            XCTAssertFalse(WebProvider.dots.isChatURL(URL(string: invalid)!))
+        }
+    }
+
+    func testDotsSavesRenderedAvatarUpdatesItAndClearsOnSignOut() async throws {
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let storage = directory.appendingPathComponent(WebProvider.dots.storageFilename)
+        let session = WebAgentSession(provider: .dots, storageURL: storage, fixture: true)
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 800, height: 600), styleMask: [.titled], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = session.webView
+        window.orderFront(nil)
+        defer { window.orderOut(nil); window.contentView = nil }
+        session.connect()
+        try await waitFor { session.snapshot.ready && session.avatar != nil }
+        let first = try XCTUnwrap(session.avatar)
+        XCTAssertEqual(NSBitmapImageRep(data: first)?.pixelsWide, 256)
+        XCTAssertEqual(WebAgentSession(provider: .dots, storageURL: storage, fixture: true).avatar, first)
+        _ = try await session.webView.callAsyncJavaScript("changeFixtureAvatar()", arguments: [:], in: nil, contentWorld: .page)
+        try await waitFor { session.avatar != nil && session.avatar != first }
+        // A synthetic CSS pet reproduces the rendered sprite container seen on Dots.
+        _ = try await session.webView.callAsyncJavaScript("const canvas=document.createElement('canvas');canvas.width=512;canvas.height=576;const ctx=canvas.getContext('2d');ctx.fillStyle='#8667df';ctx.fillRect(0,0,512,576);ctx.fillStyle='#f07835';ctx.fillRect(192,0,64,64);const pet=document.createElement('div');pet.dataset.codexPetId='synthetic-pet';Object.assign(pet.style,{width:'64px',height:'64px',backgroundImage:'url('+canvas.toDataURL()+')',backgroundSize:'800% 900%',backgroundPosition:'42.857142857% 0%'});document.querySelector('#fixture-dot-avatar span').replaceChildren(pet)", arguments: [:], in: nil, contentWorld: .page)
+        let svg = session.avatar
+        try await waitFor { session.avatar != nil && session.avatar != svg }
+        let changed = try XCTUnwrap(session.avatar)
+        let bitmap = try XCTUnwrap(NSBitmapImageRep(data: changed))
+        let pixel = try XCTUnwrap(bitmap.colorAt(x: 128, y: 128)?.usingColorSpace(.deviceRGB))
+        XCTAssertGreaterThan(pixel.redComponent, 0.8, "Crop the orange sprite frame, not the whole purple sheet")
+        XCTAssertLessThan(pixel.blueComponent, 0.3)
+        _ = try await session.webView.callAsyncJavaScript("document.querySelector('[data-codex-pet-id]').style.backgroundPosition='0% 0%'", arguments: [:], in: nil, contentWorld: .page)
+        await session.refresh()
+        XCTAssertEqual(session.avatar, changed, "Pet animation keeps the cached still")
+        XCTAssertEqual(WebAgentSession(provider: .dots, storageURL: storage, fixture: true).avatar, changed)
+        // A regular chat image must not replace the dot's profile avatar.
+        _ = try await session.webView.callAsyncJavaScript("document.querySelector('#fixture-dot-avatar').hidden=true;const image=document.createElement('img');image.src='data:image/png;base64,';document.querySelector('#transcript').append(image)", arguments: [:], in: nil, contentWorld: .page)
+        await session.refresh()
+        XCTAssertEqual(session.avatar, changed)
+        let dotURL = try XCTUnwrap(session.state.dotsURL)
+        _ = try await session.webView.callAsyncJavaScript("history.replaceState({},'', '/settings')", arguments: [:], in: nil, contentWorld: .page)
+        await session.refresh()
+        XCTAssertEqual(session.avatar, changed, "Ordinary navigation keeps the displayed avatar")
+        _ = try await session.webView.callAsyncJavaScript("history.replaceState({},'', url)", arguments: ["url": dotURL.absoluteString], in: nil, contentWorld: .page)
+        await session.refresh()
+        let otherDot = URL(string: "https://chatgpt.com/dots/" + UUID().uuidString)!
+        _ = try await session.webView.callAsyncJavaScript("history.replaceState({},'', url)", arguments: ["url": otherDot.absoluteString], in: nil, contentWorld: .page)
+        await session.refresh()
+        XCTAssertEqual(session.state.dotsURL, otherDot)
+        XCTAssertNil(session.avatar, "A different dot cannot inherit the old dot's cached artwork")
+        XCTAssertNil(session.state.savedAvatar)
+        _ = try await session.webView.callAsyncJavaScript("document.querySelector('#fixture-dot-avatar').hidden=false", arguments: [:], in: nil, contentWorld: .page)
+        try await waitFor { session.avatar != nil }
+        XCTAssertNotNil(session.state.savedAvatar, "Exercise sign-out with populated cached artwork")
+        XCTAssertTrue(session.state.attempts.isEmpty, "Avatar capture never sends a message")
+        _ = try await session.webView.callAsyncJavaScript("chat.hidden=true;login.hidden=false", arguments: [:], in: nil, contentWorld: .page)
+        try await waitFor { !session.snapshot.ready && session.avatar == nil }
+        XCTAssertNil(WebAgentSession(provider: .dots, storageURL: storage, fixture: true).avatar)
+        XCTAssertNil(session.state.dotsURL)
+    }
+
     func testLegacyMuseSessionSelectionAndPendingReceiptSurviveUpgrade() throws {
         let directory = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -50,7 +178,7 @@ final class MultiWebAgentTests: XCTestCase {
         XCTAssertEqual(web.availableSessions[0].state.sessionID, id)
         XCTAssertEqual(web.availableSessions[0].state.draft, "Legacy draft")
         XCTAssertEqual(web.comparisonID, comparison)
-        XCTAssertEqual(Set(web.availableSessions.map { $0.state.sessionID }).count, 4)
+        XCTAssertEqual(Set(web.availableSessions.map { $0.state.sessionID }).count, 5)
         for session in web.availableSessions where session.provider.personalAgentProvider == nil { XCTAssertEqual(session.webView.configuration.websiteDataStore.identifier, session.state.sessionID) }
         web.toggle(web.availableSessions[2])
         let reopened = WebAgents(directory: directory, fixture: false)
@@ -61,12 +189,12 @@ final class MultiWebAgentTests: XCTestCase {
     func testAllProvidersBroadcastAndObserveRepliesWithoutAnAttachedWindow() async throws {
         let web = WebAgents(directory: temporaryDirectory(), fixture: true)
         web.connectSelected()
-        try await waitFor { web.availableSessions.allSatisfy { $0.snapshot.ready } }
+        try await waitFor { web.selected.allSatisfy { $0.snapshot.ready } }
         let results = await WebAgents.send("Compare a morning walk with an afternoon walk.", to: web.selected)
         XCTAssertEqual(results.count, 4)
         for provider in WebProvider.webDefaults { XCTAssertEqual(results[provider]?.status, .observed, provider.name) }
-        try await waitFor { web.availableSessions.allSatisfy { $0.snapshot.messages.contains { $0.role == "assistant" && $0.text.contains("afternoon walk") } } }
-        for session in web.availableSessions {
+        try await waitFor { web.selected.allSatisfy { $0.snapshot.messages.contains { $0.role == "assistant" && $0.text.contains("afternoon walk") } } }
+        for session in web.selected {
             XCTAssertEqual(session.snapshot.messages.filter { $0.role == "user" }.count, 1)
             XCTAssertEqual(session.snapshot.draft, "")
             if session.provider.personalAgentProvider == nil { XCTAssertNil(session.webView.window, "Submission must not depend on window focus") }
@@ -437,7 +565,7 @@ final class MultiWebAgentTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: directory) }
         let web = WebAgents(directory: directory, fixture: true)
         web.connectSelected()
-        try await waitFor { web.availableSessions.allSatisfy { $0.snapshot.ready } }
+        try await waitFor { web.selected.allSatisfy { $0.snapshot.ready } }
         let claude = web.availableSessions[3]
         _ = try await claude.webView.callAsyncJavaScript("chat.hidden=true;login.hidden=false", arguments: [:], in: nil, contentWorld: .page)
         let signedOut = await web.prepareComparison(nil, for: web.selected)
@@ -463,7 +591,7 @@ final class MultiWebAgentTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: directory) }
         let web = WebAgents(directory: directory, fixture: true), previousID = UUID()
         web.connectSelected()
-        try await waitFor { web.availableSessions.allSatisfy { $0.snapshot.ready } }
+        try await waitFor { web.selected.allSatisfy { $0.snapshot.ready } }
         let previous = await WebAgents.send("Previous comparison", to: web.selected, comparisonID: previousID)
         XCTAssertTrue(previous.values.allSatisfy { $0.status == .observed })
         web.setComparison(previousID)
@@ -482,7 +610,7 @@ final class MultiWebAgentTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: directory) }
         let web = WebAgents(directory: directory, fixture: true)
         web.connectSelected()
-        try await waitFor { web.availableSessions.allSatisfy { $0.snapshot.ready } }
+        try await waitFor { web.selected.allSatisfy { $0.snapshot.ready } }
         let claude = web.availableSessions[3]
         _ = try await claude.webView.callAsyncJavaScript("chat.hidden=true;login.hidden=false;history.replaceState({},'', '/login')", arguments: [:], in: nil, contentWorld: .page)
         XCTAssertTrue(claude.snapshot.ready, "Exercise a stale snapshot before the next polling tick")
@@ -502,7 +630,7 @@ final class MultiWebAgentTests: XCTestCase {
     func testComparisonSetupPreservesExistingPageDraft() async throws {
         let web = WebAgents(directory: temporaryDirectory(), fixture: true)
         web.connectSelected()
-        try await waitFor { web.availableSessions.allSatisfy { $0.snapshot.ready } }
+        try await waitFor { web.selected.allSatisfy { $0.snapshot.ready } }
         let chatgpt = web.availableSessions[3]
         _ = try await chatgpt.webView.callAsyncJavaScript("document.querySelector('textarea').value='Keep my page draft'", arguments: [:], in: nil, contentWorld: .page)
         let ready = await web.prepareComparison(nil, for: web.selected)

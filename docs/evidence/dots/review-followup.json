@@ -1,0 +1,18 @@
+{
+  "review_run_id": "20261007-173620-0d03954a",
+  "review_status": "complete",
+  "applied_findings": [
+    {
+      "number": 1,
+      "title": "Redirect test relies on task scheduling delay",
+      "resolution": "Directly await opening on the MainActor; schedule only its finish callback, removing the unstructured opening task and fixed delay.",
+      "verification": "Focused redirect regression passed after the fix."
+    }
+  ],
+  "unapplied_actionable_findings": [],
+  "testing_limits": [
+    "Live Dots editor/send/receipt compatibility remains unverified. Read-only live DOM observations establish selectors, while local fixtures append synthetic outgoing message rows and replies. No live Send exercised the service's editing events, message-ID lifecycle, or history transitions during receipt polling.",
+    "Live authenticated Dots avatar snapshots and logout remain unverified. The supplied real login destination /auth/login?next=%2Fdots matches the path-clearing guard, and the populated-avatar fixture covers same-URL sign-out and persisted cache removal; live custom CSS pet capture and an actual logout DOM/routing transition were not exercised.",
+    "Add a negative signedOut fixture case where a responsive sidebar hides Your dot actions while the conversation contains a visible Sign in link. WebPageScript.swift:78 searches all visible buttons/links and :89 checks only visible account controls; WebAgentSession.swift:270-275 clears savedAvatar and dotsURL on that combination. The populated-avatar fixture presently covers the positive hidden-chat/login case."
+  ]
+}

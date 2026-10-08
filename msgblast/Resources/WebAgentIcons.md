@@ -40,3 +40,11 @@ The local accounts panel in Settings reuses the unmodified ChatGPT and Claude Ap
 | --- | --- | --- |
 | `WebAgentIcons/openclaw.png` | [OpenClaw iOS app icon](https://github.com/openclaw/openclaw/blob/bff90d69144ceec82e75f92d59c3a29ec7876351/apps/ios/Sources/Assets.xcassets/AppIcon.appiconset/1024.png) | `8ce11071e6cc34f3086b1947bb5f4b7f43f237a7a023bd8e0aa0ac529173ceb8` |
 | `WebAgentIcons/hermes.png` | [Hermes desktop app icon](https://github.com/NousResearch/hermes-agent/blob/85db7c3a6886762773827598793b0b51ef4e3325/apps/desktop/assets/icon.png) | `2e69dd9a8a1d3f9e3f627efc37102aed416f703e22f599e31c5d86b212a4d6de` |
+
+## Dots avatar
+
+Dots opens `https://chatgpt.com/dots` in its own persistent WebKit session, separate from the basic ChatGPT agent. Its live DOM was inspected on October 7, 2026 using an existing account without sending messages. `/dots` resolves to `/dots/<dot UUID>`; blasts continue that ongoing conversation.
+
+The app crops the rendered avatar beside the dot’s profile trigger. This supports character artwork and custom pets rendered from CSS sprite sheets without requesting their underlying signed media URLs. The 256 × 256 PNG is saved in the app’s private `web-dots.json`, shown in the picker and pane header, and refreshed when the displayed avatar changes. Normal navigation preserves the cached avatar; a login/logout page or signed-out Dots UI clears it. Until an avatar can be captured, the picker shows Dots’ initials. Muse retains its existing avatar behavior.
+
+The Dots demo uses synthetic SVG and CSS artwork and local conversation replies. It does not sign in, submit live messages, or start dot tasks.

@@ -7,7 +7,7 @@ final class PersonalAgentTests: XCTestCase {
         let directory = try fixtureDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         let web = WebAgents(directory: directory, fixture: true)
-        XCTAssertEqual(web.availableSessions.map(\.provider), WebProvider.webDefaults)
+        XCTAssertEqual(web.availableSessions.map(\.provider), WebProvider.webDefaults + [.dots])
         XCTAssertEqual(web.selected.map(\.provider), WebProvider.webDefaults)
         for provider in WebProvider.optionalProviders {
             let session = try XCTUnwrap(web.sessions.first { $0.provider == provider })
@@ -24,7 +24,7 @@ final class PersonalAgentTests: XCTestCase {
         XCTAssertEqual(sent.count, 2)
         XCTAssertTrue(sent.values.allSatisfy { $0.status == .observed })
         let reopened = WebAgents(directory: directory, fixture: true)
-        XCTAssertEqual(reopened.selected.map(\.provider), WebProvider.allCases)
+        XCTAssertEqual(reopened.selected.map(\.provider), WebProvider.allCases.filter { $0 != .dots })
         reopened.setEnabled(false, for: .codexCLI)
         reopened.setComparison(id)
         reopened.restoreSelection(for: [.chatgpt, .codexCLI])
@@ -55,7 +55,7 @@ final class PersonalAgentTests: XCTestCase {
         XCTAssertTrue(web.selected.allSatisfy { $0.snapshot.ready })
         let id = UUID(), prompt = "One shared fixture prompt"
         let replies = await WebAgents.send(prompt, to: web.selected, comparisonID: id)
-        XCTAssertEqual(Set(replies.keys), Set(WebProvider.allCases))
+        XCTAssertEqual(Set(replies.keys), Set(WebProvider.allCases.filter { $0 != .dots }))
         XCTAssertTrue(replies.values.allSatisfy { $0.status == .observed && $0.text == prompt && $0.comparisonID == id })
         for session in web.selected {
             if session.provider.personalAgentProvider == nil {
@@ -67,7 +67,7 @@ final class PersonalAgentTests: XCTestCase {
             }
             XCTAssertEqual(session.snapshot.messages.first { $0.role == "user" }?.text, prompt)
         }
-        XCTAssertEqual(Set(web.sessions.map { $0.state.sessionID }).count, 6)
+        XCTAssertEqual(Set(web.sessions.map { $0.state.sessionID }).count, WebProvider.allCases.count)
     }
 
     @MainActor

@@ -46,13 +46,14 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
         self.storageURL = storageURL
         self.fixture = fixture
         var loaded = WebWorkspaceState()
-        loaded.selected = provider.personalAgentProvider == nil
+        loaded.selected = WebProvider.webDefaults.contains(provider)
         var failure: String? = migrationError
         do { loaded = try JSONDecoder().decode(WebWorkspaceState.self, from: Data(contentsOf: storageURL)).recoveringInFlight() }
         catch CocoaError.fileReadNoSuchFile { }
         catch { failure = "Web session state could not be read. The saved file has been preserved: \(error.localizedDescription)" }
         super.init()
         state = loaded
+        if provider == .dots { avatar = loaded.savedAvatar }
         storageFailed = failure != nil
         error = failure
         if provider.personalAgentProvider != nil { updateNativeSnapshot() }
@@ -124,6 +125,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
     private var comparisonURL: URL {
         if let id = state.comparisonID,
            let url = state.conversationURLs[id.uuidString], provider.isSavedConversation(url) { return url }
+        if provider == .dots, let url = state.dotsURL, provider.isSavedConversation(url) { return url }
         return provider.newChatURL
     }
     private func loadComparisonChat() {
@@ -139,7 +141,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
     public var locationLabel: String {
         if let agent = provider.personalAgentProvider { return fixture ? "\(agent.name) · Simulated local account" : "\(agent.name) · Local account" }
         let host = webView.url?.host ?? provider.homeURL.host!
-        return provider == .muse && webView.url.map(provider.isChatURL) == true ? "\(host) · Side chat" : host
+        return provider == .dots ? "\(host) · Your dot" : provider == .muse && webView.url.map(provider.isChatURL) == true ? "\(host) · Side chat" : host
     }
 
     @discardableResult
@@ -176,6 +178,12 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
         }
         let target = comparisonURL
         let request = comparisonGeneration
+        func matchesTarget(_ location: String) -> Bool {
+            if location == target.absoluteString { return true }
+            // /dots resolves to the account's ongoing dot, never a new ChatGPT chat.
+            return provider == .dots && target == provider.newChatURL &&
+                URL(string: location).flatMap(provider.canonicalConversationURL) != nil
+        }
         func checkCurrent() throws {
             try Task.checkCancellation()
             guard comparisonGeneration == request else { throw CancellationError() }
@@ -200,9 +208,11 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
            snapshot.messages.contains(where: { $0.role == "user" }) {
             throw WebSessionFailure.notSent("\(provider.name) has an unfinished conversation submission. Check its page before starting another comparison.")
         }
-        if !loading, snapshot.ready, snapshot.url == target.absoluteString,
-           webView.url == target || webView.url.flatMap(provider.canonicalConversationURL) == target { return readyBeforeSetup }
-        if webView.url != target {
+        if !loading, snapshot.ready, matchesTarget(snapshot.url),
+           webView.url == target || webView.url.flatMap(provider.canonicalConversationURL) == target || (provider == .dots && target == provider.newChatURL) { return readyBeforeSetup }
+        let resolvingDotLanding = provider == .dots && target == provider.newChatURL &&
+            (loading || webView.url == nil || webView.url.flatMap(provider.canonicalConversationURL) != nil)
+        if webView.url != target && !resolvingDotLanding {
             if fixture, webView.url != nil {
                 _ = try await webView.callAsyncJavaScript("navigateFixtureThread(url)", arguments: ["url":target.absoluteString], in: nil, contentWorld: .page)
             } else { webView.load(URLRequest(url: target)) }
@@ -212,7 +222,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
             try checkCurrent()
             await refresh()
             try checkCurrent()
-            if !loading, snapshot.ready, snapshot.url == target.absoluteString { return readyBeforeSetup }
+            if !loading, snapshot.ready, matchesTarget(snapshot.url) { return readyBeforeSetup }
         }
         throw WebSessionFailure.notReady("\(provider.name)’s comparison chat could not open. Open it in this pane and sign in if needed. Nothing was sent.")
     }
@@ -238,14 +248,18 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
             current.url = webView.url?.absoluteString ?? ""
             current.reason = provider == .muse ? "Sign in to Muse and open this comparison’s side chat." : "Sign in to \(provider.name) and open a chat."
             if snapshot != current { snapshot = current }
-            clearAvatar()
+            if provider != .dots { clearAvatar() }
+            if provider == .dots, state.savedAvatar != nil || state.dotsURL != nil, ["/auth/login", "/auth/logout", "/login", "/logout"].contains(webView.url?.path ?? "") {
+                clearAvatar()
+                updateState { $0.savedAvatar = nil; $0.dotsURL = nil }
+            }
             return
         }
         refreshing = true
         defer { refreshing = false }
         let generation = navigationGeneration
         do {
-            if provider == .chatgpt && !isSending {
+            if (provider == .chatgpt || provider == .dots) && !isSending {
                 _ = try await webView.callAsyncJavaScript(script.configureInitialLayout, arguments: [:], in: nil, contentWorld: .defaultClient)
                 guard generation == navigationGeneration else { return }
             }
@@ -253,6 +267,18 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
             guard generation == navigationGeneration, let result else { return }
             let fresh = try JSONDecoder().decode(WebPageSnapshot.self, from: JSONSerialization.data(withJSONObject: result))
             if snapshot != fresh { snapshot = fresh }
+            if provider == .dots, fresh.signedOut == true {
+                clearAvatar()
+                if state.savedAvatar != nil || state.dotsURL != nil {
+                    updateState { $0.savedAvatar = nil; $0.dotsURL = nil }
+                }
+                return
+            }
+            if provider == .dots, fresh.ready, let url = URL(string: fresh.url),
+               let saved = provider.canonicalConversationURL(url), saved != state.dotsURL {
+                updateState { $0.dotsURL = saved; $0.savedAvatar = nil }
+                clearAvatar()
+            }
             if fresh.ready, fresh.url == comparisonURL.absoluteString, !storageFailed,
                let readinessError, error == readinessError {
                 error = nil
@@ -264,7 +290,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
             var current = WebPageSnapshot()
             current.reason = "\(provider.name)’s page is not ready. Reload or use the page directly."
             if snapshot != current { snapshot = current }
-            clearAvatar()
+            if provider != .dots { clearAvatar() }
         }
     }
 
@@ -274,20 +300,56 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
     }
 
     private func refreshAvatar(generation: Int) async {
-        guard provider == .muse, snapshot.ready else { clearAvatar(); return }
+        guard provider == .muse || provider == .dots else { return }
+        if provider == .dots && webView.window == nil { return }
+        if provider == .muse && !snapshot.ready { clearAvatar(); return }
         do {
-            let result = try await webView.callAsyncJavaScript(MusePageScript.avatar, arguments: ["previousKey": avatarKey ?? ""], in: nil, contentWorld: .defaultClient) as? [String: Any]
+            let result = try await webView.callAsyncJavaScript(script.avatar, arguments: ["previousKey": avatarKey ?? ""], in: nil, contentWorld: .defaultClient) as? [String: Any]
             guard generation == navigationGeneration else { return }
-            guard let key = result?["key"] as? String else { clearAvatar(); return }
+            guard let key = result?["key"] as? String else {
+                if provider == .muse { clearAvatar() }
+                return
+            }
             if key == avatarKey { return }
-            guard let png = result?["png"] as? String, png.hasPrefix("data:image/png;base64,"), png.count < 400_000,
-                  let data = Data(base64Encoded: String(png.dropFirst(22))),
-                  let image = NSBitmapImageRep(data: data), image.pixelsWide == 256, image.pixelsHigh == 256 else { clearAvatar(); return }
+            let data: Data
+            if provider == .dots {
+                guard webView.window != nil, let capturedURL = webView.url, let rect = result?["rect"] as? [String: Double],
+                      let x = rect["x"], let y = rect["y"], let width = rect["width"], let height = rect["height"] else { return }
+                let configuration = WKSnapshotConfiguration()
+                configuration.rect = CGRect(x: x, y: y, width: width, height: height)
+                configuration.snapshotWidth = 256
+                let image: NSImage = try await withCheckedThrowingContinuation { continuation in
+                    webView.takeSnapshot(with: configuration) { image, error in
+                        if let image { continuation.resume(returning: image) }
+                        else { continuation.resume(throwing: error ?? WebSessionFailure.unconfirmed) }
+                    }
+                }
+                guard generation == navigationGeneration, webView.url == capturedURL,
+                      state.dotsURL == capturedURL, let png = Self.avatarPNG(image) else { return }
+                data = png
+                updateState { $0.savedAvatar = png }
+            } else {
+                guard let png = result?["png"] as? String, png.hasPrefix("data:image/png;base64,"), png.count < 400_000,
+                      let decoded = Data(base64Encoded: String(png.dropFirst(22))),
+                      let image = NSBitmapImageRep(data: decoded), image.pixelsWide == 256, image.pixelsHigh == 256 else { clearAvatar(); return }
+                data = decoded
+            }
             avatarKey = key
             avatar = data
         } catch {
-            if generation == navigationGeneration { clearAvatar() }
+            if generation == navigationGeneration && provider == .muse { clearAvatar() }
         }
+    }
+
+    private static func avatarPNG(_ image: NSImage) -> Data? {
+        guard let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 256, pixelsHigh: 256,
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
+            bytesPerRow: 0, bitsPerPixel: 0), let context = NSGraphicsContext(bitmapImageRep: bitmap) else { return nil }
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = context
+        image.draw(in: NSRect(x: 0, y: 0, width: 256, height: 256))
+        NSGraphicsContext.restoreGraphicsState()
+        return bitmap.representation(using: .png, properties: [:])
     }
 
     @discardableResult
@@ -540,7 +602,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
 
     public func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
         if webView === self.webView {
-            navigationGeneration += 1; loading = true; snapshot = WebPageSnapshot(); clearAvatar()
+            navigationGeneration += 1; loading = true; snapshot = WebPageSnapshot(); if provider != .dots { clearAvatar() }
         }
     }
     public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
@@ -564,7 +626,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
     }
     public func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
         if webView === self.webView {
-            navigationGeneration += 1; loading = false; snapshot = WebPageSnapshot(); clearAvatar()
+            navigationGeneration += 1; loading = false; snapshot = WebPageSnapshot(); if provider != .dots { clearAvatar() }
             error = "\(provider.name)’s web process stopped. Reload its page. Pending submissions will not be resent."
         }
     }
