@@ -5,7 +5,7 @@ Grok Bot is a separate optional agent from Grok's website. Its implementation li
 ## Connect once
 
 1. Open **msgblast → Settings → Grok Bot** and choose **Copy Bot setup instructions**. Paste those instructions into the particular Grok Bot you want to connect. This creates a webhook routine that receives the request and POSTs its answer back to msgblast.
-2. Open that routine on Grok Bot's desktop app and copy its **Webhook URL** and **Webhook key** into msgblast's Settings. Choose **Connect Grok Bot**. Credentials are stored in macOS Keychain; normal app state contains no webhook key or callback token.
+2. In Grok Bot, click **msgblast** next to **Created routine** in its reply to open the routine panel. Copy **POST to** into msgblast's **Webhook URL**, and **key** into **Webhook key**. Paste only the key; msgblast adds the Authorization header automatically. Choose **Connect Grok Bot**. Credentials are stored in macOS Keychain; normal app state contains no webhook key or callback token.
 3. Select **Grok Bot** in Agents and send a shared prompt or a message in its native pane. Its answer appears in the same comparison. Each follow-up includes that comparison's local history.
 
 The open-source [cloudflared helper](https://github.com/cloudflare/cloudflared) is included in the app. There is no Homebrew installation or separate tunnel command to run.

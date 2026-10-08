@@ -19,8 +19,16 @@ struct GrokBotSettingsView: View {
                 Label("Demo connection · webhook and replies are simulated", systemImage: "testtube.2")
                     .font(.caption).foregroundStyle(.secondary)
             } else {
+                Text("1. Click Copy Bot setup instructions below and paste them into Grok Bot.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Text("2. In Grok Bot, click “msgblast” next to “Created routine” to open the routine panel.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Text("3. Copy “POST to” into Webhook URL and “key” into Webhook key, then choose Connect Grok Bot.")
+                    .font(.caption).foregroundStyle(.secondary)
                 TextField("Webhook URL", text: $webhookURL).accessibilityLabel("Grok Bot webhook URL")
                 SecureField("Webhook key", text: $webhookKey).accessibilityLabel("Grok Bot webhook key")
+                Text("The Authorization header is added automatically. Paste only the key.")
+                    .font(.caption).foregroundStyle(.secondary)
                 HStack {
                     Button(session.configuringGrokBot ? "Connecting…" : "Connect Grok Bot") {
                         Task {
