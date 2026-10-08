@@ -67,16 +67,20 @@ final class WebServiceTests: XCTestCase {
         XCTAssertNil(session.error, "New comparison must invalidate an older reopen's timeout")
     }
 
-    func testSwitchingComparisonPreservesFreshPageDraft() async throws {
+    func testSwitchingComparisonPreservesDraftInItsOriginalPage() async throws {
         let session = try makeSession()
-        session.connect()
-        try await waitFor { session.snapshot.ready }
-        let first = await session.send("First comparison", comparisonID: UUID())
-        _ = try await session.webView.callAsyncJavaScript("document.querySelector('textarea').value = 'Keep this draft'", arguments: [:], in: nil, contentWorld: .page)
+        session.connect(); try await waitFor { session.snapshot.ready }
+        let firstID = UUID()
+        let first = await session.send("First comparison", comparisonID: firstID)
+        let originalPage = session.webView
+        _ = try await originalPage.callAsyncJavaScript("document.querySelector('textarea').value = 'Keep this draft'", arguments: [:], in: nil, contentWorld: .page)
         await session.openComparison(UUID())
+        XCTAssertFalse(session.webView === originalPage)
+        XCTAssertEqual(session.snapshot.draft, "")
+        await session.openComparison(firstID)
+        XCTAssertTrue(session.webView === originalPage)
         XCTAssertEqual(session.webView.url, first?.conversationURL)
         XCTAssertEqual(session.snapshot.draft, "Keep this draft")
-        XCTAssertNotNil(session.error)
     }
 
     func testInvalidSavedConversationNeverStartsAnotherChat() async throws {

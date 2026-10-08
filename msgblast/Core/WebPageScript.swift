@@ -82,7 +82,7 @@ struct WebPageScript {
             else if (modal) reason=`Finish the open dialog in ${config.name} first.`;
             else if (generating) reason=`Wait for ${config.name} to finish its current reply.`;
             else if (!input || input.disabled || input.readOnly || input.getAttribute('aria-disabled')==='true') reason=`Waiting for ${config.name}’s message field.`;
-            return {url:conversationLocation(),ready:!reason,signedIn,reason:reason||`${config.name} chat ready`,draft:draft(input)};
+            return {url:conversationLocation(),ready:!reason,signedIn,reason:reason||`${config.name} chat ready`,draft:draft(input),draftAvailable:!!input};
         };
         const submissionStatus = () => {
             const current=status();
@@ -169,7 +169,8 @@ struct WebPageScript {
         <div id="login" hidden><p>Sign in to continue.</p><button data-testid="login-button" onclick="chat.hidden=false;login.hidden=true">Sign in to fixture</button></div>
         <script>
         const provider='\(provider.rawValue)',input=document.querySelector('textarea,[contenteditable]'),send=document.getElementById('fixture-send');
-        const fixtureThreads = {},newPath='\(provider.newChatURL.path)';
+        const fixtureThreads = JSON.parse(localStorage.getItem('msgblastFixtureThreads')||'{}'),newPath='\(provider.newChatURL.path)';
+        function saveFixtureThread(){if(location.pathname!==newPath){fixtureThreads[location.pathname]=document.getElementById('transcript').innerHTML;localStorage.setItem('msgblastFixtureThreads',JSON.stringify(fixtureThreads));}}
         function updateFixtureTitle(){document.getElementById('thread-title').textContent=location.pathname===newPath?'New \(provider.name) chat':'\(provider.name) chat · '+location.pathname.slice(-6);}
         function navigateFixtureThread(url){
           fixtureThreads[location.pathname]=document.getElementById('transcript').innerHTML;
@@ -177,6 +178,7 @@ struct WebPageScript {
           document.getElementById('transcript').innerHTML=location.pathname===newPath?'':(fixtureThreads[location.pathname]||'');
           updateFixtureTitle();
         }
+        document.getElementById('transcript').innerHTML=fixtureThreads[location.pathname]||'';
         updateFixtureTitle();
         const value=()=>input.tagName==='TEXTAREA'?input.value:input.innerText;
         input.addEventListener('input',()=>send.disabled=!value().trim());
@@ -185,9 +187,9 @@ struct WebPageScript {
         if(provider==='chatgpt'){a.dataset.messageAuthorRole=role;a.dataset.messageId=crypto.randomUUID();}
         if(provider==='claude'){a.dataset.testid=role==='user'?'user-message':'assistant-message';}
         if(provider==='grok'){a.dataset.messageRole=role;a.dataset.messageId=crypto.randomUUID();a.className='message-bubble';}
-        a.textContent=text;document.getElementById('transcript').append(a);a.scrollIntoView({block:'nearest'});}
+        a.textContent=text;document.getElementById('transcript').append(a);a.scrollIntoView({block:'nearest'});saveFixtureThread();}
         add('user',text);if(input.tagName==='TEXTAREA')input.value='';else input.textContent='';send.disabled=true;
-        if(location.pathname===newPath){history.replaceState(null,'',(provider==='claude'?'/chat/':'/c/')+crypto.randomUUID());updateFixtureTitle();}
+        if(location.pathname===newPath){history.replaceState(null,'',(provider==='claude'?'/chat/':'/c/')+crypto.randomUUID());updateFixtureTitle();saveFixtureThread();}
         setTimeout(()=>add('assistant','\(provider.name) fixture reply: '+text),350);});
         </script></body></html>
         """

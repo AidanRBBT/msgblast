@@ -80,6 +80,18 @@ import msgblastCore
                 precondition(firstNativeSessions[session.provider] != session.state.localSessionIDs[second.uuidString])
             } else { precondition(firstResults[session.provider]?.conversationURL != secondResults[session.provider]?.conversationURL) }
         }
+        model.setSharedDraft("Shared draft for B")
+        model.openWebComparison(first)
+        model.setSharedDraft("Shared draft for A")
+        model.openWebComparison(second)
+        precondition(model.state.draft == "Shared draft for B")
+        model.openWebComparison(first)
+        precondition(model.state.draft == "Shared draft for A")
+        let restoredDrafts = try model.local.load()
+        precondition(restoredDrafts.workspaceDrafts?[first.uuidString] == "Shared draft for A")
+        precondition(restoredDrafts.workspaceDrafts?[second.uuidString] == "Shared draft for B")
+        model.setSharedDraft("")
+        print("PASS: actual AppModel switches independent A/B shared drafts and persists both across LocalStore reload.")
         model.coordinator?.open(first)
         try await waitUntil { model.webAgents.sessions.allSatisfy { session in
             if session.provider.personalAgentProvider != nil {

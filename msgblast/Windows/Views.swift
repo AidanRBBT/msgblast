@@ -267,7 +267,7 @@ struct MainView: View {
         .focusedSceneValue(\.mainWindowActions, model.error != nil ? nil : MainWindowActions(
             newBlast: {
                 selection = .agents; showingComparison = false
-                web.setComparison(nil); newBlastRequest = UUID()
+                model.selectWorkspace(nil); newBlastRequest = UUID()
             },
             showAgents: { selection = .agents; showingComparison = false },
             showDiscover: { selection = .discover },
@@ -281,7 +281,7 @@ struct MainView: View {
                 ToolbarItem(placement: .navigation) {
                     Button {
                         showingComparison = false
-                        web.setComparison(nil)
+                        model.selectWorkspace(nil)
                         selection = .agents
                     } label: {
                         Label("New Blast", systemImage: "square.and.pencil")

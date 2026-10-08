@@ -233,6 +233,7 @@ public struct AppState: Codable, Sendable {
     public var agents: [Agent] = []
     public var comparisons: [Comparison] = []
     public var draft: String = ""
+    public var workspaceDrafts: [String: String]?
     public var attachmentsDraft: [MessageAttachment]?
     public var selection: Set<UUID> = []
     public var frames: [String: SavedFrame] = [:]
