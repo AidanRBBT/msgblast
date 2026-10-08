@@ -458,19 +458,21 @@ final class MultiWebAgentTests: XCTestCase {
         window.contentView = session.webView
         window.orderFront(nil)
         defer { window.orderOut(nil); window.contentView = nil }
-        session.connect()
+        session.connect(automaticallyRefresh: false)
         try await waitFor { session.snapshot.ready && session.avatar != nil }
         let first = try XCTUnwrap(session.avatar)
         XCTAssertEqual(NSBitmapImageRep(data: first)?.pixelsWide, 256)
         XCTAssertEqual(WebAgentSession(provider: .dots, storageURL: storage, fixture: true).avatar, first)
         _ = try await session.webView.callAsyncJavaScript("changeFixtureAvatar()", arguments: [:], in: nil, contentWorld: .page)
+        await session.refresh()
         try await waitFor { session.avatar != nil && session.avatar != first }
         // Dots keeps its pet centered in a fixed header while the conversation scrolls.
         // A partial WebKit snapshot can move fixed content outside the requested crop.
         _ = try await session.webView.callAsyncJavaScript("Object.assign(document.querySelector('#fixture-dot-avatar').style,{position:'fixed',left:'50%',top:'6px',transform:'translateX(-50%)',zIndex:'100'});chat.style.minHeight='1800px';window.scrollTo(0,1200)", arguments: [:], in: nil, contentWorld: .page)
         // A synthetic CSS pet reproduces the rendered sprite container seen on Dots.
-        _ = try await session.webView.callAsyncJavaScript("const canvas=document.createElement('canvas');canvas.width=512;canvas.height=576;const ctx=canvas.getContext('2d');ctx.fillStyle='#8667df';ctx.fillRect(0,0,512,576);ctx.fillStyle='#f07835';ctx.fillRect(192,0,64,64);const pet=document.createElement('div');pet.dataset.codexPetId='synthetic-pet';Object.assign(pet.style,{width:'64px',height:'64px',backgroundImage:'url('+canvas.toDataURL()+')',backgroundSize:'800% 900%',backgroundPosition:'42.857142857% 0%'});document.querySelector('#fixture-dot-avatar span').replaceChildren(pet)", arguments: [:], in: nil, contentWorld: .page)
         let svg = session.avatar
+        _ = try await session.webView.callAsyncJavaScript("const pet=document.createElement('div');pet.dataset.codexPetId='synthetic-pet';Object.assign(pet.style,{width:'64px',height:'64px',backgroundImage:'url('+spriteURL+')',backgroundSize:'800% 900%',backgroundPosition:'42.857142857% 0%'});document.querySelector('#fixture-dot-avatar span').replaceChildren(pet)", arguments: ["spriteURL": try dotsSpriteURL()], in: nil, contentWorld: .page)
+        await session.refresh()
         try await waitFor { session.avatar != nil && session.avatar != svg }
         let changed = try XCTUnwrap(session.avatar)
         let bitmap = try XCTUnwrap(NSBitmapImageRep(data: changed))
@@ -502,10 +504,12 @@ final class MultiWebAgentTests: XCTestCase {
         XCTAssertNil(session.avatar, "A different dot cannot inherit the old dot's cached artwork")
         XCTAssertNil(session.state.savedAvatar)
         _ = try await session.webView.callAsyncJavaScript("document.querySelector('#fixture-dot-avatar').hidden=false", arguments: [:], in: nil, contentWorld: .page)
+        await session.refresh()
         try await waitFor { session.avatar != nil }
         XCTAssertNotNil(session.state.savedAvatar, "Exercise sign-out with populated cached artwork")
         XCTAssertTrue(session.state.attempts.isEmpty, "Avatar capture never sends a message")
         _ = try await session.webView.callAsyncJavaScript("chat.hidden=true;login.hidden=false", arguments: [:], in: nil, contentWorld: .page)
+        await session.refresh()
         try await waitFor { !session.snapshot.ready && session.avatar == nil }
         XCTAssertNil(WebAgentSession(provider: .dots, storageURL: storage, fixture: true).avatar)
         XCTAssertNil(session.state.dotsURL)
@@ -537,12 +541,10 @@ final class MultiWebAgentTests: XCTestCase {
         };
         """, arguments: [:], in: nil, contentWorld: .defaultClient)
         _ = try await session.webView.callAsyncJavaScript("""
-        const canvas=document.createElement('canvas');canvas.width=64;canvas.height=64;
-        const ctx=canvas.getContext('2d');ctx.fillStyle='#f07835';ctx.fillRect(0,0,64,64);
         const pet=document.createElement('div');pet.dataset.codexPetId='decode-test-pet';
-        Object.assign(pet.style,{width:'64px',height:'64px',backgroundImage:'url('+canvas.toDataURL()+')'});
+        Object.assign(pet.style,{width:'64px',height:'64px',backgroundImage:'url('+spriteURL+')',backgroundSize:'800% 900%',backgroundPosition:'42.857142857% 0%'});
         document.querySelector('#fixture-dot-avatar span').replaceChildren(pet);
-        """, arguments: [:], in: nil, contentWorld: .page)
+        """, arguments: ["spriteURL": try dotsSpriteURL()], in: nil, contentWorld: .page)
         let capture = Task { await session.refresh() }
         var paused = false
         for _ in 0..<100 {
@@ -1224,6 +1226,26 @@ final class MultiWebAgentTests: XCTestCase {
         let url = URL(string: path, relativeTo: session.provider.homeURL)!.absoluteURL
         _ = try await session.webView.callAsyncJavaScript("history.replaceState({},'',url)", arguments: ["url":url.absoluteString], in: nil, contentWorld: .page)
         session.updateState { $0.comparisonID = id; $0.conversationURLs[id.uuidString] = url }
+    }
+
+    private func dotsSpriteURL() throws -> String {
+        // Supply known pixels so the capture assertions exercise CSS sprite
+        // rendering independently of WebKit's canvas export.
+        let bitmap = try XCTUnwrap(NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 512, pixelsHigh: 576,
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
+            bytesPerRow: 512 * 4, bitsPerPixel: 32))
+        let pixels = try XCTUnwrap(bitmap.bitmapData)
+        for offset in stride(from: 0, to: 512 * 576 * 4, by: 4) {
+            pixels[offset] = 134; pixels[offset + 1] = 103; pixels[offset + 2] = 223; pixels[offset + 3] = 255
+        }
+        for y in 0..<64 {
+            for x in 192..<256 {
+                let offset = (y * 512 + x) * 4
+                pixels[offset] = 240; pixels[offset + 1] = 120; pixels[offset + 2] = 53
+            }
+        }
+        let png = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
+        return "data:image/png;base64," + png.base64EncodedString()
     }
 
     private func temporaryDirectory() -> URL { FileManager.default.temporaryDirectory.appendingPathComponent("MsgBlast-MultiWeb-\(UUID())") }
