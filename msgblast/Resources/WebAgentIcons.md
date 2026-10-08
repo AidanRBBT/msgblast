@@ -48,3 +48,7 @@ Dots opens `https://chatgpt.com/dots` in its own persistent WebKit session, sepa
 The app crops the rendered avatar beside the dot’s profile trigger. This supports character artwork and custom pets rendered from CSS sprite sheets without requesting their underlying signed media URLs. The 256 × 256 PNG is saved in the app’s private `web-dots.json`, shown in the picker and pane header, and refreshed when the displayed avatar changes. Normal navigation preserves the cached avatar; a login/logout page or signed-out Dots UI clears it. When there is no saved avatar, the picker and pane use `WebAgentIcons/dots.pdf`: a transparent vector ring matching the default mark in the user-provided screenshot and [Dots feature page](https://chatgpt.com/features/dots/). Personal avatars take precedence. Muse retains its existing avatar behavior.
 
 The Dots demo uses synthetic SVG and CSS artwork and local conversation replies. It does not sign in, submit live messages, or start dot tasks.
+
+## Grok Bot icon
+
+`WebAgentIcons/grokbot.icns` is the unmodified native icon from the locally installed Grok Bot 0.68.1 app (`com.anysphere.sand`), retrieved October 8, 2026. SHA-256: `0174e1ce966156a20c07f5715bbf6577b39cec60bd539267395e5f5fa15bbf80`. The bundled artwork identifies Grok Bot in Settings and chat avatars, including Macs without Grok Bot installed. Its owner retains the artwork and trademark rights.

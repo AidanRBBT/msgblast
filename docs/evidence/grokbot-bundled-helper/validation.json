@@ -1,0 +1,40 @@
+{
+  "source_baseline": "45c0dbf7b0e8248c4c284e7ead27a43bec313e46",
+  "source_files_sha256": {
+    "scripts/bundle_cloudflared.py": "fb8e712c4e04d078fa5725c79eed7f53f1868b1a61ded27d19820e72ec9da3a0",
+    "scripts/cloudflared.json": "b21d2b2305d40fb6edece993938953fb0fd14a317f60304b33ab7d473714882a",
+    "scripts/generate_project.py": "1272b8e6f236eaac97f8442b8bc95b22eb56cbdf88d3bee53d666760ed3c1635",
+    "scripts/release.py": "17e4d48f24ecb7b1c1a92d1bffa69d19ebf07f1b3636238a7244f3626378d3d0",
+    "msgblast/Core/GrokBotTunnel.swift": "1d58bc25337e6107ae25764cb765b99f9a7b7b5d3d659b12c8bfdddbc8bbcf28",
+    "msgblast/Core/GrokBotService.swift": "51523af0487a1e3673385772f35f7ce33bed133830af3e4b2d0d796b5791daf6",
+    "msgblast/Windows/GrokBotSettingsView.swift": "a4b6614af1e8c2280d93dcc007c8a83bc14edc3cb616bf9762d3f75dd9e2918e",
+    "msgblast/Resources/CloudflaredNotices.txt": "7a13aa0dbfc61f7f8df25a579e424e08d1106f7e8251f95411ae8a16b30fde55"
+  },
+  "capture": "Native functional blue-green Dev settings; real UI, empty credentials, no live Grok Bot request. Video has unedited timing and is re-encoded as H.264. Earlier blue-demo media remains a separate synthetic conversation demonstration.",
+  "helper_version": "2026.10.0",
+  "helper_architectures": [
+    "arm64",
+    "x86_64"
+  ],
+  "tests": {
+    "python_passed": 79,
+    "native_passed": 201,
+    "native_failed": 0,
+    "native_skipped": 0
+  },
+  "manual": [
+    "Original and ZIP-reextracted functional Dev app strict deep signature checks passed.",
+    "Both helper slices passed strict signature verification; arm64 executed natively and x86_64 executed under Rosetta.",
+    "Actual packaged Core and helper in an isolated callback-validation app delivered an authenticated synthetic HTTPS callback; helper stopped afterward.",
+    "All 66 helper dependency module names have bundled license notices."
+  ],
+  "limitations": [
+    "No live Grok Bot routine/key configured.",
+    "Full Intel app launch/callback workflow and production Developer ID/notarization not exercised."
+  ],
+  "review_receipt": "20261007-201159-a71db1fd",
+  "review_status": "complete",
+  "review_verdict": "Ready to merge",
+  "cross_model": "Grok transport failed pre-egress (acpx@0.19.4 ETARGET); local adversarial fallback completed.",
+  "production_release": false
+}

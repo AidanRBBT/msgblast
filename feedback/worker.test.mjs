@@ -4,7 +4,7 @@ import worker from './worker.mjs';
 
 const id = '1e932c61-9ddc-4cfa-bf5d-2fb07511c443';
 const report = {id, kind:'feedback', note:'Fixture report', contact:'fixture@example.com'};
-const diagnostics = {agentCount:6,attachmentCount:0,buildNumber:'14',bundleIdentifier:'com.msgblast.feedback-demo',comparisonCount:0,fixtureMode:true,hasDraft:true,lastErrorCategory:'none',messagesStatus:'simulated',operatingSystem:'Version 27.2 (Build 26B5091g)',permissionStage:'idle',personalAgent:'none',stateFileBytes:1175,stateFilePresent:true,supportFolder:'msgblast-Demo',updatesEnabled:false,updatesReason:'Updates are disabled in previews and test runs.',variant:'other',version:'0.6.2',webProviderCounts:{chatgpt:1},windowStyle:'connected'};
+const diagnostics = {agentCount:6,attachmentCount:0,buildNumber:'14',bundleIdentifier:'com.msgblast.feedback-demo',comparisonCount:0,fixtureMode:true,hasDraft:true,lastErrorCategory:'none',messagesStatus:'simulated',operatingSystem:'Version 27.2 (Build 26B5091g)',permissionStage:'idle',personalAgent:'none',stateFileBytes:1175,stateFilePresent:true,supportFolder:'msgblast-Demo',updatesEnabled:false,updatesReason:'Updates are disabled in previews and test runs.',variant:'other',version:'0.6.2',webProviderCounts:{chatgpt:1,grokbot:1},windowStyle:'connected'};
 function environment() {
   const objects = new Map();
   return {objects, FEEDBACK_RATE_LIMIT:{limit:async()=>({success:true})}, FEEDBACK_BUCKET:{

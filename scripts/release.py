@@ -229,7 +229,7 @@ def validate_private_seed(options):
 def sign_nested_code(options):
     app = options.output / "export/msgblast.app"
     code = []
-    for path in (app / "Contents/Frameworks").rglob("*"):
+    for path in list((app / "Contents/Frameworks").rglob("*")) + list((app / "Contents/Helpers").rglob("*")):
         if path.is_symlink():
             continue
         if path.is_dir() and path.suffix in (".framework", ".xpc", ".app"):
@@ -303,6 +303,11 @@ def verify_bundle(options):
     for name in ("msgblastCore", "Sparkle"):
         if not (app / f"Contents/Frameworks/{name}.framework").is_dir():
             raise ReleaseError(f"Exported app is missing {name}.framework")
+    if not (app / "Contents/Helpers/cloudflared").is_file():
+        raise ReleaseError("Exported app is missing its bundled cloudflared helper")
+    for name in ("cloudflared.json", "CloudflaredNotices.txt"):
+        if not (app / "Contents/Resources" / name).is_file():
+            raise ReleaseError(f"Exported app is missing {name}")
 
 
 def verify_appcast(options, signature):

@@ -1,0 +1,12 @@
+{
+  "source_baseline": "856a58b9cf9175e4564338b4ec8a08e24aa6dcd7",
+  "source_files_sha256": {
+    "msgblast/Windows/GrokBotSettingsView.swift": "8585854456b9fa38153ba1c3f0d364a36de631a5241f7e92304dd8b65dac7b42",
+    "docs/grokbot.md": "8d6fb84027813970f1cb87cb09de4313aeaa378b6af00e1a6f2c4027d3ad233f"
+  },
+  "capture": "Isolated functional setup preview, blue-green icon, empty webhook credentials. Video shows scrolling to the exact routine-opening step and keyboard focus through URL/key fields; no Bot request or clipboard changes. Unedited timing, re-encoded H.264.",
+  "native_build": "passed",
+  "code_review": "20261008-095725-ae72f469",
+  "review_verdict": "Ready to merge",
+  "tests": "Copy-only change: native build/layout/keyboard validation; no additional unit tests."
+}

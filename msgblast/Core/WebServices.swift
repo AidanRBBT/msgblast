@@ -2,18 +2,21 @@ import Foundation
 import CryptoKit
 
 public enum WebSendStatus: String, Codable, Sendable {
-    case preparing, attempting, observed, notSent, uncertain, dismissed
+    case preparing, attempting, waiting, observed, notSent, uncertain, dismissed
+    public var isUnresolved: Bool { [.attempting, .waiting, .uncertain].contains(self) }
+    public var confirmsSubmission: Bool { self == .observed || self == .waiting }
     public func showsAttemptBanner(for provider: WebProvider) -> Bool {
         // Web receipt attribution can fail even when the page has replied.
         // Keep uncertainty for resend protection, without presenting it as a chat error.
-        self != .observed && (self != .uncertain || provider.personalAgentProvider != nil)
+        self != .observed && (self != .uncertain || provider.usesNativeConversation)
     }
     public func label(for provider: WebProvider) -> String {
         switch self {
         case .preparing: "Checking \(provider.name)…"
         case .attempting: "Submitting to \(provider.name)…"
-        case .observed: provider.personalAgentProvider == nil ? "Appeared in \(provider.name)" : "\(provider.name) replied"
-        case .notSent: provider.personalAgentProvider == nil ? "Not sent to \(provider.name)" : "No completed reply from \(provider.name)"
+        case .waiting: "Waiting for \(provider.name)’s reply…"
+        case .observed: provider.usesNativeConversation ? "\(provider.name) replied" : "Appeared in \(provider.name)"
+        case .notSent: provider.usesNativeConversation ? "No completed reply from \(provider.name)" : "Not sent to \(provider.name)"
         case .uncertain: "\(provider.name) submission unconfirmed"
         case .dismissed: "Incomplete request acknowledged"
         }
@@ -29,6 +32,7 @@ public struct WebSendAttempt: Codable, Equatable, Identifiable, Sendable {
     public var messageID: String?
     public var comparisonID: UUID?
     public var conversationURL: URL?
+    public var callbackHash: Data?
     // A safely observed chat identity survives invalidation of automatic receipt attribution.
     var recoveryConversationURL: URL?
     var receiptContext: WebReceiptContext?
@@ -50,6 +54,7 @@ public struct WebWorkspaceState: Codable, Sendable {
     public var enabled: Bool?
     public var dotsURL: URL?
     public var savedAvatar: Data?
+    public var grokBotRememberedConnection: Bool?
     var legacyLocalStatePresent = false
     public var sessionID = UUID()
     public var draft = ""
@@ -67,13 +72,14 @@ public struct WebWorkspaceState: Codable, Sendable {
     public var localPreviousSessionIDs: [String: [String]] = [:]
     public var localDrafts: [String: String] = [:]
     public init() {}
-    private enum CodingKeys: String, CodingKey { case providerIdentityVersion, enabled, dotsURL, savedAvatar, sessionID, draft, selected, includeMuse, messageRecipients, comparisonID, attempts, conversationURLs, museConversations, localConversations, localSessionIDs, localDrafts, localConfiguredSessionIDs, localPreviousSessionIDs, localSessionPolicyVersions }
+    private enum CodingKeys: String, CodingKey { case providerIdentityVersion, enabled, dotsURL, savedAvatar, grokBotRememberedConnection, sessionID, draft, selected, includeMuse, messageRecipients, comparisonID, attempts, conversationURLs, museConversations, localConversations, localSessionIDs, localDrafts, localConfiguredSessionIDs, localPreviousSessionIDs, localSessionPolicyVersions }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         providerIdentityVersion = try c.decodeIfPresent(Int.self, forKey: .providerIdentityVersion) ?? 1
         enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled)
         dotsURL = try c.decodeIfPresent(URL.self, forKey: .dotsURL)
         savedAvatar = try c.decodeIfPresent(Data.self, forKey: .savedAvatar)
+        grokBotRememberedConnection = try c.decodeIfPresent(Bool.self, forKey: .grokBotRememberedConnection)
         legacyLocalStatePresent = c.contains(.localConversations) || c.contains(.localSessionIDs) || c.contains(.localDrafts)
         sessionID = try c.decode(UUID.self, forKey: .sessionID)
         draft = try c.decodeIfPresent(String.self, forKey: .draft) ?? ""
@@ -96,6 +102,7 @@ public struct WebWorkspaceState: Codable, Sendable {
         try c.encodeIfPresent(enabled, forKey: .enabled)
         try c.encodeIfPresent(dotsURL, forKey: .dotsURL)
         try c.encodeIfPresent(savedAvatar, forKey: .savedAvatar)
+        try c.encodeIfPresent(grokBotRememberedConnection, forKey: .grokBotRememberedConnection)
         try c.encode(sessionID, forKey: .sessionID)
         try c.encode(draft, forKey: .draft)
         try c.encode(selected, forKey: .selected)
@@ -127,7 +134,7 @@ public struct WebWorkspaceState: Codable, Sendable {
         localSessionPolicyVersions[key] = 1
     }
     public func hasUnresolvedSend(_ text: String) -> Bool {
-        attempts.contains { $0.text == text && [.attempting, .uncertain].contains($0.status) }
+        attempts.contains { $0.text == text && $0.status.isUnresolved }
     }
     public func recoveringInFlight() -> Self {
         var result = self
@@ -186,7 +193,7 @@ public enum AgentBroadcast {
         async let webAttempts = web(text)
         async let comparisonID = messages(text)
         let result = await AgentBroadcastResult(web: webAttempts, comparisonID: comparisonID)
-        let mayHaveSent = result.comparisonID != nil || result.web.values.contains { [.observed, .uncertain].contains($0.status) }
+        let mayHaveSent = result.comparisonID != nil || result.web.values.contains { [.observed, .waiting, .uncertain].contains($0.status) }
         // Keep edits to the next message; a wholly rejected broadcast remains ready to correct.
         if mayHaveSent && currentDraft() == draft { clearDraft() }
         return result

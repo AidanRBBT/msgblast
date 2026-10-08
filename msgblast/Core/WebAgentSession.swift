@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import CryptoKit
 import WebKit
 
 @MainActor
@@ -26,6 +27,15 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
     @Published public private(set) var accountStatus: PersonalAgentAccountStatus = .unknown
     private var installedAgent: InstalledPersonalAgent?
     private var nativeRequest: Task<PersonalAgentReply, Error>?
+    private var grokBotCredentials: GrokBotCredentials?
+    private var grokBotConnectionReady: Bool?
+    private var grokBotReceiver: GrokBotCallbackReceiver?
+    private var grokBotTunnel: GrokBotTunnel?
+    private var grokBotReplyURL: URL?
+    @Published public private(set) var grokBotConnectionActivity: GrokBotConnectionActivity?
+    @Published public private(set) var grokBotNeedsKeychainRetry = false
+    @Published public private(set) var grokBotRemembersConnection = false
+    public var configuringGrokBot: Bool { grokBotConnectionActivity != nil }
     private var shuttingDown = false
     private var requestCancelled = false
     public let fixture: Bool
@@ -57,7 +67,17 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
         if provider == .dots { avatar = loaded.savedAvatar }
         storageFailed = failure != nil
         error = failure
-        if provider.personalAgentProvider != nil { updateNativeSnapshot() }
+        if provider == .grokbot {
+            for index in state.attempts.indices where state.attempts[index].status == .waiting {
+                state.attempts[index].status = .uncertain
+                state.attempts[index].detail = "msgblast stopped waiting for this reply. Check Grok Bot before continuing."
+            }
+        }
+        if provider == .grokbot && !fixture && !storageFailed && state.grokBotRememberedConnection != false {
+            setGrokBotConnectionActivity(.readingKey)
+            Task { [weak self] in _ = await self?.restoreGrokBotConnection() }
+        }
+        if provider.usesNativeConversation { updateNativeSnapshot() }
         if failure == nil { persist() }
     }
 
@@ -69,7 +89,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
         let previousDraft = state.draft
         edit(&state)
         if state.comparisonID != previous { comparisonGeneration += 1 }
-        if provider.personalAgentProvider != nil {
+        if provider.usesNativeConversation {
             if previous != state.comparisonID {
                 state.localDrafts[previous?.uuidString ?? "new"] = previousDraft
                 let target = state.comparisonID?.uuidString ?? "new"
@@ -84,12 +104,16 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
         persist()
     }
 
-    public var isEnabled: Bool { provider.personalAgentProvider == nil || state.enabled == true }
+    public var isEnabled: Bool { !provider.usesNativeConversation || state.enabled == true }
 
     public func setEnabled(_ enabled: Bool) {
-        guard provider.personalAgentProvider != nil else { return }
+        guard provider.usesNativeConversation else { return }
         updateState { $0.enabled = enabled; $0.selected = enabled }
         if !enabled { cancelNativeRequest() }
+        if provider == .grokbot {
+            if enabled, grokBotReplyURL == nil { grokBotConnectionReady = nil }
+            if connected { Task { await refresh() } }
+        }
     }
 
     public func connect() {
@@ -100,6 +124,16 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
     func connect(automaticallyRefresh: Bool) {
         guard !connected else { return }
         connected = true
+        if provider == .grokbot {
+            if !fixture { Task { await refresh() }; return }
+            poll = Task { [weak self] in
+                while !Task.isCancelled {
+                    await self?.refresh()
+                    do { try await Task.sleep(for: .seconds(3)) } catch { return }
+                }
+            }
+            return
+        }
         if provider.personalAgentProvider != nil {
             Task { await refresh() }
             return
@@ -116,7 +150,8 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
 
     public func reload() {
         guard !isSending else { return }
-        if provider.personalAgentProvider != nil { connect(); Task { await refresh() }; return }
+        if provider == .grokbot && grokBotReplyURL == nil { grokBotConnectionReady = nil }
+        if provider.usesNativeConversation { connect(); Task { await refresh() }; return }
         if !connected { connect() }
         else if fixture { loadComparisonChat() }
         else { webView.reload() }
@@ -124,7 +159,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
 
     public func openComparisonChat() {
         guard !isSending else { return }
-        if provider.personalAgentProvider != nil { reload(); return }
+        if provider.usesNativeConversation { reload(); return }
         if !connected { connect() }
         else { loadComparisonChat() }
     }
@@ -138,7 +173,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
     }
 
     private var unresolvedWebAttempt: WebSendAttempt? {
-        guard provider.personalAgentProvider == nil, state.comparisonID != nil else { return nil }
+        guard !provider.usesNativeConversation, state.comparisonID != nil else { return nil }
         return state.attempts.first { $0.comparisonID == state.comparisonID && $0.status == .uncertain }
     }
 
@@ -162,7 +197,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
     // Explicit user linking recovers requests whose automatic attribution could not finish.
     // It observes the existing request; it never clicks Send or repeats that request.
     public func linkCurrentConversation() async {
-        guard !isSending, !loading, !storageFailed else { return }
+        guard !provider.usesNativeConversation, !isSending, !loading, !storageFailed else { return }
         let comparison = state.comparisonID
         let generation = comparisonGeneration
         let navigation = navigationGeneration
@@ -196,6 +231,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
     }
 
     public var locationLabel: String {
+        if provider == .grokbot { return fixture ? "Simulated webhook · no Bot contacted" : "Webhook connection" }
         if let agent = provider.personalAgentProvider { return fixture ? "\(agent.name) · Simulated local account" : "\(agent.name) · Local account" }
         let host = webView.url?.host ?? provider.homeURL.host!
         return provider == .dots ? "\(host) · Your dot" : provider == .muse && webView.url.map(provider.isChatURL) == true ? "\(host) · Side chat" : host
@@ -206,7 +242,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
         guard !isSending else { return false }
         if state.comparisonID != id { updateState { $0.comparisonID = id } }
         connect()
-        if provider.personalAgentProvider != nil {
+        if provider.usesNativeConversation {
             await refresh()
             return snapshot.ready && snapshot.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !hasIncompleteNativeRequest(for: id)
         }
@@ -295,7 +331,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
 
     // Inspect rendered account controls afresh; send readiness also includes busy pages and dialogs.
     public func checkSignIn() async -> Bool? {
-        guard provider.personalAgentProvider == nil else { return nil }
+        guard !provider.usesNativeConversation else { return nil }
         connect()
         do {
             for _ in 0..<40 {
@@ -326,6 +362,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
 
     public func refresh() async {
         guard connected, !loading, !refreshing else { return }
+        if provider == .grokbot { await refreshGrokBot(); return }
         if let localProvider = provider.personalAgentProvider {
             refreshing = true
             loading = true
@@ -471,6 +508,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
 
     @discardableResult
     public func send(_ text: String, comparisonID: UUID? = nil) async -> WebSendAttempt? {
+        if provider == .grokbot { return await sendGrokBot(text, comparisonID: comparisonID) }
         if provider.personalAgentProvider != nil { return await sendNative(text, comparisonID: comparisonID) }
         guard !isSending, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
         guard !storageFailed else { error = "Repair web session storage before sending."; return nil }
@@ -607,33 +645,39 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
         var fresh = snapshot
         fresh.messages = state.comparisonID.flatMap { state.localConversations[$0.uuidString] } ?? []
         fresh.draft = state.draft
+        if provider == .grokbot {
+            fresh.ready = isEnabled && !storageFailed && !configuringGrokBot && (fixture || (grokBotConnectionReady == true && grokBotCredentials != nil)) && !hasIncompleteNativeRequest(for: state.comparisonID)
+            fresh.reason = !isEnabled ? "Enable Grok Bot in Settings to send." : hasIncompleteNativeRequest(for: state.comparisonID) ? "Waiting for the previous request. No automatic resend." : grokBotConnectionActivity?.title ?? (fresh.ready ? "Grok Bot ready" : "Connect Grok Bot's webhook in Settings.")
+            if fresh != snapshot { snapshot = fresh }
+            return
+        }
         fresh.ready = isEnabled && !storageFailed && (fixture || (installedAgent != nil && [.subscription, .apiKey, .other].contains(accountStatus)))
         fresh.reason = !isEnabled ? "Enable \(provider.name) in Settings to send." : installedAgent == nil && !fixture ? "Install \(provider.personalAgentProvider!.name), then sign in with your local account." : accountStatus.label
         if fresh != snapshot { snapshot = fresh }
     }
 
     public func acknowledgeIncompleteRequest() {
-        guard provider.personalAgentProvider != nil, !isSending else { return }
+        guard provider.usesNativeConversation, !isSending else { return }
         updateState { state in
-            for i in state.attempts.indices where state.attempts[i].comparisonID == state.comparisonID && state.attempts[i].status == .uncertain {
+            for i in state.attempts.indices where state.attempts[i].comparisonID == state.comparisonID && [.waiting, .uncertain].contains(state.attempts[i].status) {
                 state.attempts[i].status = .dismissed
             }
         }
     }
 
     public func hasUnresolvedSend(_ text: String) -> Bool {
-        if provider.personalAgentProvider == nil { return state.hasUnresolvedSend(text) }
+        if !provider.usesNativeConversation { return state.hasUnresolvedSend(text) }
         return hasIncompleteNativeRequest(for: state.comparisonID)
     }
     private func hasIncompleteNativeRequest(for id: UUID?) -> Bool {
-        state.attempts.contains { $0.comparisonID == id && [.attempting, .uncertain].contains($0.status) }
+        state.attempts.contains { $0.comparisonID == id && $0.status.isUnresolved }
     }
 
     public func cancelNativeRequest() { requestCancelled = true; nativeRequest?.cancel() }
-    public func beginShutdown() { shuttingDown = true; cancelNativeRequest() }
+    public func beginShutdown() { shuttingDown = true; poll?.cancel(); cancelNativeRequest(); stopGrokBotConnection() }
     public func cancelAndWait() async {
         beginShutdown()
-        while provider.personalAgentProvider != nil && isSending { try? await Task.sleep(for: .milliseconds(20)) }
+        while provider.usesNativeConversation && isSending { try? await Task.sleep(for: .milliseconds(20)) }
     }
 
     func conversationWorkingDirectory(_ id: UUID) -> URL {
@@ -804,6 +848,193 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
         return view
     }
     public func webViewDidClose(_ webView: WKWebView) { if webView === popup { closePopup() } }
+}
+
+extension WebAgentSession {
+    func setGrokBotConnectionActivity(_ activity: GrokBotConnectionActivity?) {
+        grokBotConnectionActivity = activity
+        updateNativeSnapshot()
+    }
+    public var grokBotWebhookURL: String { grokBotCredentials?.webhookURL.absoluteString ?? "" }
+    public var grokBotIsConfigured: Bool { fixture || grokBotCredentials != nil }
+    public var hasPendingGrokBotRequests: Bool {
+        provider == .grokbot && state.attempts.contains { $0.status.isUnresolved }
+    }
+    @discardableResult
+    public func retryGrokBotSavedConnection() async -> Bool {
+        guard provider == .grokbot, !fixture, !isSending, !configuringGrokBot, !storageFailed, !shuttingDown, state.grokBotRememberedConnection != false else { return false }
+        setGrokBotConnectionActivity(.readingKey)
+        return await restoreGrokBotConnection()
+    }
+    private func restoreGrokBotConnection() async -> Bool {
+        defer {
+            setGrokBotConnectionActivity(nil)
+            if !shuttingDown, connected, isEnabled, grokBotCredentials != nil { Task { await refresh() } }
+        }
+        do {
+            let credentials = try await GrokBotCredentialStore.read(storageURL)
+            guard !shuttingDown else { return false }
+            grokBotCredentials = credentials; grokBotRemembersConnection = credentials != nil
+            grokBotNeedsKeychainRetry = false
+            if !storageFailed { error = nil }
+            if grokBotReplyURL == nil { grokBotConnectionReady = nil }
+            return credentials != nil
+        } catch {
+            if !shuttingDown { self.error = error.localizedDescription; grokBotNeedsKeychainRetry = true }
+            return false
+        }
+    }
+    @discardableResult
+    public func configureGrokBot(webhookURL: String, webhookKey: String) async -> Bool {
+        guard provider == .grokbot, !isSending, !configuringGrokBot, !hasPendingGrokBotRequests, !storageFailed, !shuttingDown else { return false }
+        setGrokBotConnectionActivity(.startingTunnel)
+        defer { setGrokBotConnectionActivity(nil) }
+        do {
+            let credentials = try GrokBotCredentials(webhookURL: webhookURL, webhookKey: webhookKey)
+            var remembered = fixture
+            if !fixture {
+                try await startGrokBotConnection()
+                setGrokBotConnectionActivity(.savingKey)
+                // Failure to remember a key must not prevent a session-only connection.
+                remembered = (try? await GrokBotCredentialStore.save(credentials, at: storageURL)) ?? false
+            }
+            guard !shuttingDown else { return false }
+            guard fixture || grokBotReplyURL != nil else { throw GrokBotServiceError.callbackUnavailable }
+            // A late secure-storage write must not revive an older key after a newer
+            // session-only connection. Persist only this non-secret restore policy.
+            state.grokBotRememberedConnection = remembered
+            try save()
+            grokBotCredentials = credentials
+            grokBotRemembersConnection = remembered
+            grokBotConnectionReady = true; grokBotNeedsKeychainRetry = false; error = nil
+            setEnabled(true); connect()
+            return true
+        } catch {
+            self.error = error.localizedDescription
+            return false
+        }
+    }
+    private func startGrokBotConnection() async throws {
+        if grokBotReplyURL != nil { return }
+        guard grokBotReceiver == nil else { throw GrokBotServiceError.callbackUnavailable }
+        setGrokBotConnectionActivity(.startingTunnel)
+        defer { if grokBotConnectionActivity == .startingTunnel { setGrokBotConnectionActivity(nil) } }
+        let receiver = GrokBotCallbackReceiver { [weak self] receipt in
+            guard let self, !self.storageFailed, let attempt = self.state.attempts.first(where: { $0.id == receipt.request_id }) else { throw GrokBotServiceError.invalidReply }
+            do { try self.applyGrokBotReceipt(receipt, to: attempt) }
+            catch {
+                self.error = "Grok Bot's reply could not be saved. Repair storage before sending again."
+                self.updateNativeSnapshot()
+                throw error
+            }
+            self.updateNativeSnapshot()
+        }
+        receiver.onDrained = { [weak self] in
+            guard let self, !self.isEnabled, !self.configuringGrokBot, !self.hasPendingGrokBotRequests else { return }
+            self.stopGrokBotConnection()
+        }
+        for attempt in state.attempts { if let hash = attempt.callbackHash { receiver.register(id: attempt.id, tokenHash: hash) } }
+        grokBotReceiver = receiver
+        let tunnel = GrokBotTunnel(); grokBotTunnel = tunnel
+        tunnel.onDisconnect = { [weak self] in
+            guard let self else { return }
+            self.stopGrokBotConnection()
+            self.error = GrokBotServiceError.callbackUnavailable.localizedDescription
+            self.updateNativeSnapshot()
+        }
+        do {
+            let local = try await receiver.start()
+            let address = try await tunnel.start(localURL: local)
+            guard !shuttingDown else { throw GrokBotServiceError.callbackUnavailable }
+            grokBotReplyURL = address; grokBotConnectionReady = true
+        } catch { stopGrokBotConnection(); throw error }
+    }
+    private func stopGrokBotConnection() {
+        grokBotTunnel?.onDisconnect = nil; grokBotTunnel?.stop(); grokBotTunnel = nil
+        grokBotReceiver?.stop(); grokBotReceiver = nil
+        grokBotReplyURL = nil; grokBotConnectionReady = false
+        for index in state.attempts.indices where [.attempting, .waiting].contains(state.attempts[index].status) {
+            state.attempts[index].status = .uncertain
+            state.attempts[index].detail = "The reply connection ended. Check Grok Bot before continuing; no automatic resend."
+        }
+        if provider == .grokbot { persist() }
+    }
+    private func refreshGrokBot() async {
+        refreshing = true
+        defer { refreshing = false; updateNativeSnapshot() }
+        guard !storageFailed, !shuttingDown, !configuringGrokBot else { return }
+        if fixture {
+            for attempt in state.attempts.filter({ $0.status == .waiting }) {
+                do { try applyGrokBotReceipt(GrokBotReceipt(request_id: attempt.id, status: .answered, answer: "Grok Bot fixture reply: \(attempt.text)"), to: attempt) }
+                catch { self.error = error.localizedDescription }
+            }
+        } else if isEnabled, grokBotCredentials != nil, grokBotConnectionReady == nil {
+            do { try await startGrokBotConnection(); error = nil }
+            catch { self.error = error.localizedDescription }
+        } else if !isEnabled, !hasPendingGrokBotRequests, grokBotReceiver != nil, grokBotReceiver?.hasActiveConnections != true { stopGrokBotConnection() }
+    }
+    private func applyGrokBotReceipt(_ receipt: GrokBotReceipt, to previous: WebSendAttempt) throws {
+        guard let index = state.attempts.firstIndex(where: { $0.id == previous.id }), let comparisonID = previous.comparisonID else { throw GrokBotServiceError.invalidReply }
+        var attempt = state.attempts[index]
+        guard attempt.status != .dismissed else { throw GrokBotServiceError.callbackUnavailable }
+        let replyID = "grokbot-\(attempt.id.uuidString)"
+        if let saved = state.localConversations[comparisonID.uuidString]?.first(where: { $0.id == replyID }) {
+            guard saved.text == receipt.answer else { throw GrokBotServiceError.invalidReply }
+            return
+        }
+        state.localConversations[comparisonID.uuidString, default: []].append(WebPageMessage(id: replyID, role: "assistant", text: receipt.answer))
+        attempt.status = receipt.status == .answered ? .observed : .notSent
+        attempt.detail = receipt.status == .failed ? receipt.answer : fixture ? "Simulated callback. No Grok Bot or tunnel was contacted." : "Reply received on this Mac."
+        try store(attempt); error = nil
+    }
+    private func sendGrokBot(_ text: String, comparisonID: UUID?) async -> WebSendAttempt? {
+        guard isEnabled, !shuttingDown, !isSending, !configuringGrokBot, !storageFailed, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        let comparisonID = comparisonID ?? state.comparisonID ?? UUID()
+        guard !hasIncompleteNativeRequest(for: comparisonID) else { error = "Wait for Grok Bot's previous reply or stop waiting before sending another request."; return nil }
+        isSending = true
+        defer { isSending = false; updateNativeSnapshot() }
+        var attempt = WebSendAttempt(text: text); attempt.comparisonID = comparisonID
+        state.attempts.insert(attempt, at: 0)
+        var submitted = false
+        do {
+            try save()
+            guard fixture || grokBotCredentials != nil else { throw WebSessionFailure.notSent("Connect Grok Bot in Settings before sending.") }
+            guard state.draft.isEmpty || state.draft == text else { throw WebSessionFailure.notSent("Grok Bot has a draft. Send or clear it before using the shared composer.") }
+            if !fixture { try await startGrokBotConnection() }
+            let token = SymmetricKey(size: .bits256).withUnsafeBytes { Data($0).base64EncodedString() }
+            attempt.callbackHash = Data(SHA256.hash(data: Data(token.utf8)))
+            let baseURL = grokBotReplyURL ?? URL(string: "https://fixture.trycloudflare.com")!
+            let body = try GrokBotService.encodeRequest(id: attempt.id, comparisonID: comparisonID, message: text,
+                history: state.localConversations[comparisonID.uuidString] ?? [], callbackURL: baseURL.appendingPathComponent("reply/\(attempt.id.uuidString.lowercased())"), callbackToken: token)
+            updateState { $0.comparisonID = comparisonID }
+            attempt.status = .attempting
+            state.localConversations[comparisonID.uuidString, default: []].append(WebPageMessage(id: attempt.id.uuidString, role: "user", text: text))
+            try store(attempt)
+            grokBotReceiver?.register(id: attempt.id, tokenHash: attempt.callbackHash!)
+            submitted = true
+            if !fixture { try await GrokBotService.submit(grokBotCredentials!, body: body) }
+            if let saved = state.attempts.first(where: { $0.id == attempt.id && $0.status != .attempting }) { attempt = saved }
+            else {
+                attempt.status = fixture || grokBotReplyURL == baseURL ? .waiting : .uncertain
+                attempt.detail = fixture ? "Simulated webhook accepted. Waiting for the simulated callback." : attempt.status == .waiting ? "Grok Bot accepted the request. Keep msgblast open and this Mac awake for its reply." : "The reply connection ended during submission. Check Grok Bot before continuing."
+                try store(attempt)
+            }
+            if state.draft == text { state.draft = ""; state.localDrafts[comparisonID.uuidString] = ""; try save() }
+            connect()
+        } catch {
+            if let saved = state.attempts.first(where: { $0.id == attempt.id && [.observed, .notSent].contains($0.status) }) { attempt = saved }
+            else {
+                attempt.status = submitted && (error as? GrokBotServiceError)?.definitelyNotSubmitted != true ? .uncertain : .notSent
+                if (error as? GrokBotServiceError)?.definitelyNotSubmitted == true {
+                    state.localConversations[comparisonID.uuidString]?.removeAll { $0.id == attempt.id.uuidString }
+                }
+                attempt.detail = error.localizedDescription
+                self.error = error.localizedDescription
+                do { try store(attempt) } catch { self.error = "Could not save Grok Bot's request. Repair storage before sending again." }
+            }
+        }
+        return attempt
+    }
 }
 
 private enum WebSessionFailure: LocalizedError {
