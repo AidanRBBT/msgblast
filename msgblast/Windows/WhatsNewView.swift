@@ -1,6 +1,36 @@
 import SwiftUI
 import msgblastCore
 
+struct UpdateSidebar: View {
+    @ObservedObject var updater: AppUpdater
+
+    var body: some View {
+        if let update = updater.pendingUpdate {
+            Button { updater.checkForUpdates() } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: update.isReady ? "arrow.triangle.2.circlepath" : "arrow.down.circle")
+                        .font(.title3).foregroundStyle(Color.accentColor)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(update.isReady ? "Ready to relaunch" : "Update available").font(.headline)
+                        Text("Version \(update.version)").font(.caption).foregroundStyle(.secondary)
+                        Text(update.isReady ? "Relaunch to update…" : "View update…")
+                            .font(.caption).foregroundStyle(Color.accentColor)
+                    }
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary)
+                }
+                .padding(12).frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.accentColor.opacity(0.1), in: RoundedRectangle(cornerRadius: 10))
+                .contentShape(RoundedRectangle(cornerRadius: 10))
+            }
+            .buttonStyle(.plain)
+            .disabled(!updater.canCheckForUpdates && !update.isReady)
+            .accessibilityLabel(update.isReady ? "Relaunch to update" : "Update available")
+            .accessibilityValue("Version \(update.version)")
+        }
+    }
+}
+
 struct WhatsNewSidebar: View {
     @AppStorage("lastViewedReleaseVersion") private var lastViewedVersion = ""
     @State private var showingHistory = false
