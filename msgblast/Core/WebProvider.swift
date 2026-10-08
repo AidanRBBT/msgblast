@@ -51,7 +51,7 @@ public enum WebProvider: String, CaseIterable, Codable, Identifiable, Sendable {
             return url.query == nil && url.fragment == nil && (path == "/thread/new" ||
                 path.range(of: #"^/thread/[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"#, options: .regularExpression) != nil)
         case .dots:
-            return url.query == nil && url.fragment == nil && (path == "/dots" || path == "/dots/" ||
+            return url.query == nil && url.fragment == nil && (path == "/dots" || path == "/dots/" || path == "/dots/home" ||
                 path.range(of: #"^/dots/[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"#, options: .regularExpression) != nil)
         case .chatgpt: return path.isEmpty || path == "/" || path.range(of: #"^/c/[a-zA-Z0-9-]+/?$"#, options: .regularExpression) != nil
         case .claude: return path == "/new" || path.range(of: #"^/chat/[a-zA-Z0-9-]+/?$"#, options: .regularExpression) != nil

@@ -48,7 +48,7 @@ struct WebPageScript {
                 window.addEventListener(event,e=>{if(e.isTrusted) observation.interrupted=true;},true);
         }
         const pathAllowed = () => location.protocol==='https:' && location.hostname===config.host &&
-            (config.provider==='dots' ? /^\/dots\/[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(location.pathname) : config.provider==='claude' ? /^\/(new|chat\/[a-zA-Z0-9-]+)\/?$/.test(location.pathname) : /^(\/|\/c\/[a-zA-Z0-9-]+\/?)$/.test(location.pathname));
+            (config.provider==='dots' ? (location.pathname==='/dots/home' || /^\/dots\/[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(location.pathname)) : config.provider==='claude' ? /^\/(new|chat\/[a-zA-Z0-9-]+)\/?$/.test(location.pathname) : /^(\/|\/c\/[a-zA-Z0-9-]+\/?)$/.test(location.pathname));
         const messages = () => [...document.querySelectorAll(config.messages)].filter(e => !e.parentElement?.closest(config.messages)).map(e => {
             let role=e.getAttribute('data-message-author-role') || e.getAttribute('data-message-role');
             let id=e.getAttribute('data-message-id') || e.closest('[data-message-id]')?.getAttribute('data-message-id');
@@ -137,13 +137,19 @@ struct WebPageScript {
         const host=triggers[0].parentElement;
         const avatars=[...host.querySelectorAll('span[role="presentation"]')].filter(visible);
         if (avatars.length!==1) return {};
-        const avatar=avatars[0],rect=avatar.getBoundingClientRect();
-        if (rect.width<=0 || rect.height<=0 || rect.top<0 || rect.left<0 || rect.right>innerWidth || rect.bottom>innerHeight) return {};
-        const pet=avatar.querySelector('[data-codex-pet-id]');
-        const identity=location.pathname+'|'+(pet ? pet.getAttribute('data-codex-pet-id')+'|'+getComputedStyle(pet).backgroundImage : avatar.innerHTML);
-        const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(identity));
+        const avatar=avatars[0];
+        const describe=()=>{
+            const rect=avatar.getBoundingClientRect(),pet=avatar.querySelector('[data-codex-pet-id]');
+            if (!visible(avatar) || rect.width<=0 || rect.height<=0 || rect.top<0 || rect.left<0 || rect.right>innerWidth || rect.bottom>innerHeight) return null;
+            return {url:location.href,viewport:{width:innerWidth,height:innerHeight},rect:{x:rect.x,y:rect.y,width:rect.width,height:rect.height},
+                identity:location.pathname+'|'+(pet ? pet.getAttribute('data-codex-pet-id')+'|'+getComputedStyle(pet).backgroundImage : avatar.innerHTML)};
+        };
+        const before=describe();
+        if (!before) return {};
+        const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(before.identity));
+        if (JSON.stringify(before)!==JSON.stringify(describe())) return {};
         const key=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('');
-        return {key,rect:{x:rect.x,y:rect.y,width:rect.width,height:rect.height}};
+        return {key,url:before.url,viewport:before.viewport,rect:before.rect};
         """#
     }
 

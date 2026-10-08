@@ -93,6 +93,11 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
     }
 
     public func connect() {
+        connect(automaticallyRefresh: true)
+    }
+
+    // Controlled fixtures can own refresh boundaries without racing the poller.
+    func connect(automaticallyRefresh: Bool) {
         guard !connected else { return }
         connected = true
         if provider.personalAgentProvider != nil {
@@ -100,6 +105,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
             return
         }
         loadComparisonChat()
+        guard automaticallyRefresh else { return }
         poll = Task { [weak self] in
             while !Task.isCancelled {
                 await self?.refresh()
@@ -239,6 +245,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
             try checkCurrent()
             guard let result else { throw WebSessionFailure.notSent("\(provider.name)’s page could not be checked before switching chats.") }
             snapshot = try JSONDecoder().decode(WebPageSnapshot.self, from: JSONSerialization.data(withJSONObject: result))
+            recordCurrentDot(from: snapshot)
             reconcileUnconfirmedReceipt()
             readyBeforeSetup = snapshot.ready
         }
@@ -362,11 +369,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
                 }
                 return
             }
-            if provider == .dots, fresh.ready, let url = URL(string: fresh.url),
-               let saved = provider.canonicalConversationURL(url), saved != state.dotsURL {
-                updateState { $0.dotsURL = saved; $0.savedAvatar = nil }
-                clearAvatar()
-            }
+            recordCurrentDot(from: fresh)
             reconcileUnconfirmedReceipt()
             if fresh.ready, fresh.url == comparisonURL.absoluteString, !storageFailed,
                let readinessError, error == readinessError {
@@ -381,6 +384,13 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
             if snapshot != current { snapshot = current }
             if provider != .dots { clearAvatar() }
         }
+    }
+
+    private func recordCurrentDot(from fresh: WebPageSnapshot) {
+        guard provider == .dots, fresh.ready, !loading, let url = URL(string: fresh.url),
+              webView.url == url, let saved = provider.canonicalConversationURL(url), saved != state.dotsURL else { return }
+        updateState { $0.dotsURL = saved; $0.savedAvatar = nil }
+        clearAvatar()
     }
 
     private func clearAvatar() {
@@ -402,21 +412,32 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
             if key == avatarKey { return }
             let data: Data
             if provider == .dots {
-                guard webView.window != nil, let capturedURL = webView.url, let rect = result?["rect"] as? [String: Double],
+                let bounds = webView.bounds
+                guard webView.window != nil, !loading, let capturedURL = webView.url, let result,
+                      result["url"] as? String == capturedURL.absoluteString,
+                      let viewport = result["viewport"] as? [String: Double],
+                      let viewportWidth = viewport["width"], let viewportHeight = viewport["height"],
+                      // CSS viewport dimensions round native fractional pane sizes.
+                      abs(viewportWidth - Double(bounds.width)) < 1, abs(viewportHeight - Double(bounds.height)) < 1,
+                      let rect = result["rect"] as? [String: Double],
                       let x = rect["x"], let y = rect["y"], let width = rect["width"], let height = rect["height"] else { return }
                 let crop = CGRect(x: x, y: y, width: width, height: height)
                 let configuration = WKSnapshotConfiguration()
                 // Capture the viewport first. Cropping in WebKit can reposition Dots'
                 // anchored header and capture the composer instead of its pet.
-                configuration.rect = webView.bounds
-                configuration.snapshotWidth = NSNumber(value: webView.bounds.width)
+                configuration.rect = bounds
+                configuration.snapshotWidth = NSNumber(value: bounds.width)
                 let image: NSImage = try await withCheckedThrowingContinuation { continuation in
                     webView.takeSnapshot(with: configuration) { image, error in
                         if let image { continuation.resume(returning: image) }
                         else { continuation.resume(throwing: error ?? WebSessionFailure.unconfirmed) }
                     }
                 }
-                guard generation == navigationGeneration, webView.url == capturedURL,
+                // Layout and artwork can change while WebKit captures. Leave the old
+                // image and key intact on mismatch so the next refresh retries.
+                let verified = try await webView.callAsyncJavaScript(script.avatar, arguments: [:], in: nil, contentWorld: .defaultClient) as? [String: Any]
+                guard generation == navigationGeneration, !loading, webView.url == capturedURL, webView.bounds == bounds,
+                      let verified, NSDictionary(dictionary: result).isEqual(to: verified),
                       state.dotsURL == capturedURL, let png = Self.avatarPNG(image, crop: crop) else { return }
                 data = png
                 updateState { $0.savedAvatar = png }
