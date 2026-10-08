@@ -214,11 +214,7 @@ public struct Comparison: Codable, Identifiable, Sendable {
         return payload
     }
     public func joiningPrompt() -> String {
-        let context = joiningContext()
-        guard context.count > 1 else { return prompt }
-        return "You are joining an existing conversation. Here is the original ask and the follow-up messages sent to everyone, in order. Respond to the latest ask using this context.\n\n" + context.enumerated().map { index, message in
-            "\(index == 0 ? "Original ask" : "Follow-up \(index)"):\n\(message.text)"
-        }.joined(separator: "\n\n")
+        joiningContext().map(\.text).joined(separator: "\n\n")
     }
     public var title: String { String((prompt.isEmpty ? attachments?.map(\.filename).joined(separator: ", ") ?? "Attachment" : prompt).prefix(65)) }
 }
