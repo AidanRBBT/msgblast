@@ -32,6 +32,9 @@ public struct WebSendAttempt: Codable, Equatable, Identifiable, Sendable {
     // A safely observed chat identity survives invalidation of automatic receipt attribution.
     var recoveryConversationURL: URL?
     var receiptContext: WebReceiptContext?
+    // Preparation can succeed before automatic Send is rejected. A later page
+    // submission is observed separately; it is never an automatic-send receipt.
+    var manualContext: WebReceiptContext?
     var pinnedConversationURL: URL? { recoveryConversationURL ?? receiptContext?.candidateURL }
     public init(text: String, status: WebSendStatus = .preparing) {
         self.text = text; self.status = status
@@ -160,6 +163,7 @@ public struct WebPageSnapshot: Decodable, Equatable, Sendable {
     public var reason = "Open this agent to sign in here."
     public var draft = ""
     public var draftAvailable: Bool?
+    public var hasDraft: Bool { !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     public var messages: [WebPageMessage] = []
     public var submissionInterrupted: Bool?
     public init() {}

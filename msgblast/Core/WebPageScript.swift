@@ -86,7 +86,7 @@ struct WebPageScript {
         };
         const submissionStatus = () => {
             const current=status();
-            if (!current.ready || current.url!==expectedURL || current.draft!==text || observation.interrupted)
+            if (!current.ready || current.url!==expectedURL || current.draft!==preparedDraft || observation.interrupted)
                 return {ready:false,retryable:false,reason:`${config.name} changed during preparation. Review its draft; nothing was clicked.`};
             const candidates=all(config.send),send=candidates.length===1?candidates[0]:null;
             const ready=!!send && !send.disabled && send.getAttribute('aria-disabled')!=='true';
@@ -142,7 +142,11 @@ struct WebPageScript {
             if (!document.execCommand('insertText',false,text)) return {ok:false,reason:'The page did not accept text. Use its composer directly.'};
         }
         observation.interrupted=false;
-        return {ok:true,messageIDs:baseline.map(m=>m.id),messages:baseline,existingConversationPaths};
+        // innerText can collapse repeated spaces even though the editing operation
+        // accepted them. Check the accepted rendering, then guard that exact draft.
+        const preparedDraft=draft(input);
+        if (normalized(preparedDraft)!==normalized(text)) return {ok:false,reason:'The page changed the inserted text. Review its draft.'};
+        return {ok:true,preparedDraft,messageIDs:baseline.map(m=>m.id),messages:baseline,existingConversationPaths};
         """#
     }
     var sendReadiness: String { helpers + "\nreturn submissionStatus();" }

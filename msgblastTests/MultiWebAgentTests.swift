@@ -4,6 +4,162 @@ import WebKit
 
 @MainActor
 final class MultiWebAgentTests: XCTestCase {
+    func testContentEditableSpacingDoesNotStopSharedSubmission() async throws {
+        for provider in [WebProvider.claude, .grok, .chatgpt] {
+            let session = WebAgentSession(provider: provider, storageURL: temporaryDirectory().appendingPathComponent("state.json"), fixture: true)
+            session.connect()
+            try await waitFor { session.snapshot.ready }
+            let label = provider == .chatgpt ? "Ask ChatGPT" : "Ask Grok anything"
+            let html = WebPageScript(provider: provider).fixture.replacingOccurrences(
+                of: #"<textarea aria-label="[^"]*"></textarea>"#,
+                with: "<div contenteditable=\"true\" role=\"textbox\" aria-label=\"\(label)\"></div>", options: .regularExpression)
+            session.webView.loadHTMLString(html, baseURL: provider.newChatURL)
+            try await waitFor { !session.loading && session.snapshot.ready }
+            let text = "Compare two approaches.  Keep this sentence's spacing.\nThen reply with READY."
+            let attempt = await session.send(text, comparisonID: UUID())
+            XCTAssertEqual(attempt?.status, .observed, provider.name)
+            XCTAssertEqual(session.snapshot.messages.filter { $0.role == "user" }.count, 1, provider.name)
+        }
+    }
+
+    func testSavedDraftRestoresIntoWhitespaceOnlyWebsiteEditor() async throws {
+        for provider in [WebProvider.claude, .grok] {
+            let session = WebAgentSession(provider: provider, storageURL: temporaryDirectory().appendingPathComponent("state.json"), fixture: true)
+            session.connect()
+            try await waitFor { session.snapshot.ready }
+            let id = UUID()
+            _ = await session.send("Draft restore chat", comparisonID: id)
+            try await waitFor { session.snapshot.messages.last?.role == "assistant" }
+            let destination = try XCTUnwrap(session.state.conversationURLs[id.uuidString])
+            session.updateState { $0.webDrafts[id.uuidString] = "Preserve this unsent draft" }
+            let html = WebPageScript(provider: provider).fixture.replacingOccurrences(of: "</body>", with: #"<script>window.whitespaceDraftFixture=true;if(input.tagName==='TEXTAREA')input.value='\n';else input.innerHTML='<p><br></p>';</script></body>"#)
+            session.webView.loadHTMLString(html, baseURL: destination)
+            for _ in 0..<100 {
+                let loaded = try? await session.webView.callAsyncJavaScript("return window.whitespaceDraftFixture===true", arguments: [:], in: nil, contentWorld: .page) as? Bool
+                if loaded == true { break }
+                try await Task.sleep(for: .milliseconds(50))
+            }
+            try await waitFor { !session.loading && session.snapshot.ready }
+            XCTAssertEqual(session.snapshot.draft.trimmingCharacters(in: .whitespacesAndNewlines), "Preserve this unsent draft", provider.name)
+            XCTAssertEqual(session.state.webDrafts[id.uuidString], "Preserve this unsent draft", provider.name)
+            XCTAssertEqual(session.state.attempts.count, 1, "Restoring never sends")
+        }
+    }
+
+    func testLegacyNotSentConversationCanBeLinkedWithoutResending() async throws {
+        let session = WebAgentSession(provider: .grok, storageURL: temporaryDirectory().appendingPathComponent("state.json"), fixture: true)
+        session.connect()
+        try await waitFor { session.snapshot.ready }
+        let id = UUID()
+        _ = await session.send("Legacy manual request", comparisonID: id)
+        try await waitFor { session.snapshot.messages.last?.role == "assistant" }
+        let destination = session.webView.url
+        session.updateState { $0.attempts[0].status = .notSent; $0.attempts[0].conversationURL = nil; $0.conversationURLs.removeValue(forKey: id.uuidString) }
+        XCTAssertTrue(session.canLinkCurrentConversation)
+        await session.linkCurrentConversation()
+        XCTAssertEqual(session.state.conversationURLs[id.uuidString], destination)
+        XCTAssertEqual(session.state.attempts.count, 1)
+        XCTAssertEqual(session.state.attempts[0].status, .observed)
+    }
+
+    func testManualSendAfterRejectedPreparationSurvivesSwitchingFollowUpAndReload() async throws {
+        for provider in [WebProvider.claude, .grok] {
+            let storage = temporaryDirectory().appendingPathComponent("state.json")
+            let session = WebAgentSession(provider: provider, storageURL: storage, fixture: true)
+            session.connect()
+            try await waitFor { session.snapshot.ready }
+            let firstID = UUID(), secondID = UUID()
+            session.updateState { $0.comparisonID = firstID }
+            _ = try await session.webView.callAsyncJavaScript("""
+            input.addEventListener('input',()=>{const dialog=document.createElement('div');dialog.id='setup-dialog';dialog.setAttribute('role','dialog');document.body.append(dialog)},{once:true});
+            """, arguments: [:], in: nil, contentWorld: .page)
+            let rejected = await session.send("Manual research A", comparisonID: firstID)
+            XCTAssertEqual(rejected?.status, .notSent)
+            let firstPage = session.webView
+            _ = try await firstPage.callAsyncJavaScript("""
+            document.getElementById('setup-dialog').remove();send.click();
+            // Live empty editors expose a newline after sending.
+            if(input.tagName==='TEXTAREA')input.value='\\n';else input.innerHTML='<p><br></p>';
+            """, arguments: [:], in: nil, contentWorld: .page)
+            try await waitFor { session.snapshot.messages.contains { $0.role == "assistant" } }
+            let destination = try XCTUnwrap(firstPage.url)
+            XCTAssertEqual(session.state.conversationURLs[firstID.uuidString], provider.canonicalConversationURL(destination))
+            XCTAssertEqual(session.state.attempts.first?.status, .observed)
+            XCTAssertTrue(session.state.attempts.first?.detail?.contains("page directly") == true)
+            _ = await session.openComparison(secondID)
+            _ = await session.send("Research B", comparisonID: secondID)
+            _ = await session.openComparison(firstID)
+            XCTAssertTrue(session.webView === firstPage)
+            XCTAssertEqual(session.snapshot.messages.filter { $0.role == "user" }.map(\.text), ["Manual research A"])
+            let followup = await session.send("Follow-up A", comparisonID: firstID)
+            XCTAssertEqual(followup?.status, .observed)
+            XCTAssertEqual(followup?.conversationURL, destination)
+            try await waitFor { session.snapshot.messages.last?.role == "assistant" }
+            firstPage.loadHTMLString(WebPageScript(provider: provider).fixture, baseURL: destination)
+            try await waitFor { !session.loading && session.snapshot.messages.filter { $0.role == "user" }.count == 2 }
+            try await session.saveBrowserDrafts()
+            let reopened = WebAgentSession(provider: provider, storageURL: storage, fixture: true)
+            reopened.connect()
+            try await waitFor { reopened.snapshot.ready }
+            XCTAssertEqual(reopened.webView.url, destination, "Restart restores the saved destination; fixture history across new stores is not a live-server check")
+            XCTAssertEqual(reopened.state.attempts.filter { $0.comparisonID == firstID }.count, 2, "Switching and reload never resend")
+            XCTAssertEqual(reopened.state.attempts.count, 3)
+        }
+    }
+
+    func testManualRecoveryRejectsChangedTextAndOtherConversationDestinations() async throws {
+        for scenario in ["changed text", "already linked", "linked response selector", "previously listed"] {
+            let session = WebAgentSession(provider: .grok, storageURL: temporaryDirectory().appendingPathComponent("state.json"), fixture: true)
+            session.connect()
+            try await waitFor { session.snapshot.ready }
+            let id = UUID(), destination = WebProvider.grok.homeURL.appendingPathComponent("c/manual-destination")
+            session.updateState { $0.comparisonID = id }
+            if scenario == "already linked" { session.updateState { $0.conversationURLs[UUID().uuidString] = destination } }
+            if scenario == "linked response selector" {
+                session.updateState { $0.conversationURLs[UUID().uuidString] = URL(string: destination.absoluteString + "?rid=11111111-2222-4333-8444-555555555555")! }
+            }
+            _ = try await session.webView.callAsyncJavaScript("""
+            if(listed)document.body.insertAdjacentHTML('beforeend','<a href="/c/manual-destination">Existing chat</a>');
+            input.addEventListener('input',()=>{const d=document.createElement('div');d.id='setup-dialog';d.setAttribute('role','dialog');document.body.append(d)},{once:true});
+            """, arguments: ["listed": scenario == "previously listed"], in: nil, contentWorld: .page)
+            let attempt = await session.send("Original manual request", comparisonID: id)
+            XCTAssertEqual(attempt?.status, .notSent)
+            _ = try await session.webView.callAsyncJavaScript("""
+            document.getElementById('setup-dialog').remove();
+            history.replaceState({},'',url);
+            if(changed)input.value='A different request';
+            send.click();
+            """, arguments: ["url": destination.absoluteString, "changed": scenario == "changed text"], in: nil, contentWorld: .page)
+            try await waitFor { session.snapshot.messages.contains { $0.role == "assistant" } }
+            XCTAssertNil(session.state.conversationURLs[id.uuidString], scenario)
+            XCTAssertEqual(session.state.attempts.first?.status, .notSent, scenario)
+            _ = await session.openComparison(id)
+            XCTAssertEqual(session.webView.url, destination, "Viewing preserves the live page without falsely claiming its submission")
+            XCTAssertFalse(session.snapshot.messages.isEmpty)
+            let followup = await session.send("Do not share another comparison's context", comparisonID: id)
+            XCTAssertEqual(followup?.status, .notSent, scenario)
+            XCTAssertEqual(session.snapshot.messages.filter { $0.role == "user" }.count, 1, scenario)
+        }
+    }
+
+    func testSwitchingBeforeManualReplyFinishesKeepsTheSubmittedPage() async throws {
+        let session = WebAgentSession(provider: .grok, storageURL: temporaryDirectory().appendingPathComponent("state.json"), fixture: true)
+        session.connect()
+        try await waitFor { session.snapshot.ready }
+        let firstID = UUID()
+        session.updateState { $0.comparisonID = firstID }
+        _ = try await session.webView.callAsyncJavaScript("input.addEventListener('input',()=>send.disabled=true,{once:true})", arguments: [:], in: nil, contentWorld: .page)
+        let attempt = await session.send("Manual reply still pending", comparisonID: firstID)
+        XCTAssertEqual(attempt?.status, .notSent)
+        let firstPage = session.webView
+        _ = try await firstPage.callAsyncJavaScript("send.disabled=false;send.click()", arguments: [:], in: nil, contentWorld: .page)
+        _ = await session.openComparison(UUID())
+        _ = await session.openComparison(firstID)
+        XCTAssertTrue(session.webView === firstPage)
+        XCTAssertEqual(session.snapshot.messages.first?.text, "Manual reply still pending")
+        XCTAssertEqual(session.state.conversationURLs[firstID.uuidString], firstPage.url)
+    }
+
     func testComparisonsKeepIndependentLivePagesAndDrafts() async throws {
         for provider in WebProvider.webDefaults {
             let session = WebAgentSession(provider: provider, storageURL: temporaryDirectory().appendingPathComponent("state.json"), fixture: true)

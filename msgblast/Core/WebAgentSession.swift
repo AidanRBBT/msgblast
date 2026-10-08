@@ -179,20 +179,29 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
         return state.attempts.first { $0.comparisonID == id && $0.status == .uncertain }
     }
 
+    private var linkableWebAttempt: WebSendAttempt? {
+        guard provider.personalAgentProvider == nil else { return nil }
+        if let attempt = unresolvedWebAttempt { return attempt }
+        guard let id = state.comparisonID, state.conversationURLs[id.uuidString] == nil else { return nil }
+        // Older versions did not retain preparation context for a rejected send.
+        // Link only after the user reviews its existing request and reply.
+        return state.attempts.first { $0.comparisonID == id && $0.status == .notSent && $0.manualContext == nil }
+    }
+
     public var draftRecoveryText: String? {
-        guard provider.personalAgentProvider == nil, snapshot.ready, snapshot.draft.isEmpty,
+        guard provider.personalAgentProvider == nil, snapshot.ready, !snapshot.hasDraft,
               activePage?.restoredDraft == false,
               let draft = state.webDrafts[state.comparisonID?.uuidString ?? "new"], !draft.isEmpty else { return nil }
         return draft
     }
 
     public var needsConversationLink: Bool {
-        unresolvedWebAttempt != nil
+        linkableWebAttempt != nil
     }
 
     public var canLinkCurrentConversation: Bool {
         guard needsConversationLink, !isSending, !loading, snapshot.ready, snapshot.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-              let attempt = unresolvedWebAttempt, let comparison = state.comparisonID, let current = URL(string: snapshot.url),
+              let attempt = linkableWebAttempt, let comparison = state.comparisonID, let current = URL(string: snapshot.url),
               let url = provider.canonicalConversationURL(current),
               webView.url.flatMap(provider.canonicalConversationURL) == url,
               !state.conversationURLs.contains(where: { $0.key != comparison.uuidString && provider.canonicalConversationURL($0.value) == url }) else { return false }
@@ -216,7 +225,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
             snapshot = try JSONDecoder().decode(WebPageSnapshot.self, from: JSONSerialization.data(withJSONObject: result))
         } catch { return }
         guard comparisonGeneration == generation, !isSending, canLinkCurrentConversation,
-              var attempt = unresolvedWebAttempt, let comparison, let current = URL(string: snapshot.url),
+              var attempt = linkableWebAttempt, let comparison, let current = URL(string: snapshot.url),
               let url = provider.canonicalConversationURL(current) else { return }
         attempt.status = .observed
         attempt.messageID = snapshot.messages.first { $0.role == "user" && Self.normalized($0.text) == Self.normalized(attempt.text) }?.id
@@ -298,6 +307,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
             guard let result else { throw WebSessionFailure.notSent("\(provider.name)’s page could not be checked before switching chats.") }
             snapshot = try JSONDecoder().decode(WebPageSnapshot.self, from: JSONSerialization.data(withJSONObject: result))
             reconcileUnconfirmedReceipt()
+            reconcileManualSubmission(in: currentPage())
             readyBeforeSetup = snapshot.ready
         }
         try checkCurrent()
@@ -306,6 +316,13 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
         }
         let target = comparisonURL // Inspection above may have recovered a late receipt.
         let pinned = unresolvedWebAttempt?.pinnedConversationURL
+        // Viewing an unlinked live page must not navigate it away, including a
+        // request sent directly in the website after automatic preparation failed.
+        if let id = state.comparisonID, state.conversationURLs[id.uuidString] == nil, !needsConversationLink,
+           let current = webView.url, provider.canonicalConversationURL(current) != nil,
+           snapshot.messages.contains(where: { $0.role == "user" }) || state.attempts.contains(where: { $0.comparisonID == id && $0.manualContext != nil }) {
+            return readyBeforeSetup
+        }
         // A missed first receipt must not erase the live chat before recovery can inspect it.
         if needsConversationLink, state.comparisonID.flatMap({ state.conversationURLs[$0.uuidString] }) == nil,
            let current = URL(string: snapshot.url), let currentChat = provider.canonicalConversationURL(current),
@@ -411,10 +428,11 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
             guard generation == page.generation, !shuttingDown, !flushingDrafts, let result else { return }
             page.snapshot = try JSONDecoder().decode(WebPageSnapshot.self, from: JSONSerialization.data(withJSONObject: result))
             reconcileUnconfirmedReceipt(in: page)
+            reconcileManualSubmission(in: page)
             if page.snapshot.draftAvailable != true || page.snapshot.signedIn == false { page.restoredDraft = false }
             // Restore only an empty editor at its saved destination; restoring never submits.
             if !page.restoredDraft, page.snapshot.ready, page.snapshot.url == comparisonURL(for: page.comparisonID).absoluteString {
-                if page.snapshot.draft.isEmpty, let draft = state.webDrafts[page.key], !draft.isEmpty {
+                if !page.snapshot.hasDraft, let draft = state.webDrafts[page.key], !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     let restored = try await page.view.callAsyncJavaScript(script.prepare, arguments: ["text": draft], in: nil, contentWorld: .defaultClient) as? [String: Any]
                     guard generation == page.generation, !shuttingDown, !flushingDrafts else { return }
                     if restored?["ok"] as? Bool == true {
@@ -446,7 +464,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
     private func recordDraft(in page: WebConversationPage, from snapshot: WebPageSnapshot) throws {
         // An unavailable editor is not an empty draft. Failed restoration retains its saved text.
         guard snapshot.draftAvailable == true, snapshot.signedIn != false,
-              page.restoredDraft || !snapshot.draft.isEmpty else { return }
+              page.restoredDraft || snapshot.hasDraft else { return }
         if state.webDrafts[page.key] != snapshot.draft {
             state.webDrafts[page.key] = snapshot.draft
             try save()
@@ -463,6 +481,8 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
             let result = try await page.view.callAsyncJavaScript(script.inspect, arguments: [:], in: nil, contentWorld: .defaultClient)
             guard generation == page.generation, pages[page.key] === page, let result else { continue }
             let fresh = try JSONDecoder().decode(WebPageSnapshot.self, from: JSONSerialization.data(withJSONObject: result))
+            page.snapshot = fresh
+            reconcileManualSubmission(in: page)
             try recordDraft(in: page, from: fresh)
         }
         try save()
@@ -484,8 +504,8 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
                 let fresh = try JSONDecoder().decode(WebPageSnapshot.self, from: JSONSerialization.data(withJSONObject: result))
                 page.snapshot = fresh
                 try recordDraft(in: page, from: fresh)
-                guard page !== activePage, fresh.ready, fresh.draftAvailable == true, fresh.draft.isEmpty,
-                      page.restoredDraft, state.webDrafts[page.key, default: ""].isEmpty,
+                guard page !== activePage, fresh.ready, fresh.draftAvailable == true, !fresh.hasDraft,
+                      page.restoredDraft, state.webDrafts[page.key, default: ""].trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                       unresolvedWebAttempt(for: page.comparisonID) == nil else { continue }
                 if page.comparisonID == nil {
                     guard !fresh.messages.contains(where: { $0.role == "user" }) else { continue }
@@ -551,6 +571,9 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
             guard let url = webView.url, provider.isChatURL(url), snapshot.ready, !loading else {
                 throw WebSessionFailure.notSent(snapshot.reason)
             }
+            if let destination = provider.canonicalConversationURL(url), state.conversationURLs[id.uuidString] != destination {
+                throw WebSessionFailure.notSent("This page’s conversation is not linked to this comparison. Review it and continue in the page; nothing was sent from the shared composer.")
+            }
             let generation = navigationGeneration
             let expectedURL = snapshot.url
             let preparation: [String: Any]?
@@ -572,13 +595,14 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
             let existingPaths = Set(paths)
             attempt.receiptContext = WebReceiptContext(originalURL: url, baseline: baseline, existingPaths: existingPaths)
             receiptGenerations[attempt.id] = WebReceiptGeneration(page: currentPage(), generation: generation)
+            let preparedDraft = preparation?["preparedDraft"] as? String ?? text
             if provider == .muse { try await Task.sleep(for: .milliseconds(150)) }
-            else { try await waitForSendControl(text, expectedURL: expectedURL, generation: generation) }
+            else { try await waitForSendControl(preparedDraft, expectedURL: expectedURL, generation: generation) }
             guard generation == navigationGeneration, !loading else { throw WebSessionFailure.notSent("\(provider.name) navigated before submission. Review its draft.") }
             attempt.status = .attempting
             try store(attempt) // The possible external side effect is durably recorded first.
             submissionWasPossible = true
-            let result = try await webView.callAsyncJavaScript(script.clickSend, arguments: ["text": text, "expectedURL": expectedURL], in: nil, contentWorld: .defaultClient) as? [String: Any]
+            let result = try await webView.callAsyncJavaScript(script.clickSend, arguments: ["text": text, "preparedDraft": preparedDraft, "expectedURL": expectedURL], in: nil, contentWorld: .defaultClient) as? [String: Any]
             if result?["clicked"] as? Bool == false {
                 submissionWasPossible = false
                 throw WebSessionFailure.notSent(result?["reason"] as? String ?? "\(provider.name)’s Send control was not clicked.")
@@ -603,6 +627,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
             }
         }
         if attempt.status == .notSent {
+            attempt.manualContext = attempt.receiptContext
             attempt.recoveryConversationURL = nil
             attempt.receiptContext = nil
             receiptGenerations.removeValue(forKey: attempt.id)
@@ -653,6 +678,32 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
     }
 
     private func reconcileUnconfirmedReceipt() { reconcileUnconfirmedReceipt(in: currentPage()) }
+    private func reconcileManualSubmission(in page: WebConversationPage) {
+        guard !isSending, !storageFailed, let comparison = page.comparisonID,
+              var attempt = state.attempts.first(where: { $0.comparisonID == comparison && $0.status == .notSent && $0.manualContext != nil }),
+              let context = attempt.manualContext, let current = page.view.url,
+              let url = provider.canonicalConversationURL(current),
+              URL(string: page.snapshot.url).flatMap(provider.canonicalConversationURL) == url,
+              page.snapshot.draftAvailable == true, page.snapshot.signedIn != false,
+              page.snapshot.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              provider.acceptsReceipt(from: context.originalURL, at: current),
+              state.conversationURLs[page.key] == nil || state.conversationURLs[page.key] == url,
+              !state.conversationURLs.contains(where: { $0.key != page.key && provider.canonicalConversationURL($0.value) == url }),
+              current.path == context.originalURL.path || !context.existingPaths.contains(current.path),
+              page.snapshot.messages.starts(with: context.baseline) else { return }
+        let previous = Set(context.baseline.map(\.id))
+        let expectedText = Self.normalized(attempt.text)
+        let matches = page.snapshot.messages.filter { !previous.contains($0.id) && $0.role == "user" && Self.normalized($0.text) == expectedText }
+        guard matches.count == 1 else { return }
+        attempt.status = .observed
+        attempt.messageID = matches[0].id
+        attempt.conversationURL = url
+        attempt.manualContext = nil
+        attempt.detail = "The request appeared after using the page directly. MsgBlast did not click Send."
+        state.conversationURLs[page.key] = url
+        do { try store(attempt); page.error = nil; page.readinessError = nil; publish(page) }
+        catch { self.error = "Could not save the conversation used in the page. Repair storage before sending." }
+    }
     private func reconcileUnconfirmedReceipt(in page: WebConversationPage) {
         guard !isSending, !storageFailed, var attempt = unresolvedWebAttempt(for: page.comparisonID), attempt.receiptContext != nil else { return }
         let previous = attempt
@@ -760,7 +811,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
         return attempt
     }
 
-    private func waitForSendControl(_ text: String, expectedURL: String, generation: Int) async throws {
+    private func waitForSendControl(_ preparedDraft: String, expectedURL: String, generation: Int) async throws {
         let deadline = ContinuousClock.now.advanced(by: .seconds(5))
         while true {
             try Task.checkCancellation()
@@ -771,7 +822,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
             // A navigation that cancels this read is still "not sent", with the same detail as the generation check.
             let result: [String: Any]?
             do {
-                result = try await webView.callAsyncJavaScript(script.sendReadiness, arguments: ["text": text, "expectedURL": expectedURL], in: nil, contentWorld: .defaultClient) as? [String: Any]
+                result = try await webView.callAsyncJavaScript(script.sendReadiness, arguments: ["preparedDraft": preparedDraft, "expectedURL": expectedURL], in: nil, contentWorld: .defaultClient) as? [String: Any]
             } catch {
                 guard generation == navigationGeneration, !loading else {
                     throw WebSessionFailure.notSent("\(provider.name) navigated before submission. Review its draft.")
