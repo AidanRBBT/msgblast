@@ -110,32 +110,7 @@ struct AgentsWorkspaceView: View {
     private func tileSize(_ geometry: GeometryProxy) -> CGFloat { min(100, max(48, (geometry.size.width - 80) / 3)) }
 
     private var comparisonPanes: some View {
-        ScrollViewReader { proxy in
-            VStack(spacing: 0) {
-                chatNavigation(proxy)
-                Divider()
-                chatColumns
-            }
-        }
-        .background(ChatWindowFrame(chatCount: comparisonChatCount))
-    }
-
-    private func chatNavigation(_ proxy: ScrollViewProxy) -> some View {
-        ScrollView(.horizontal) {
-            HStack(spacing: 8) {
-                Text("Chats (\(comparisonChatCount))").font(.caption).foregroundStyle(.secondary)
-                ForEach(web.displayed, id: \.provider) { session in
-                    Button(session.provider.name) { proxy.scrollTo(session.provider.rawValue, anchor: .leading) }
-                        .accessibilityLabel("Show \(session.provider.name) chat")
-                }
-                if let comparison = nativeComparison {
-                    ForEach(comparison.members) { member in
-                        Button(member.name) { proxy.scrollTo(member.id.uuidString, anchor: .leading) }
-                            .accessibilityLabel("Show \(member.name) chat")
-                    }
-                }
-            }.buttonStyle(.bordered).padding(10)
-        }
+        chatColumns.background(ChatWindowFrame(chatCount: comparisonChatCount))
     }
 
     private var chatColumns: some View {
@@ -512,7 +487,12 @@ private struct WebAgentPane: View {
                 }
                 Spacer()
                 if session.loading { ProgressView().controlSize(.small) }
-                Button { session.reload() } label: { Image(systemName: "arrow.clockwise") }.help("Reload \(session.provider.name)").accessibilityLabel("Reload \(session.provider.name)").disabled(busy)
+                if session.provider == .grokbot {
+                    SettingsLink { Image(systemName: "gearshape") }
+                        .help("Grok Bot settings").accessibilityLabel("Grok Bot settings")
+                } else {
+                    Button { session.reload() } label: { Image(systemName: "arrow.clockwise") }.help("Reload \(session.provider.name)").accessibilityLabel("Reload \(session.provider.name)").disabled(busy)
+                }
             }.padding(14).background(.bar)
             if session.needsConversationLink {
                 HStack {
@@ -574,11 +554,12 @@ private struct WebAgentPane: View {
                 Text("Enable \(session.provider.name) in Settings to send. Your saved conversation is still available here.")
                     .font(.caption).foregroundStyle(.secondary)
             } else if session.provider == .grokbot {
-                HStack {
-                    Text(session.fixture ? "Simulated webhook and callback · no Bot contacted" : connected ? "Keep msgblast open and this Mac awake for replies." : "Connect your Grok Bot webhook in Settings.")
+                if session.fixture {
+                    Text("Simulated webhook and callback · no Bot contacted")
                         .font(.caption).foregroundStyle(.secondary)
-                    Spacer()
-                    SettingsLink { Text("Connection settings") }
+                } else if !connected {
+                    Text("Connect your Grok Bot webhook using the settings gear.")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
             } else if !connected, let provider {
                 HStack {

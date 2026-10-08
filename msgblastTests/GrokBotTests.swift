@@ -1,9 +1,101 @@
 import XCTest
 import CryptoKit
+import Security
+import LocalAuthentication
 @testable import msgblastCore
 
 @MainActor
 final class GrokBotTests: XCTestCase {
+    func testKeychainWorkRunsAwayFromTheUIThread() async throws {
+        let worker = GrokBotKeychainWorker()
+        let usedMainThread = try await worker.perform { Thread.isMainThread }
+        XCTAssertFalse(usedMainThread, "Secure-storage work must not block the app's UI thread")
+    }
+    func testBlockedKeychainWorkTimesOutAndRejectsOverlappingOperations() async throws {
+        let worker = GrokBotKeychainWorker()
+        let release = DispatchSemaphore(value: 0)
+        let lateReturn = expectation(description: "The original operation can return after its caller timed out")
+        defer { release.signal() }
+        let start = Date()
+        do {
+            _ = try await worker.perform(timeout: 0.03) {
+                _ = release.wait(timeout: .now() + 2)
+                lateReturn.fulfill()
+                return "late result"
+            }
+            XCTFail("A blocked Keychain operation must have a deadline")
+        } catch let error as GrokBotServiceError { XCTAssertEqual(error, .keychainWaiting) }
+        XCTAssertLessThan(Date().timeIntervalSince(start), 0.5)
+        do {
+            _ = try await worker.perform { "overlapping operation" }
+            XCTFail("Retry must not queue more credential operations behind a blocked call")
+        } catch let error as GrokBotServiceError { XCTAssertEqual(error, .keychainWaiting) }
+        release.signal()
+        await fulfillment(of: [lateReturn], timeout: 2)
+    }
+    func testKeychainWorkerPreservesOperationFailures() async throws {
+        let worker = GrokBotKeychainWorker()
+        do {
+            let _: Bool = try await worker.perform { throw GrokBotServiceError.keychain }
+            XCTFail("Keychain errors must remain errors")
+        } catch let error as GrokBotServiceError { XCTAssertEqual(error, .keychain) }
+    }
+    func testCredentialQueriesNeverPermitInteractiveAuthentication() throws {
+        let query = GrokBotKeychain.query(URL(fileURLWithPath: "/tmp/synthetic-profile/state.json"))
+        XCTAssertEqual(query[kSecUseDataProtectionKeychain as String] as? Bool, true)
+        XCTAssertEqual(query[kSecUseAuthenticationUI as String] as? String, kSecUseAuthenticationUIFail as String)
+        let context = try XCTUnwrap(query[kSecUseAuthenticationContext as String] as? LAContext)
+        XCTAssertTrue(context.interactionNotAllowed)
+    }
+    func testSavingConnectionImmediatelyDisablesSubmissionWithoutChangingComparison() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let session = WebAgentSession(provider: .grokbot, storageURL: directory.appendingPathComponent("state.json"), fixture: true)
+        let configured = await session.configureGrokBot(webhookURL: "https://webhook.example/trigger", webhookKey: "fixture-webhook-key-000000000000000000000")
+        XCTAssertTrue(configured)
+        XCTAssertTrue(session.snapshot.ready)
+        let before = session.state.comparisonID
+        session.setGrokBotConnectionActivity(.savingKey)
+        XCTAssertFalse(session.snapshot.ready)
+        let sent = await session.send("Do not submit during key storage", comparisonID: UUID())
+        XCTAssertNil(sent)
+        XCTAssertEqual(session.state.comparisonID, before)
+        XCTAssertTrue(session.state.attempts.isEmpty)
+        session.setGrokBotConnectionActivity(nil)
+        XCTAssertTrue(session.snapshot.ready)
+        session.beginShutdown()
+    }
+    func testStorageFailureSkipsCredentialRestoreAndPreservesTheError() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let url = directory.appendingPathComponent("state.json")
+        let original = Data("invalid saved state".utf8)
+        try original.write(to: url)
+        let session = WebAgentSession(provider: .grokbot, storageURL: url, fixture: false)
+        let failure = try XCTUnwrap(session.error)
+        XCTAssertFalse(session.configuringGrokBot)
+        let retried = await session.retryGrokBotSavedConnection()
+        XCTAssertFalse(retried)
+        XCTAssertEqual(session.error, failure)
+        XCTAssertEqual(try Data(contentsOf: url), original)
+    }
+    func testSessionOnlyPolicyDoesNotRestoreAnOlderRememberedKey() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let url = directory.appendingPathComponent("state.json")
+        var state = WebWorkspaceState()
+        state.grokBotRememberedConnection = false
+        try JSONEncoder().encode(state).write(to: url)
+        let session = WebAgentSession(provider: .grokbot, storageURL: url, fixture: false)
+        XCTAssertFalse(session.configuringGrokBot)
+        XCTAssertFalse(session.grokBotIsConfigured)
+        let restored = await session.retryGrokBotSavedConnection()
+        XCTAssertFalse(restored)
+        XCTAssertNil(session.error)
+        XCTAssertEqual(try JSONDecoder().decode(WebWorkspaceState.self, from: Data(contentsOf: url)).grokBotRememberedConnection, false)
+    }
     func testGrokBotIsASeparateOptionalAgentWithIndependentStorage() throws {
         let provider = try XCTUnwrap(WebProvider(rawValue: "grokbot"))
         XCTAssertEqual(provider.name, "Grok Bot")

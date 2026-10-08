@@ -5,12 +5,16 @@ Grok Bot is a separate optional agent from Grok's website. Its implementation li
 ## Connect once
 
 1. Open **msgblast → Settings → Grok Bot** and choose **Copy Bot setup instructions**. Paste those instructions into the particular Grok Bot you want to connect. This creates a webhook routine that receives the request and POSTs its answer back to msgblast.
-2. In Grok Bot, click **msgblast** next to **Created routine** in its reply to open the routine panel. Copy **POST to** into msgblast's **Webhook URL**, and **key** into **Webhook key**. Paste only the key; msgblast adds the Authorization header automatically. Choose **Connect Grok Bot**. Credentials are stored in macOS Keychain; normal app state contains no webhook key or callback token.
+2. In Grok Bot, click **msgblast** next to **Created routine** in its reply to open the routine panel. Copy **POST to** into msgblast's **Webhook URL**, and **key** into **Webhook key**. Paste only the key; msgblast adds the Authorization header automatically. Choose **Connect Grok Bot**. Setup never requests your Mac login password. Normal app state contains no webhook key or callback token.
 3. Select **Grok Bot** in Agents and send a shared prompt or a message in its native pane. Its answer appears in the same comparison. Each follow-up includes that comparison's local history.
 
 The open-source [cloudflared helper](https://github.com/cloudflare/cloudflared) is included in the app. There is no Homebrew installation or separate tunnel command to run.
 
 Connecting can take up to 90 seconds while the temporary address becomes reachable. An explicit webhook rejection keeps the request unsent and its draft intact; an unknown network result is not automatically retried.
+
+Settings distinguishes **Reading saved key**, **Starting reply tunnel**, and **Saving key**. Secure-storage operations run in the background, prohibit interactive authentication, and wait at most 15 seconds. The app uses the data-protection Keychain only when its signed entitlements provide an access group. A build without that capability, including the ad-hoc Dev build, keeps the entered credentials in memory for the current session and labels that limit in Settings. After quitting such a build, enter the webhook details again. No plaintext credential file or permissive Keychain ACL is used.
+
+Legacy file-based Keychain entries are left untouched and are not read. Existing users may need to enter their webhook details once after this change; the old entry is not deleted and no login-password or access-approval dialog is shown.
 
 The routine's URL and key belong to a routine, not the generic xAI model API. A successful webhook acknowledgement means the routine was accepted; it does not contain its answer. The callback instructions are necessary.
 
@@ -18,7 +22,7 @@ The routine's URL and key belong to a routine, not the generic xAI model API. A 
 
 The app opens an HTTP listener on a random port bound only to `127.0.0.1`. It launches cloudflared with a private, empty temporary configuration, the loopback origin and info-level logging. It does not read or change existing tunnel configuration or enable a system service. The helper establishes a temporary HTTPS `trycloudflare.com` address. Only authenticated JSON POSTs to `/reply/REQUEST_ID` are accepted; the listener serves no files, chat history, credentials or management API.
 
-Each request gets a random 256-bit callback credential. Grok Bot receives it in the webhook payload and uses it in the callback's Authorization header. The app stores only its SHA-256 hash with the saved request ID. Responses are matched to the original comparison, saved locally before acknowledgement, and identical callback retries do not append a second answer. Prompt/history and reply bodies are capped at 128 KiB. Both the webhook URL and key stay in Keychain, isolated by app bundle and storage directory.
+Each request gets a random 256-bit callback credential. Grok Bot receives it in the webhook payload and uses it in the callback's Authorization header. The app stores only its SHA-256 hash with the saved request ID. Responses are matched to the original comparison, saved locally before acknowledgement, and identical callback retries do not append a second answer. Prompt/history and reply bodies are capped at 128 KiB. Remembered webhook credentials use the noninteractive data-protection Keychain, isolated by app bundle and storage directory; session-only credentials remain in memory until the app quits.
 
 Cloudflare relays the callback traffic, so this is not an end-to-end encrypted private connection between Grok Bot and the Mac. Request/reply processing and storage are in the app's inspectable Swift code; cloudflared is open source, while Cloudflare operates the relay network. The outbound prompt goes directly to Grok Bot.
 

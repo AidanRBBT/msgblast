@@ -26,20 +26,37 @@ struct GrokBotSettingsView: View {
                 Text("3. Copy “POST to” into Webhook URL and “key” into Webhook key, then choose Connect Grok Bot.")
                     .font(.caption).foregroundStyle(.secondary)
                 TextField("Webhook URL", text: $webhookURL).accessibilityLabel("Grok Bot webhook URL")
+                    .disabled(session.configuringGrokBot)
                 SecureField("Webhook key", text: $webhookKey).accessibilityLabel("Grok Bot webhook key")
+                    .disabled(session.configuringGrokBot)
                 Text("The Authorization header is added automatically. Paste only the key.")
                     .font(.caption).foregroundStyle(.secondary)
                 HStack {
-                    Button(session.configuringGrokBot ? "Connecting…" : "Connect Grok Bot") {
+                    Button(session.grokBotConnectionActivity?.title ?? "Connect Grok Bot") {
                         Task {
                             saved = await session.configureGrokBot(webhookURL: webhookURL, webhookKey: webhookKey)
                             if saved { webhookKey = "" }
                         }
                     }.disabled(busy || session.configuringGrokBot || session.hasPendingGrokBotRequests || webhookKey.isEmpty)
                     if saved { Label("Ready to send", systemImage: "checkmark.circle.fill").foregroundStyle(.green) }
-                    else if session.grokBotIsConfigured { Text("Connection saved").foregroundStyle(.secondary) }
+                    else if session.grokBotIsConfigured { Text(session.grokBotRemembersConnection ? "Connection saved" : "Connected for this session").foregroundStyle(.secondary) }
                 }
-                Text("The webhook key is stored in macOS Keychain. Keep msgblast open and this Mac awake while waiting for replies.").font(.caption).foregroundStyle(.secondary)
+                if let activity = session.grokBotConnectionActivity {
+                    Text(activity.detail).font(.caption).foregroundStyle(.secondary)
+                }
+                if session.grokBotNeedsKeychainRetry {
+                    Button("Retry saved connection") {
+                        Task {
+                            if await session.retryGrokBotSavedConnection() {
+                                webhookURL = session.grokBotWebhookURL; webhookKey = ""; saved = false
+                            }
+                        }
+                    }.disabled(busy || session.configuringGrokBot)
+                }
+                Text(session.grokBotIsConfigured && !session.grokBotRemembersConnection
+                     ? "This connection is available for the current session. You may need to enter the webhook key again after quitting. Keep this Mac awake for replies."
+                     : "Secure storage is used when available, without a Mac login password prompt. Keep msgblast open and this Mac awake while waiting for replies.")
+                    .font(.caption).foregroundStyle(.secondary)
                 if session.hasPendingGrokBotRequests {
                     Text("Wait for pending replies before changing this connection.").font(.caption).foregroundStyle(.secondary)
                 }
@@ -51,5 +68,8 @@ struct GrokBotSettingsView: View {
             }.disabled(session.fixture)
         }
         .onAppear { webhookURL = session.grokBotWebhookURL }
+        .onChange(of: session.grokBotWebhookURL) { previous, current in
+            if !current.isEmpty, webhookURL.isEmpty || webhookURL == previous { webhookURL = current }
+        }
     }
 }
