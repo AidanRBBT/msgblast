@@ -153,6 +153,14 @@ final class CoreTests: XCTestCase {
         let restored = try JSONDecoder().decode(AppState.self, from: JSONEncoder().encode(state)).recoveringInFlight()
         XCTAssertEqual(restored.comparisons[0].members[0].submission, .uncertain)
     }
+    func testChatWindowWidthGrowsWithSevenOpenChats() {
+        XCTAssertEqual(WindowLayout.chatWindowWidth(count: 4, surroundingWidth: 260, screenWidth: 3200), 1823)
+        XCTAssertEqual(WindowLayout.chatWindowWidth(count: 7, surroundingWidth: 260, screenWidth: 3200), 2996)
+    }
+    func testChatWindowWidthFitsScreenAndShrinksForFewerChats() {
+        XCTAssertEqual(WindowLayout.chatWindowWidth(count: 7, surroundingWidth: 260, screenWidth: 1440), 1440)
+        XCTAssertEqual(WindowLayout.chatWindowWidth(count: 1, surroundingWidth: 260, screenWidth: 1440), 760)
+    }
     func testSixColumnsRemainReadableAndOrdered() {
         let frames = WindowLayout.columns(count: 6, screenWidth: 1200, screenHeight: 800)
         XCTAssertEqual(frames.count, 6)

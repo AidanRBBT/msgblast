@@ -152,6 +152,8 @@ public struct WebPageMessage: Codable, Equatable, Identifiable, Sendable {
 public struct WebPageSnapshot: Decodable, Equatable, Sendable {
     public var url = ""
     public var ready = false
+    // Unknown while loading or when the account markup cannot be recognized.
+    public var signedIn: Bool?
     public var reason = "Open this agent to sign in here."
     public var draft = ""
     public var messages: [WebPageMessage] = []

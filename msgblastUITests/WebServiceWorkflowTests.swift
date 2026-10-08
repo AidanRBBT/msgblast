@@ -2,6 +2,36 @@ import XCTest
 
 final class WebServiceWorkflowTests: XCTestCase {
     @MainActor
+    func testSevenChatsResizeWindowAndRemainReachable() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--demo", "--isolated-demo"]
+        app.launch()
+        app.activate()
+        defer { app.terminate() }
+        XCTAssertTrue(app.buttons["Maple"].waitForExistence(timeout: 5))
+        for name in ["Maple", "Echo", "Flint"] { app.buttons[name].click() }
+        app.buttons["Send & compare"].click()
+        XCTAssertTrue(app.staticTexts["Chats (7)"].waitForExistence(timeout: 15))
+        let wideWidth = app.windows.firstMatch.frame.width
+        for name in ["Muse", "ChatGPT", "Claude", "Grok", "Cedar", "Lumen", "Orbit"] {
+            let tab = app.buttons["Show \(name) chat"]
+            XCTAssertTrue(tab.exists)
+            tab.click()
+        }
+        for name in ["Muse", "ChatGPT", "Claude", "Grok"] { app.buttons["Recipient \(name)"].click() }
+        XCTAssertTrue(app.staticTexts["Chats (3)"].waitForExistence(timeout: 5))
+        let narrowed = NSPredicate { _, _ in app.windows.firstMatch.frame.width <= min(wideWidth, 1500) }
+        expectation(for: narrowed, evaluatedWith: app.windows.firstMatch)
+        waitForExpectations(timeout: 5)
+        for name in ["Muse", "ChatGPT", "Claude", "Grok"] { app.buttons["Recipient \(name)"].click() }
+        XCTAssertTrue(app.staticTexts["Chats (7)"].waitForExistence(timeout: 5))
+        let expanded = NSPredicate { _, _ in app.windows.firstMatch.frame.width >= wideWidth - 1 }
+        expectation(for: expanded, evaluatedWith: app.windows.firstMatch)
+        waitForExpectations(timeout: 5)
+        capture(app, name: "Seven reachable chats — isolated fixture")
+    }
+
+    @MainActor
     func testWebDefaultsAndOptionalCLIConversationsStaySeparate() {
         let app = XCUIApplication()
         app.launchArguments = ["--demo", "--isolated-demo"]
@@ -65,10 +95,31 @@ final class WebServiceWorkflowTests: XCTestCase {
     }
 
     @MainActor
+    func testSignedInWebsitesSkipConnectionIntro() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--demo", "--isolated-demo"]
+        app.launch()
+        app.activate()
+        defer { app.terminate() }
+        XCTAssertTrue(app.buttons["Cedar"].waitForExistence(timeout: 5))
+        for name in ["Cedar", "Lumen", "Orbit", "Maple", "Echo", "Flint"] { app.buttons[name].click() }
+        let editor = app.textViews["Shared prompt"]
+        editor.click(); editor.typeKey("a", modifierFlags: .command); editor.typeText("Already signed in fixture")
+        app.buttons["Send & compare"].click()
+        for name in ["ChatGPT", "Claude", "Grok"] {
+            XCTAssertTrue(reply(app, containing: "\(name) fixture reply: Already signed in fixture").waitForExistence(timeout: 15))
+        }
+        XCTAssertTrue(reply(app, containing: "Fixture reply: Already signed in fixture").exists)
+        XCTAssertFalse(app.staticTexts["Connect your accounts"].exists)
+        capture(app, name: "Signed-in websites submit without a login reminder — isolated fixture")
+    }
+
+    @MainActor
     func testSignedOutAgentOpensSetupAndKeepsPromptUntilUserSubmitsAgain() {
         let app = XCUIApplication()
         app.launchArguments = ["--demo", "--isolated-demo"]
         app.launch()
+        app.activate()
         defer { app.terminate() }
         for name in ["Cedar", "Lumen", "Orbit", "Maple", "Echo", "Flint", "ChatGPT", "Claude", "Grok"] { app.buttons[name].click() }
         app.buttons["Muse"].rightClick()
@@ -82,17 +133,19 @@ final class WebServiceWorkflowTests: XCTestCase {
         editor.click(); editor.typeKey("a", modifierFlags: .command); editor.typeText("Keep this comparison request")
         let send = app.buttons["Send & compare"]
         XCTAssertTrue(send.isEnabled, "A signed-out agent must lead to setup, not a disabled send button")
-        send.click()
-        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "Connect your accounts")).firstMatch.waitForExistence(timeout: 10))
-        app.buttons["Start signing in"].click()
+        XCTAssertTrue(app.staticTexts["Website sign-in status"].waitForExistence(timeout: 5))
+        app.activate(); send.click()
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", "Connect your accounts", "Connect your accounts")).firstMatch.waitForExistence(timeout: 10))
+        capture(app, name: "Only signed-out Muse requires login; prompt preserved — isolated fixture")
+        app.activate(); app.buttons["Start signing in"].click()
         XCTAssertEqual(editor.value as? String, "Keep this comparison request")
-        XCTAssertFalse(app.staticTexts.containing(NSPredicate(format: "value CONTAINS %@", "Fixture reply: Keep this comparison request")).firstMatch.exists)
-        app.buttons["Sign in to fixture"].click()
+        XCTAssertFalse(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", "Fixture reply: Keep this comparison request", "Fixture reply: Keep this comparison request")).firstMatch.exists)
+        app.activate(); app.buttons["Sign in to fixture"].click()
         XCTAssertTrue(app.buttons["Sign out of fixture"].waitForExistence(timeout: 10))
         XCTAssertEqual(editor.value as? String, "Keep this comparison request")
-        XCTAssertFalse(app.staticTexts.containing(NSPredicate(format: "value CONTAINS %@", "Fixture reply: Keep this comparison request")).firstMatch.exists, "Signing in must not submit automatically")
-        send.click()
-        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "value CONTAINS %@", "Fixture reply: Keep this comparison request")).firstMatch.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", "Fixture reply: Keep this comparison request", "Fixture reply: Keep this comparison request")).firstMatch.exists, "Signing in must not submit automatically")
+        app.activate(); send.click()
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", "Fixture reply: Keep this comparison request", "Fixture reply: Keep this comparison request")).firstMatch.waitForExistence(timeout: 10))
         XCTAssertFalse(app.staticTexts["Appeared in Muse"].exists)
     }
 

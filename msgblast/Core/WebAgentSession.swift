@@ -276,6 +276,35 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
         throw WebSessionFailure.notReady("\(provider.name)’s comparison chat could not open. Open it in this pane and sign in if needed. Nothing was sent.")
     }
 
+    // Inspect rendered account controls afresh; send readiness also includes busy pages and dialogs.
+    public func checkSignIn() async -> Bool? {
+        guard provider.personalAgentProvider == nil else { return nil }
+        connect()
+        do {
+            for _ in 0..<40 {
+                try Task.checkCancellation()
+                if !loading, !webView.isLoading, webView.url != nil { break }
+                try await Task.sleep(for: .milliseconds(250))
+            }
+            guard !loading, !webView.isLoading, canInspectWebsite else { return nil }
+            let generation = navigationGeneration
+            let result = try await webView.callAsyncJavaScript(script.signInStatus, arguments: [:], in: nil, contentWorld: .defaultClient)
+            guard !loading, !webView.isLoading, generation == navigationGeneration, let result else { return nil }
+            var fresh = try JSONDecoder().decode(WebPageSnapshot.self, from: JSONSerialization.data(withJSONObject: result))
+            if fresh.url == snapshot.url {
+                fresh.messages = snapshot.messages
+                fresh.submissionInterrupted = snapshot.submissionInterrupted
+            }
+            if snapshot != fresh { snapshot = fresh }
+            return fresh.signedIn
+        } catch { return nil }
+    }
+
+    private var canInspectWebsite: Bool {
+        guard let url = webView.url else { return false }
+        return url.scheme == "https" && url.host == provider.homeURL.host
+    }
+
     public func closePopup() { popup = nil; popupURL = ""; Task { await refresh() } }
 
     public func refresh() async {
@@ -292,7 +321,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
             updateNativeSnapshot()
             return
         }
-        guard let url = webView.url, provider.isChatURL(url) else {
+        guard canInspectWebsite else {
             var current = WebPageSnapshot()
             current.url = webView.url?.absoluteString ?? ""
             current.reason = provider == .muse ? "Sign in to Muse and open this comparison’s side chat." : "Sign in to \(provider.name) and open a chat."
@@ -304,7 +333,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
         defer { refreshing = false }
         let generation = navigationGeneration
         do {
-            if provider == .chatgpt && !isSending {
+            if provider == .chatgpt && !isSending && webView.url.map(provider.isChatURL) == true {
                 _ = try await webView.callAsyncJavaScript(script.configureInitialLayout, arguments: [:], in: nil, contentWorld: .defaultClient)
                 guard generation == navigationGeneration else { return }
             }

@@ -200,6 +200,66 @@ final class MultiWebAgentTests: XCTestCase {
         XCTAssertEqual(session.snapshot.messages.filter { $0.role == "user" }.count, 1, "Manual linking never repeats the original request")
     }
 
+    func testSignInPreflightWaitsForAlreadySignedInColdSessions() async throws {
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let web = WebAgents(directory: directory, fixture: true)
+        let required = await web.signInRequired(for: web.selected)
+        XCTAssertTrue(required.isEmpty)
+        XCTAssertTrue(web.selected.allSatisfy { $0.snapshot.signedIn == true })
+    }
+
+    func testSignInPreflightDetectsSignOutWithoutSubmitting() async throws {
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let web = WebAgents(directory: directory, fixture: true)
+        _ = await web.signInRequired(for: web.selected)
+        for session in web.selected {
+            _ = try await session.webView.callAsyncJavaScript("chat.hidden=true;login.hidden=false", arguments: [:], in: nil, contentWorld: .page)
+        }
+        let required = await web.signInRequired(for: web.selected)
+        XCTAssertEqual(required, WebProvider.webDefaults)
+        XCTAssertTrue(web.selected.allSatisfy { $0.snapshot.signedIn == false && $0.state.attempts.isEmpty })
+        for session in web.selected {
+            _ = try await session.webView.callAsyncJavaScript("chat.hidden=false;login.hidden=true", arguments: [:], in: nil, contentWorld: .page)
+        }
+        let afterLogin = await web.signInRequired(for: web.selected)
+        XCTAssertTrue(afterLogin.isEmpty)
+        XCTAssertTrue(web.selected.allSatisfy { $0.state.attempts.isEmpty }, "Signing in never submits automatically")
+    }
+
+    func testUnknownPageLayoutDoesNotClaimSignOut() async throws {
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let session = WebAgentSession(provider: .chatgpt, storageURL: directory.appendingPathComponent("state.json"), fixture: true)
+        session.connect()
+        try await waitFor { session.snapshot.ready }
+        _ = try await session.webView.callAsyncJavaScript("document.querySelector('[data-testid=accounts-profile-button]').remove()", arguments: [:], in: nil, contentWorld: .page)
+        let signedIn = await session.checkSignIn()
+        XCTAssertNil(signedIn)
+        XCTAssertFalse(session.snapshot.ready)
+        XCTAssertTrue(session.state.attempts.isEmpty)
+    }
+
+    func testSignedInStatusSurvivesUnavailableMessageField() async throws {
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        for provider in WebProvider.webDefaults {
+            let session = WebAgentSession(provider: provider, storageURL: directory.appendingPathComponent(provider.storageFilename), fixture: true)
+            session.connect()
+            try await waitFor { session.snapshot.ready }
+            _ = try await session.webView.callAsyncJavaScript("const input=document.querySelector('textarea,[contenteditable]');input.setAttribute('disabled','');input.setAttribute('aria-disabled','true')", arguments: [:], in: nil, contentWorld: .page)
+            let result = try await session.webView.callAsyncJavaScript(WebPageScript(provider: provider).inspect, arguments: [:], in: nil, contentWorld: .defaultClient)
+            let status = try XCTUnwrap(result as? [String: Any])
+            XCTAssertEqual(status["ready"] as? Bool, false)
+            XCTAssertEqual(status["signedIn"] as? Bool, true, "\(provider.name) remains signed in while its message field is unavailable")
+            let messages = session.snapshot.messages
+            let signedIn = await session.checkSignIn()
+            XCTAssertEqual(signedIn, true)
+            XCTAssertEqual(session.snapshot.messages, messages, "Sign-in checks preserve the displayed transcript")
+        }
+    }
+
     func testChatGPTAndClaudeUseRenderedWebReceiptsWithoutCLISessions() async throws {
         let directory = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
