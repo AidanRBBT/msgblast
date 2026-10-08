@@ -4,27 +4,29 @@
   "runtime_source_sha256": {
     "msgblast/Core/WebProvider.swift": "e17b9e88eac2b67122d6fea0f106f7f83d1d8112ab606d7ee6eee8c4ed41377c",
     "msgblast/Core/WebServices.swift": "82e260134bf3502558a590325c9abef28d664f1260028ab3e2400a2b57877c4a",
-    "msgblast/Core/WebAgentSession.swift": "7afe6365b1c54a5f0a6c11c66a0c5a82d757e4a8ca1cd409cdfc2f8123f2c1c6",
-    "msgblast/Core/WebPageScript.swift": "1b89bad08a94cb877808254fd3ebbdc048d34e33647c563e60e3f20b4297518f",
+    "msgblast/Core/WebAgentSession.swift": "d6fb1c83c6a639826cbbcdc4e98d984f6a5c78b2f1ce3fefe915f2743cbeb4e7",
+    "msgblast/Core/WebPageScript.swift": "e08006dfef4ff6cb3b04eb6a9f7c93fa9459ae9292599c9ab415d390554fff2c",
     "msgblast/Windows/WebServicesView.swift": "81a08057982ebd19c3c27fcf1f47557a751d8e73e2f68a4ad8a2a37489d93c1d"
   },
   "fixture_icon_source": "output/icon-gradients/32-WhiteToClearSoftFadeBlue.icon",
   "compiled_icon_color": "blue",
   "website_content": "synthetic local Dots DOM, SVG avatar, and replies; no live sends",
-  "video_timing": "Five current native states held for about two seconds each, with the final state held longer; edited timing, not continuous footage.",
+  "video_timing": "Continuous native fixture window recording trimmed to 60 seconds, normal speed; synthetic website replies and avatar artwork.",
   "verification": {
-    "native_core_tests_passed": 195,
+    "native_core_tests_passed": 196,
     "python_tests_passed": 74,
-    "app_controller_and_lifecycle_fixtures": "passed"
+    "app_controller_and_lifecycle_fixtures": "passed",
+    "focused_live_fixes_tests_passed": 3,
+    "xcode_ui_runner": "Did not execute: timed out initializing macOS automation mode; enclosing xcodebuild test returned 65 after all 196 core tests passed. Actual Dev CUA workflow tested separately."
   },
-  "live_inspection": "read-only Dots DOM inspection; no live submissions or sign-out",
+  "live_inspection": "Actual isolated Dev tested using the user-authorized existing live ChatGPT session; two echo replies observed, real puppy avatar visually verified, saved avatar byte-identical after quit/relaunch; live recordings kept local and excluded from this repository.",
   "development_version": "0.6.5",
   "development_build": "1",
   "notes_credit_capture": {
     "image": "07-dots-contributor-credit.png",
     "notes": "release-notes/0.6.5.md",
     "notes_sha256": "542957cfff54c22d2c9c82cfa7363435961c0f086432d12313a5a115dbceaff9",
-    "mode": "functional Dev preview",
+    "mode": "isolated macOS fixture",
     "version": "0.6.5",
     "limitation": "Local development build; no release published."
   },
@@ -33,11 +35,9 @@
     "02-dots-selected.png",
     "03-dots-reply.png",
     "04-updated-avatar.png",
+    "05-saved-avatar-picker.png",
     "07-dots-contributor-credit.png"
   ],
-  "archived_reference_frames": [
-    "05-saved-avatar-picker.png",
-    "06-relaunch-avatar.png"
-  ],
-  "capture_limitation": "Mac locked before the final picker/relaunch refresh; those earlier images are not in current video."
+  "archived_reference_frames": [],
+  "runtime_source_revision": "44442f53e47df17c7bce95143961357e805d55a2"
 }

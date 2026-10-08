@@ -11,13 +11,69 @@
   ],
   "unapplied_actionable_findings": [],
   "testing_limits": [
-    "Live Dots editor/send/receipt compatibility remains unverified. Read-only live DOM observations establish selectors, while local fixtures append synthetic outgoing message rows and replies. No live Send exercised the service's editing events, message-ID lifecycle, or history transitions during receipt polling.",
-    "Live authenticated Dots avatar snapshots and logout remain unverified. The supplied real login destination /auth/login?next=%2Fdots matches the path-clearing guard, and the populated-avatar fixture covers same-URL sign-out and persisted cache removal; live custom CSS pet capture and an actual logout DOM/routing transition were not exercised.",
-    "Add a negative signedOut fixture case where a responsive sidebar hides Your dot actions while the conversation contains a visible Sign in link. WebPageScript.swift:78 searches all visible buttons/links and :89 checks only visible account controls; WebAgentSession.swift:270-275 clears savedAvatar and dotsURL on that combination. The populated-avatar fixture presently covers the positive hidden-chat/login case."
+    "Actual live logout was not exercised to preserve the signed-in session; fixture tests verify clearing a populated saved avatar on sign-out.",
+    "A combined hidden wide-toolbar control and visible Sign in link case has no dedicated regression; the narrow-layout profile-control regression passes.",
+    "Xcode UI runner timed out enabling macOS automation mode; no automated UI test executed. All 196 core tests and actual native Dev workflow passed."
   ],
   "integration": {
     "base": "eaae858",
     "verification": "195 core tests passed after integrating current main and testing Dots recovery in its ongoing thread.",
     "changes": "Preserved sign-in status and receipt recovery, with Dots ongoing-thread semantics; no release triggered."
+  },
+  "live_dev_validation": {
+    "revision": "44442f5",
+    "authentication": "User-authorized existing live ChatGPT session reused locally in the isolated functional Dots Dev app; cookie contents not logged or uploaded.",
+    "real_echo_replies": [
+      "DOTS_DEV_OK",
+      "DOTS_DEV_AVATAR_OK"
+    ],
+    "avatar": "Real puppy visually verified; saved PNG bytes identical after quit/relaunch.",
+    "reopened_comparison": "Same ongoing dot thread restored.",
+    "fixes": [
+      "Recognize the Dots profile button in narrow layouts.",
+      "Capture the viewport before cropping the anchored pet."
+    ],
+    "recording": "Actual live footage kept in the ignored local build directory; committed PR video uses synthetic website data.",
+    "automation_reproduction_probe": "A temporary CSS position-anchor fixture also passed with the old partial-crop implementation. It was not adopted as a regression test. The exact live anchored-layout bug remains covered by the recorded actual Dev red/green check, not a claimed automated reproducer."
+  },
+  "live_fixes_review": {
+    "status": "complete",
+    "verdict": "Ready to merge",
+    "run_id": "20261007-214658-33c19506",
+    "source_revision": "44442f53e47df17c7bce95143961357e805d55a2",
+    "actionable_findings": [
+      {
+        "#": 1,
+        "autofix_class": "gated_auto",
+        "confidence": 75,
+        "evidence": [
+          "msgblastTests/MultiWebAgentTests.swift:429 --         let pixel = try XCTUnwrap(bitmap.colorAt(x: 128, y: 128)?.usingColorSpace(.deviceRGB))",
+          "msgblastTests/MultiWebAgentTests.swift:430 --         XCTAssertGreaterThan(pixel.redComponent, 0.8, \"Crop the orange sprite frame, not the whole purple sheet\")",
+          "msgblastTests/MultiWebAgentTests.swift:422 --         _ = try await session.webView.callAsyncJavaScript(\"Object.assign(document.querySelector('#fixture-dot-avatar').style,{position:'fixed',left:'50%',top:'6px',transform:'translateX(-50%)',zIndex:'100'});chat.style.minHeight='1800px';window.scrollTo(0,1200)\", arguments: [:], in: nil, contentWorld: .page)",
+          "Review context reports that this fixed-header fixture passes on both d5ee677 and 44442f5; the actual live red/green result was observed separately and was unavailable for inspection.",
+          "Caller also reports a temporary CSS position-anchor/anchor(top) probe passed the old partial-crop code; it was not adopted and runtime/tests remain frozen at 44442f5."
+        ],
+        "file": "msgblastTests/MultiWebAgentTests.swift",
+        "first_evidence": "msgblastTests/MultiWebAgentTests.swift:429 --         let pixel = try XCTUnwrap(bitmap.colorAt(x: 128, y: 128)?.usingColorSpace(.deviceRGB))",
+        "independent_reviewers": [
+          "testing"
+        ],
+        "line": 429,
+        "owner": "downstream-resolver",
+        "pre_existing": false,
+        "requires_verification": true,
+        "reviewers": [
+          "testing"
+        ],
+        "severity": "P2",
+        "suggested_fix": "Adjust the synthetic anchored-header layout so the previous partial-snapshot implementation captures a distinct non-pet area, then assert the saved 256 PNG contains the known pet artwork at multiple pixels. Verify the test fails at d5ee677 and passes at 44442f5 before treating it as regression coverage.",
+        "title": "Avatar fixture does not catch the crop regression",
+        "why_it_matters": "A future return to WebKit's partial snapshot could again save the composer instead of the anchored Dots pet while this test stays green. The new fixture checks one sprite pixel, but the caller verified that it passes against both the old and fixed implementations. A fixture that reproduces the observed anchoring failure and fails against the old code would protect the actual behavior.",
+        "validation_status": "confirmed",
+        "validation_reason": "At 44442f5, MultiWebAgentTests.swift:422-431 adds a fixed-header fixture but its center-pixel assertion reportedly passes both d5ee677 and 44442f5, so reverting to the partial snapshot would leave this test green while the manually observed live anchored layout (the reachable precondition) again saves the composer; the separate live red/green check validates this revision but cannot provide an automated regression guard.",
+        "protected_subject": null
+      }
+    ],
+    "disposition": "P2 #1 retained as an automation coverage gap. Both bounded synthetic layouts passed the old code, so they are not claimed as exact regression reproducers. Actual recorded Dev red/green validation satisfies the requested on-machine feature test; future automated reproduction remains unapplied."
   }
 }
