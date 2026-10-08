@@ -14,7 +14,7 @@ struct AgentsWorkspaceView: View {
     @Binding var showingComparison: Bool
     var newBlastRequest: UUID? = nil
     @State private var showingConnectionIntro = false
-    @State private var hasPresentedConnectionIntro = false
+    @State private var signInProviders: [WebProvider] = []
     private var busy: Bool { model.busy || model.webBroadcastBusy || web.sessions.contains { $0.isSending } }
     private var nativeRecipients: [Agent] { model.state.agents.filter { model.state.selection.contains($0.id) } }
     private var attachmentComparisonID: UUID? { showingComparison ? nativeComparison?.id : nil }
@@ -65,7 +65,7 @@ struct AgentsWorkspaceView: View {
                 Image(systemName: "person.crop.circle.badge.checkmark")
                     .font(.system(size: 34)).foregroundStyle(Color.accentColor)
                 Text("Connect your accounts").font(.title2.weight(.semibold))
-                Text("Sign in to each website in its pane. If you selected an optional CLI agent, connect its account in Settings. Then press Send & compare again.")
+                Text("Sign in to \(signInProviders.map(\.name).formatted(.list(type: .and))) in the chat panes. Then press Send & compare again.")
                     .multilineTextAlignment(.center)
                 Text("Your request is saved in the message box below. Signing in won’t send it.")
                     .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
@@ -79,6 +79,8 @@ struct AgentsWorkspaceView: View {
     }
 
     private var nativeComparison: Comparison? { web.comparisonID.flatMap { model.comparison($0) } }
+
+    private var comparisonChatCount: Int { web.displayed.count + (nativeComparison?.members.count ?? 0) }
 
     private var agentPicker: some View {
         GeometryReader { geometry in
@@ -108,29 +110,64 @@ struct AgentsWorkspaceView: View {
     private func tileSize(_ geometry: GeometryProxy) -> CGFloat { min(100, max(48, (geometry.size.width - 80) / 3)) }
 
     private var comparisonPanes: some View {
+        ScrollViewReader { proxy in
+            VStack(spacing: 0) {
+                chatNavigation(proxy)
+                Divider()
+                chatColumns
+            }
+        }
+        .background(ChatWindowFrame(chatCount: comparisonChatCount))
+    }
+
+    private func chatNavigation(_ proxy: ScrollViewProxy) -> some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: 8) {
+                Text("Chats (\(comparisonChatCount))").font(.caption).foregroundStyle(.secondary)
+                ForEach(web.displayed, id: \.provider) { session in
+                    Button(session.provider.name) { proxy.scrollTo(session.provider.rawValue, anchor: .leading) }
+                        .accessibilityLabel("Show \(session.provider.name) chat")
+                }
+                if let comparison = nativeComparison {
+                    ForEach(comparison.members) { member in
+                        Button(member.name) { proxy.scrollTo(member.id.uuidString, anchor: .leading) }
+                            .accessibilityLabel("Show \(member.name) chat")
+                    }
+                }
+            }.buttonStyle(.bordered).padding(10)
+        }
+    }
+
+    private var chatColumns: some View {
         GeometryReader { geometry in
-            let columns = web.displayed.count + (nativeComparison?.members.count ?? 0)
+            let columns = comparisonChatCount
             let width = max(320, (geometry.size.width - CGFloat(max(0, columns - 1))) / CGFloat(max(1, columns)))
             ScrollView(.horizontal) {
                 HStack(spacing: 0) {
                     ForEach(web.displayed, id: \.provider) { session in
                         if session.provider != web.displayed.first?.provider { Divider() }
-                        WebAgentPane(session: session, account: model.personalAgent, busy: busy, sendNative: { sendDirect($0, to: session) }).frame(width: width)
+                        WebAgentPane(session: session, account: model.personalAgent, busy: busy, sendNative: { sendDirect($0, to: session) })
+                            .frame(width: width).id(session.provider.rawValue)
                     }
                     if let comparison = nativeComparison {
                         ForEach(comparison.members) { member in
                             if !web.displayed.isEmpty || member.id != comparison.members.first?.id { Divider() }
-                            ConversationView(model: model, comparisonID: comparison.id, memberID: member.id, embedded: true)
-                                .frame(width: width)
+                            ConversationView(model: model, comparisonID: comparison.id, memberID: member.id)
+                                .frame(width: width).id(member.id.uuidString)
                         }
                     }
                 }.frame(height: geometry.size.height)
-            }
+            }.scrollIndicators(.visible)
         }
     }
 
     private var composer: some View {
         VStack(alignment: .leading, spacing: 10) {
+            let signedOut = web.selected.filter { $0.provider.personalAgentProvider == nil && $0.snapshot.signedIn == false }
+            if !signedOut.isEmpty {
+                Text("Sign in required: \(signedOut.map { $0.provider.name }.formatted(.list(type: .and)))")
+                    .font(.caption).foregroundStyle(.orange).accessibilityIdentifier("Website sign-in status")
+            }
             if !web.selected.isEmpty && !attachments.isEmpty {
                 Text("Web agents support text here. Remove the attachments or deselect them to send.")
                     .font(.caption).foregroundStyle(.orange)
@@ -139,12 +176,20 @@ struct AgentsWorkspaceView: View {
                 HStack(spacing: 8) {
                     Text("Send to").font(.caption).foregroundStyle(.secondary)
                     ForEach(web.sessions.filter { session in session.isEnabled || web.displayed.contains(where: { $0.provider == session.provider }) }, id: \.provider) { session in
-                        recipient(session.provider.name, selected: session.isEnabled && session.state.selected) { web.toggle(session) }
+                        recipient(session.provider.name, selected: session.isEnabled && session.state.selected) { selectRecipient(session) }
                             .disabled(!session.isEnabled)
                     }
                     ForEach(model.state.agents) { agent in
-                        recipient(agent.name, selected: model.state.selection.contains(agent.id)) { toggle(agent.id) }
-                            .disabled(model.route(agent) == nil || (nativeComparison?.members.contains { $0.id == agent.id } == false))
+                        recipient(agent.name, selected: model.state.selection.contains(agent.id)) {
+                            if let comparison = nativeComparison, !comparison.members.contains(where: { $0.id == agent.id }) {
+                                model.webBroadcastBusy = true
+                                Task { @MainActor in
+                                    defer { model.webBroadcastBusy = false }
+                                    await model.addAgent(agent, to: comparison.id)
+                                }
+                            } else { toggle(agent.id) }
+                        }
+                            .disabled(model.route(agent) == nil)
                             .help("Messages · \(agent.name)")
                     }
                 }
@@ -170,6 +215,43 @@ struct AgentsWorkspaceView: View {
             .accessibilityLabel("Recipient \(title)").accessibilityValue(selected ? "Selected" : "Not selected").disabled(busy)
     }
 
+    private func selectRecipient(_ session: WebAgentSession) {
+        guard !busy else { return }
+        guard let comparison = nativeComparison, !(comparison.webProviders ?? []).contains(session.provider) else {
+            web.toggle(session)
+            return
+        }
+        model.webBroadcastBusy = true
+        session.updateState { $0.selected = true }
+        session.connect()
+        Task { @MainActor in
+            defer { model.webBroadcastBusy = false }
+            _ = await join(session, comparisonID: comparison.id)
+        }
+    }
+
+    private func join(_ session: WebAgentSession, comparisonID: UUID) async -> Bool {
+        do {
+            try model.freezeSharedContext(comparisonID)
+            guard let saved = model.comparison(comparisonID), let i = model.index(comparisonID) else { return false }
+            guard saved.joiningContext().allSatisfy({ $0.attachments.isEmpty }) else {
+                model.error = "This conversation contains attachments. Add a Messages agent to share the full context."
+                session.updateState { $0.selected = false }
+                return false
+            }
+            guard await session.openComparison(comparisonID) else { return false }
+            // Save membership before sending so an interrupted join is never automatically repeated.
+            model.state.comparisons[i].webProviders = (saved.webProviders ?? []) + [session.provider]
+            try model.save()
+            let attempt = await session.send(saved.joiningPrompt(), comparisonID: comparisonID)
+            if attempt == nil || attempt?.status == .notSent {
+                model.state.comparisons[i].webProviders?.removeAll { $0 == session.provider }
+                try model.save()
+            }
+            return attempt?.status == .observed
+        } catch { model.error = error.localizedDescription; return false }
+    }
+
     private func toggle(_ id: UUID) {
         if model.state.selection.contains(id) { model.state.selection.remove(id) }
         else { model.state.selection.insert(id) }
@@ -178,19 +260,13 @@ struct AgentsWorkspaceView: View {
 
     private func send() {
         guard canSend else { return }
-        if web.selected.isEmpty && nativeComparison?.webProviders == nil {
+        if !showingComparison && web.selected.isEmpty {
             Task { await model.start() }
             return
         }
-        if !hasPresentedConnectionIntro && web.selected.contains(where: { !$0.snapshot.ready }) {
-            if !showingComparison { web.setComparison(nil) }
-            web.connectSelected()
-            showingComparison = true
-            hasPresentedConnectionIntro = true
-            showingConnectionIntro = true
-            return
-        }
         let originalDraft = model.state.draft
+        let sentAttachments = attachments
+        let broadcastCreated = Date()
         let recipients = Set(nativeRecipients.map(\.id))
         let model = model
         let sessions = web.selected
@@ -199,6 +275,12 @@ struct AgentsWorkspaceView: View {
         showingComparison = true
         Task { @MainActor in
             defer { model.webBroadcastBusy = false }
+            let needsSignIn = await web.signInRequired(for: sessions)
+            if !needsSignIn.isEmpty {
+                signInProviders = needsSignIn
+                showingConnectionIntro = true
+                return
+            }
             guard await web.prepareComparison(existingID, for: sessions) else { return }
             let comparisonID: UUID
             if let existingID { comparisonID = existingID }
@@ -206,12 +288,22 @@ struct AgentsWorkspaceView: View {
                 guard let id = await model.prepareWebComparison(originalDraft.trimmingCharacters(in: .whitespacesAndNewlines), recipientIDs: recipients, providers: sessions.map(\.provider)) else { return }
                 comparisonID = id
             }
+            if existingID != nil {
+                for session in sessions where model.comparison(comparisonID)?.webProviders?.contains(session.provider) != true {
+                    guard await join(session, comparisonID: comparisonID) else { return }
+                }
+            }
             if let i = model.index(comparisonID) {
                 let previous = model.state.comparisons[i].webProviders ?? []
                 model.state.comparisons[i].webProviders = WebProvider.allCases.filter { previous.contains($0) || sessions.map(\.provider).contains($0) }
                 do { try model.save() } catch { model.error = error.localizedDescription; return }
             }
-            _ = await AgentBroadcast.send(draft: originalDraft, currentDraft: { model.state.draft }, clearDraft: {
+            do { try model.freezeSharedContext(comparisonID) } catch { model.error = error.localizedDescription; return }
+            let allRecipients = model.comparison(comparisonID).map { comparison in
+                Set(comparison.webProviders ?? []) == Set(sessions.map(\.provider)) && Set(comparison.members.map(\.id)) == recipients
+            } ?? false
+            let followUpID = UUID()
+            let result = await AgentBroadcast.send(draft: originalDraft, currentDraft: { model.state.draft }, clearDraft: {
                 model.state.draft = ""; model.persist()
             }, web: { text in
                 await WebAgents.send(text, to: sessions, comparisonID: comparisonID)
@@ -219,14 +311,23 @@ struct AgentsWorkspaceView: View {
                 guard !recipients.isEmpty else { return nil }
                 if existingID != nil {
                     guard let i = model.index(comparisonID) else { return nil }
-                    let previousCount = model.state.comparisons[i].followUps.count
                     model.state.comparisons[i].allDraft = text
-                    await model.followUp(comparisonID, recipients: Array(recipients))
-                    return model.comparison(comparisonID)?.followUps.count != previousCount ? comparisonID : nil
+                    await model.followUp(comparisonID, recipients: Array(recipients), newAttemptID: followUpID)
+                    return model.comparison(comparisonID)?.followUps.contains(where: { $0.id == followUpID }) == true ? comparisonID : nil
                 }
                 await model.submit(comparisonID, retry: false)
                 return comparisonID
             })
+            if existingID != nil, allRecipients,
+               result.web.values.allSatisfy({ $0.status == .observed }), result.web.count == sessions.count,
+               let i = model.index(comparisonID) {
+                if recipients.isEmpty {
+                    model.state.comparisons[i].recordSharedMessage(ConversationContextMessage(text: originalDraft.trimmingCharacters(in: .whitespacesAndNewlines), attachments: sentAttachments, created: broadcastCreated))
+                } else if result.comparisonID == comparisonID {
+                    model.state.comparisons[i].completeSharedBroadcast(followUpID: followUpID, recipients: recipients)
+                }
+                model.persist()
+            }
             web.setComparison(comparisonID)
         }
     }
@@ -243,6 +344,7 @@ struct AgentsWorkspaceView: View {
                 guard let created = await model.prepareWebComparison(text, recipientIDs: [], providers: [session.provider]) else { return }
                 id = created
             }
+            do { try model.freezeSharedContext(id) } catch { model.error = error.localizedDescription; return }
             guard let i = model.index(id) else { return }
             if model.state.comparisons[i].webProviders?.contains(session.provider) != true {
                 model.state.comparisons[i].webProviders = (model.state.comparisons[i].webProviders ?? []) + [session.provider]
@@ -412,7 +514,15 @@ private struct WebAgentPane: View {
                 if session.loading { ProgressView().controlSize(.small) }
                 Button { session.reload() } label: { Image(systemName: "arrow.clockwise") }.help("Reload \(session.provider.name)").accessibilityLabel("Reload \(session.provider.name)").disabled(busy)
             }.padding(14).background(.bar)
-            if let latest = session.latestComparisonAttempt, latest.status != .observed {
+            if session.needsConversationLink {
+                HStack {
+                    Text(session.canLinkCurrentConversation ? "Continue in this conversation." : "Open the original chat to continue this comparison.").font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Use this conversation") { Task { await session.linkCurrentConversation() } }
+                        .disabled(busy || !session.canLinkCurrentConversation)
+                }.padding(10)
+            }
+            if let latest = session.latestComparisonAttempt, latest.status.showsAttemptBanner(for: session.provider) {
                 VStack(alignment: .leading, spacing: 3) {
                     Label(latest.status.label(for: session.provider), systemImage: "info.circle")
                         .font(.caption.weight(.semibold))
@@ -538,4 +648,37 @@ private let webDefaultAvatars: [WebProvider: Data] = Dictionary(uniqueKeysWithVa
 private func webAgent(_ session: WebAgentSession) -> Agent {
     Agent(name: session.provider.name, handles: [], avatar: session.provider == .muse ? session.avatar ?? museDefaultAvatar : webDefaultAvatars[session.provider],
           colorIndex: WebProvider.allCases.firstIndex(of: session.provider)! + 4)
+}
+
+// Resize only when the open-chat count changes; ordinary manual resizing stays intact.
+private struct ChatWindowFrame: NSViewRepresentable {
+    let chatCount: Int
+    func makeNSView(context: Context) -> ChatWindowSizingView { ChatWindowSizingView() }
+    func updateNSView(_ view: ChatWindowSizingView, context: Context) {
+        guard view.chatCount != chatCount else { return }
+        view.chatCount = chatCount
+        view.needsLayout = true
+    }
+}
+
+private final class ChatWindowSizingView: NSView {
+    var chatCount = -1
+    private var appliedCount: Int?
+    override func layout() {
+        super.layout()
+        guard let window, bounds.width > 0, appliedCount != chatCount else { return }
+        let count = chatCount
+        appliedCount = count
+        DispatchQueue.main.async { [weak self, weak window] in
+            guard let self, let window, self.chatCount == count,
+                  !window.styleMask.contains(.fullScreen), let screen = window.screen else { return }
+            let available = screen.visibleFrame
+            let surroundingWidth = max(0, window.frame.width - self.bounds.width)
+            let width = WindowLayout.chatWindowWidth(count: count, surroundingWidth: surroundingWidth, screenWidth: available.width)
+            var frame = window.frame
+            frame.size.width = width
+            frame.origin.x = min(max(frame.minX, available.minX), available.maxX - width)
+            window.setFrame(frame, display: true)
+        }
+    }
 }

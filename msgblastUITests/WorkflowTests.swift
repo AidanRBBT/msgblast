@@ -271,6 +271,7 @@ final class WorkflowTests: XCTestCase {
         let reset = app.buttons["Reset sample data"]
         XCTAssertTrue(reset.waitForExistence(timeout: 10))
         reset.click()
+        for name in ["Muse", "ChatGPT", "Claude", "Grok"] { app.buttons[name].click() }
         if threeAgentsOnly {
             for name in ["Maple", "Echo", "Flint"] { app.buttons[name].click() }
         }
@@ -284,7 +285,17 @@ final class WorkflowTests: XCTestCase {
         app.buttons["Send & compare"].click()
         let workspace = app.windows["All 3 · Connected workspace fixture [Demo]"]
         XCTAssertTrue(workspace.waitForExistence(timeout: 10))
-        for name in ["Cedar", "Lumen", "Orbit"] { XCTAssertFalse(workspace.textViews["Private reply to \(name)"].exists) }
+        for name in ["Cedar", "Lumen", "Orbit"] { XCTAssertTrue(workspace.textViews["Private reply to \(name)"].exists) }
+        let cedarInput = workspace.textViews["Private reply to Cedar"]
+        let lumenInput = workspace.textViews["Private reply to Lumen"]
+        lumenInput.click(); lumenInput.typeText("Lumen retained private draft")
+        cedarInput.click(); cedarInput.typeText("Cedar pane reply fixture")
+        cedarInput.typeKey(.return, modifierFlags: [])
+        let paneReplies = workspace.textViews.matching(NSPredicate(format: "value == %@", "Cedar pane reply fixture"))
+        XCTAssertTrue(paneReplies.firstMatch.waitForExistence(timeout: 5))
+        XCTAssertEqual(paneReplies.count, 1, "A pane reply must reach only its own agent")
+        XCTAssertEqual(cedarInput.value as? String, "")
+        XCTAssertEqual(lumenInput.value as? String, "Lumen retained private draft")
         let input = workspace.textViews["Universal message"]
         XCTAssertTrue(input.exists)
         for name in ["Cedar", "Lumen", "Orbit"] {

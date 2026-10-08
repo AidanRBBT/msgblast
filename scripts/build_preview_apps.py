@@ -188,7 +188,8 @@ def instructions(variant):
                 "data and does not read Messages. A blue icon alone is not what turns fixture mode on. "
                 "Preferences follow the bundle ID com.msgblast.demo. Saved state is in ~/Library/Application Support/msgblast-Demo, "
                 "which other local demo builds also use, and is separate from production and from msgblast Dev." + shared)
-    return ("Unzip msgblast Dev.app and use it to exercise this branch. It is not a fixture and can read real Messages. "
+    return ("Unzip msgblast Dev.app and use it to exercise this branch with live data. Do not pass --demo or --isolated-demo; "
+            "use the blue msgblast Demo.app for fixtures and simulated demonstrations. It is not a fixture and can read real Messages. "
             "Grant this bundle Full Disk Access, Contacts, and Messages Automation. Those permissions belong to com.msgblast.development, "
             "do not transfer from com.msgblast.mac, and may need to be granted again after a rebuild because the ad-hoc code hash changes. "
             "Preferences are the standard defaults for that bundle ID. There is no app keychain usage. "

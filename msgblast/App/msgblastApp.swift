@@ -17,7 +17,7 @@ struct msgblastApp: App {
             Group {
                 if startup.needsInstallation { InstallationView() }
                 else if let model {
-                    MainView(model: model).onAppear { lifecycle.configure(model: model); updater.configure(delegate: lifecycle); if model.coordinator == nil { model.coordinator = WindowCoordinator(model: model) } }
+                    MainView(model: model, updater: updater).onAppear { lifecycle.configure(model: model); updater.configure(delegate: lifecycle); if model.coordinator == nil { model.coordinator = WindowCoordinator(model: model) } }
                 }
             }.background(InitialWindowFrame(size: preferredWindowSize))
         }.defaultSize(width: initialWindowSize.width, height: initialWindowSize.height).windowToolbarStyle(.unified)
