@@ -121,5 +121,14 @@
     "live_dev": "Final isolated functional Dev at this revision reused the user-authorized existing ChatGPT session and returned DOTS_DECODE_OK on /dots/home. Only this task-owned Dev cache PNG was cleared and backed up before testing; fresh capture saved a real puppy PNG, visually verified. Quit/relaunch restored the picker avatar and reopened the saved comparison. Animated still-frame byte equality after reconnection is not claimed. Live recordings remain local and excluded from the repository.",
     "hosted_ci": "Require fresh green final-head native CI.",
     "existing_limit": "Exact earlier live anchored-layout crop still lacks an automated reproducer."
+  },
+  "ci_fixture_followup": {
+    "source_revision": "237048dade331e79710df57b3fa1370e5dd502b9",
+    "review_run_id": "20261008-122247-native-png-fixture",
+    "findings": [],
+    "scope": "Test-only; application runtime and visual evidence unchanged.",
+    "fix": "Known opaque RGBA PNG512x576 sheet with orange64x64 frame at192,0, matching the same CSS800%x900% background and42.857% horizontal position. Explicit refreshes own original-avatar test mutations.",
+    "validation": "Full201 local native tests passed; strict source-frame pixel, decode, animation cache, persistence and sign-out assertions retained.",
+    "limit": "The earlier hosted failure cause is inferred until fresh CI validates the corrected inputs."
   }
 }

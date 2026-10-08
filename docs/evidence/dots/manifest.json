@@ -17,7 +17,7 @@
     "python_tests_passed": 74,
     "focused_new_regressions_passed": 5,
     "final_routing_control_passed": true,
-    "revision_qualification": "Full 201-test local native suite passed on this exact runtime and test source. Hosted CI must validate the final PR head.",
+    "revision_qualification": "Full 201-test local native suite passed with the final runtime and corrected fixed-PNG fixtures. Runtime matches a6996f9; test-source revision is recorded separately. Hosted CI must validate the final PR head.",
     "app_controller_and_lifecycle_fixtures": "previously passed; unchanged by these runtime fixes",
     "xcode_ui_runner": "Earlier UI-runner bootstrap timed out before any UI test executed. Actual final Dev workflow tested through native computer use; permissions unchanged.",
     "focused_avatar_tests_passed": 4
@@ -54,7 +54,8 @@
     "remaining_blocking_issues_in_delta": [],
     "scope": "Narrow incremental closure; hosted CI remains required.",
     "sprite_readiness_review": "20261008-120215-sprite-readiness",
-    "sprite_readiness_findings": []
+    "sprite_readiness_findings": [],
+    "native_png_fixture_review": "20261008-122247-native-png-fixture"
   },
   "captured_files_sha256": {
     "01-optional-picker.png": "2f52cb980cf40954aecef6a3a2ea85e14407469487135e32cf8bf196b0b8d908",
@@ -65,5 +66,8 @@
     "06-relaunch-avatar.png": "1b9a1f09b9d41bf1b02ebecb8b5e5c424c3af5222acf9701a55e5ebc58531914",
     "07-dots-contributor-credit.png": "a49b8ba444a4cb63c8b829a4ce22d8816037bcb1d000d2afa32ce0f9d7699b69",
     "dots-workflow.mp4": "721fd48c89624fb972e4b248b5d00a9caa677e32bcb381ce21da2745d54b1abc"
-  }
+  },
+  "test_source_revision": "237048dade331e79710df57b3fa1370e5dd502b9",
+  "test_source_sha256": "9bb7b925e36c940687fd060b87cdde07d9c6054f9db45c6f401950b99bf1728d",
+  "sprite_fixture": "Known native RGBA PNG sheet supplied to WebKit CSS sprite rendering; original avatar test uses explicit refreshes. Pixel assertions retained."
 }
