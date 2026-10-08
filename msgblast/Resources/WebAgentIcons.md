@@ -40,3 +40,7 @@ The local accounts panel in Settings reuses the unmodified ChatGPT and Claude Ap
 | --- | --- | --- |
 | `WebAgentIcons/openclaw.png` | [OpenClaw iOS app icon](https://github.com/openclaw/openclaw/blob/bff90d69144ceec82e75f92d59c3a29ec7876351/apps/ios/Sources/Assets.xcassets/AppIcon.appiconset/1024.png) | `8ce11071e6cc34f3086b1947bb5f4b7f43f237a7a023bd8e0aa0ac529173ceb8` |
 | `WebAgentIcons/hermes.png` | [Hermes desktop app icon](https://github.com/NousResearch/hermes-agent/blob/85db7c3a6886762773827598793b0b51ef4e3325/apps/desktop/assets/icon.png) | `2e69dd9a8a1d3f9e3f627efc37102aed416f703e22f599e31c5d86b212a4d6de` |
+
+## Grok Bot icon
+
+`WebAgentIcons/grokbot.icns` is the unmodified native icon from the locally installed Grok Bot 0.68.1 app (`com.anysphere.sand`), retrieved October 8, 2026. SHA-256: `0174e1ce966156a20c07f5715bbf6577b39cec60bd539267395e5f5fa15bbf80`. The bundled artwork identifies Grok Bot in Settings and chat avatars, including Macs without Grok Bot installed. Its owner retains the artwork and trademark rights.

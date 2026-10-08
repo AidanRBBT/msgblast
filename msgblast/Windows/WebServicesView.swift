@@ -628,8 +628,9 @@ private let localAccountIcons: [String: NSImage] = Dictionary(uniqueKeysWithValu
 )
 
 private let museDefaultAvatar = Bundle.main.url(forResource: "MuseAvatar", withExtension: "jpg").flatMap { try? Data(contentsOf: $0) }
-private let grokBotAvatar = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.anysphere.sand")
-    .flatMap { NSWorkspace.shared.icon(forFile: $0.path).tiffRepresentation }
+let grokBotIcon = Bundle.main.url(forResource: "grokbot", withExtension: "icns", subdirectory: "WebAgentIcons")
+    .flatMap { NSImage(contentsOf: $0) }
+private let grokBotAvatar = grokBotIcon?.tiffRepresentation
 private let webDefaultAvatars: [WebProvider: Data] = Dictionary(uniqueKeysWithValues:
     [WebProvider.chatgpt, .claude, .grok, .codexCLI, .claudeCode].compactMap { provider in
         let resource = provider == .codexCLI ? "chatgpt" : provider == .claudeCode ? "claude" : provider.rawValue

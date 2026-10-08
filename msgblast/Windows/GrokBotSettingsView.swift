@@ -11,7 +11,17 @@ struct GrokBotSettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Toggle("Enable Grok Bot", isOn: Binding(get: { session.isEnabled }, set: { session.setEnabled($0); if $0 { session.connect() } }))
+            Toggle(isOn: Binding(get: { session.isEnabled }, set: { session.setEnabled($0); if $0 { session.connect() } })) {
+                HStack(spacing: 12) {
+                    if let image = grokBotIcon {
+                        Image(nsImage: image).resizable().scaledToFit()
+                            .frame(width: 32, height: 32)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            .accessibilityHidden(true)
+                    }
+                    Text("Enable Grok Bot")
+                }
+            }
                 .toggleStyle(.switch).disabled(busy || session.configuringGrokBot)
             Text("Send directly to your Bot's webhook. Replies return to this Mac through an app-managed temporary tunnel.")
                 .font(.caption).foregroundStyle(.secondary)
