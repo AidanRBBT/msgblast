@@ -110,32 +110,8 @@ struct AgentsWorkspaceView: View {
     private func tileSize(_ geometry: GeometryProxy) -> CGFloat { min(100, max(48, (geometry.size.width - 80) / 3)) }
 
     private var comparisonPanes: some View {
-        ScrollViewReader { proxy in
-            VStack(spacing: 0) {
-                chatNavigation(proxy)
-                Divider()
-                chatColumns
-            }
-        }
-        .background(ChatWindowFrame(chatCount: comparisonChatCount))
-    }
-
-    private func chatNavigation(_ proxy: ScrollViewProxy) -> some View {
-        ScrollView(.horizontal) {
-            HStack(spacing: 8) {
-                Text("Chats (\(comparisonChatCount))").font(.caption).foregroundStyle(.secondary)
-                ForEach(web.displayed, id: \.provider) { session in
-                    Button(session.provider.name) { proxy.scrollTo(session.provider.rawValue, anchor: .leading) }
-                        .accessibilityLabel("Show \(session.provider.name) chat")
-                }
-                if let comparison = nativeComparison {
-                    ForEach(comparison.members) { member in
-                        Button(member.name) { proxy.scrollTo(member.id.uuidString, anchor: .leading) }
-                            .accessibilityLabel("Show \(member.name) chat")
-                    }
-                }
-            }.buttonStyle(.bordered).padding(10)
-        }
+        chatColumns
+            .background(ChatWindowFrame(chatCount: comparisonChatCount))
     }
 
     private var chatColumns: some View {
