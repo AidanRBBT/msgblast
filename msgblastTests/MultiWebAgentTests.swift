@@ -474,6 +474,10 @@ final class MultiWebAgentTests: XCTestCase {
         try await waitFor { session.avatar != nil && session.avatar != svg }
         let changed = try XCTUnwrap(session.avatar)
         let bitmap = try XCTUnwrap(NSBitmapImageRep(data: changed))
+        let capture = XCTAttachment(data: changed, uniformTypeIdentifier: "public.png")
+        capture.name = "Saved synthetic Dots sprite"
+        capture.lifetime = .keepAlways
+        add(capture)
         let pixel = try XCTUnwrap(bitmap.colorAt(x: 128, y: 128)?.usingColorSpace(.deviceRGB))
         XCTAssertGreaterThan(pixel.redComponent, 0.8, "Crop the orange sprite frame, not the whole purple sheet")
         XCTAssertLessThan(pixel.blueComponent, 0.3)
@@ -505,6 +509,58 @@ final class MultiWebAgentTests: XCTestCase {
         try await waitFor { !session.snapshot.ready && session.avatar == nil }
         XCTAssertNil(WebAgentSession(provider: .dots, storageURL: storage, fixture: true).avatar)
         XCTAssertNil(session.state.dotsURL)
+    }
+
+    func testDotsAvatarWaitsForSpriteDecodeBeforeSaving() async throws {
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let storage = directory.appendingPathComponent("state.json")
+        let session = WebAgentSession(provider: .dots, storageURL: storage, fixture: true)
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 800, height: 600), styleMask: [.titled], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = session.webView
+        window.orderFront(nil)
+        defer { window.orderOut(nil); window.contentView = nil }
+        session.connect(automaticallyRefresh: false)
+        try await waitFor { session.snapshot.ready && session.avatar != nil }
+        let initial = try XCTUnwrap(session.avatar)
+        // Delay image readiness in the script's world without changing the page's
+        // actual decoder. A capture must wait before replacing the saved artwork.
+        _ = try await session.webView.callAsyncJavaScript("""
+        globalThis.originalAvatarImage=Image;
+        globalThis.Image=class extends globalThis.originalAvatarImage {
+            async decode() {
+                await super.decode();
+                globalThis.avatarDecodePaused=true;
+                await new Promise(resolve=>globalThis.resumeAvatarDecode=resolve);
+            }
+        };
+        """, arguments: [:], in: nil, contentWorld: .defaultClient)
+        _ = try await session.webView.callAsyncJavaScript("""
+        const canvas=document.createElement('canvas');canvas.width=64;canvas.height=64;
+        const ctx=canvas.getContext('2d');ctx.fillStyle='#f07835';ctx.fillRect(0,0,64,64);
+        const pet=document.createElement('div');pet.dataset.codexPetId='decode-test-pet';
+        Object.assign(pet.style,{width:'64px',height:'64px',backgroundImage:'url('+canvas.toDataURL()+')'});
+        document.querySelector('#fixture-dot-avatar span').replaceChildren(pet);
+        """, arguments: [:], in: nil, contentWorld: .page)
+        let capture = Task { await session.refresh() }
+        var paused = false
+        for _ in 0..<100 {
+            paused = (try await session.webView.callAsyncJavaScript("return !!globalThis.avatarDecodePaused", arguments: [:], in: nil, contentWorld: .defaultClient)) as? Bool == true
+            if paused { break }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        XCTAssertTrue(paused, "The sprite must reach the controlled image-readiness boundary")
+        XCTAssertEqual(session.avatar, initial, "Keep the saved artwork while the new sprite is not ready")
+        XCTAssertEqual(WebAgentSession(provider: .dots, storageURL: storage, fixture: true).avatar, initial)
+        _ = try await session.webView.callAsyncJavaScript("globalThis.Image=globalThis.originalAvatarImage;globalThis.resumeAvatarDecode?.()", arguments: [:], in: nil, contentWorld: .defaultClient)
+        await capture.value
+        let changed = try XCTUnwrap(session.avatar)
+        XCTAssertNotEqual(changed, initial)
+        let bitmap = try XCTUnwrap(NSBitmapImageRep(data: changed))
+        let pixel = try XCTUnwrap(bitmap.colorAt(x: 128, y: 128)?.usingColorSpace(.deviceRGB))
+        XCTAssertGreaterThan(pixel.redComponent, 0.8)
+        XCTAssertLessThan(pixel.blueComponent, 0.3)
     }
 
     func testDotsAvatarSupportsFractionalPaneBounds() async throws {

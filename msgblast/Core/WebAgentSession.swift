@@ -435,7 +435,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
                 }
                 // Layout and artwork can change while WebKit captures. Leave the old
                 // image and key intact on mismatch so the next refresh retries.
-                let verified = try await webView.callAsyncJavaScript(script.avatar, arguments: [:], in: nil, contentWorld: .defaultClient) as? [String: Any]
+                let verified = try await webView.callAsyncJavaScript(script.avatar, arguments: ["previousKey": key], in: nil, contentWorld: .defaultClient) as? [String: Any]
                 guard generation == navigationGeneration, !loading, webView.url == capturedURL, webView.bounds == bounds,
                       let verified, NSDictionary(dictionary: result).isEqual(to: verified),
                       state.dotsURL == capturedURL, let png = Self.avatarPNG(image, crop: crop) else { return }

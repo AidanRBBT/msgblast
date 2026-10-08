@@ -147,8 +147,21 @@ struct WebPageScript {
         const before=describe();
         if (!before) return {};
         const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(before.identity));
-        if (JSON.stringify(before)!==JSON.stringify(describe())) return {};
         const key=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('');
+        if (key!==(typeof previousKey==='string'?previousKey:'')) {
+            // A CSS sprite URL can be present before its pixels are decoded.
+            // Keep the old saved image until the new artwork can be painted.
+            const pet=avatar.querySelector('[data-codex-pet-id]');
+            if (pet) {
+                const source=getComputedStyle(pet).backgroundImage.match(/^url\((?:"([^"]*)"|'([^']*)'|([^)]*))\)$/);
+                if (!source) return {};
+                const image=new Image();image.src=source[1]??source[2]??source[3];
+                try { await image.decode(); } catch { return {}; }
+            }
+            try { await Promise.all([...avatar.querySelectorAll('img')].map(image=>image.decode())); }
+            catch { return {}; }
+        }
+        if (JSON.stringify(before)!==JSON.stringify(describe())) return {};
         return {key,url:before.url,viewport:before.viewport,rect:before.rect};
         """#
     }
