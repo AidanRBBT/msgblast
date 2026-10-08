@@ -640,9 +640,10 @@ private let localAccountIcons: [String: NSImage] = Dictionary(uniqueKeysWithValu
 
 private let museDefaultAvatar = Bundle.main.url(forResource: "MuseAvatar", withExtension: "jpg").flatMap { try? Data(contentsOf: $0) }
 private let webDefaultAvatars: [WebProvider: Data] = Dictionary(uniqueKeysWithValues:
-    [WebProvider.chatgpt, .claude, .grok, .codexCLI, .claudeCode].compactMap { provider in
+    [WebProvider.chatgpt, .claude, .grok, .codexCLI, .claudeCode, .dots].compactMap { provider in
         let resource = provider == .codexCLI ? "chatgpt" : provider == .claudeCode ? "claude" : provider.rawValue
-        guard let url = Bundle.main.url(forResource: resource, withExtension: provider == .grok ? "png" : "jpg", subdirectory: "WebAgentIcons"),
+        let fileExtension = provider == .dots ? "pdf" : provider == .grok ? "png" : "jpg"
+        guard let url = Bundle.main.url(forResource: resource, withExtension: fileExtension, subdirectory: "WebAgentIcons"),
               let data = try? Data(contentsOf: url) else { return nil }
         return (provider, data)
     }
