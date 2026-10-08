@@ -29,7 +29,10 @@ public struct WebSendAttempt: Codable, Equatable, Identifiable, Sendable {
     public var messageID: String?
     public var comparisonID: UUID?
     public var conversationURL: URL?
+    // A safely observed chat identity survives invalidation of automatic receipt attribution.
+    var recoveryConversationURL: URL?
     var receiptContext: WebReceiptContext?
+    var pinnedConversationURL: URL? { recoveryConversationURL ?? receiptContext?.candidateURL }
     public init(text: String, status: WebSendStatus = .preparing) {
         self.text = text; self.status = status
     }

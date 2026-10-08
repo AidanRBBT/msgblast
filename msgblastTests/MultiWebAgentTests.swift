@@ -10,9 +10,8 @@ final class MultiWebAgentTests: XCTestCase {
         try await waitFor { session.snapshot.ready }
         _ = try await session.webView.callAsyncJavaScript("""
         send.addEventListener('click',()=>{
-            const nodes=[...document.querySelectorAll('[data-message-author-role]')];
-            nodes.forEach(n=>n.removeAttribute('data-message-author-role'));
-            setTimeout(()=>nodes.forEach(n=>n.dataset.messageAuthorRole='user'),6500);
+            window.delayedReceiptNodes=[...document.querySelectorAll('[data-message-author-role]')];
+            window.delayedReceiptNodes.forEach(n=>n.removeAttribute('data-message-author-role'));
         },{once:true});
         """, arguments: [:], in: nil, contentWorld: .page)
         let id = UUID()
@@ -22,6 +21,7 @@ final class MultiWebAgentTests: XCTestCase {
         let originalURL = session.webView.url
         _ = await session.openComparison(id)
         XCTAssertEqual(session.webView.url, originalURL, "A missed receipt must never reset the live conversation to a new chat")
+        _ = try await session.webView.callAsyncJavaScript("window.delayedReceiptNodes.forEach(n=>n.dataset.messageAuthorRole='user')", arguments: [:], in: nil, contentWorld: .page)
         try await waitFor { session.state.attempts.first?.status == .observed }
         XCTAssertEqual(session.state.conversationURLs[id.uuidString], originalURL)
         let followup = await session.send("Follow-up after recovery", comparisonID: id)
@@ -123,6 +123,81 @@ final class MultiWebAgentTests: XCTestCase {
         await session.linkCurrentConversation()
         XCTAssertEqual(session.state.attempts[0].status, .uncertain)
         XCTAssertNil(session.state.conversationURLs[id.uuidString])
+    }
+
+    func testInvalidatedReceiptKeepsPinnedChatThroughWrongLinkAndReopen() async throws {
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let storage = directory.appendingPathComponent("state.json")
+        let session = WebAgentSession(provider: .chatgpt, storageURL: storage, fixture: true)
+        session.connect()
+        try await waitFor { session.snapshot.ready }
+        _ = try await session.webView.callAsyncJavaScript("send.addEventListener('click',()=>{window.pendingUser=document.querySelector('[data-message-author-role=user]');window.pendingUser.removeAttribute('data-message-author-role')},{once:true})", arguments: [:], in: nil, contentWorld: .page)
+        let id = UUID()
+        let first = await session.send("Pinned recovery after navigation", comparisonID: id)
+        XCTAssertEqual(first?.status, .uncertain)
+        try await waitFor { session.snapshot.messages.contains { $0.role == "assistant" } }
+        let original = try XCTUnwrap(session.webView.url)
+        session.updateState { $0.attempts[0].recoveryConversationURL = nil } // Exercise the older persisted context format too.
+        _ = try await session.webView.callAsyncJavaScript("""
+        window.pendingUser.dataset.messageAuthorRole='user';
+        const copy=document.getElementById('transcript').innerHTML;
+        navigateFixtureThread('https://chatgpt.com/c/another-matching-thread');
+        document.getElementById('transcript').innerHTML=copy;
+        """, arguments: [:], in: nil, contentWorld: .page)
+        await session.refresh()
+        try await waitFor { session.state.attempts[0].receiptContext == nil }
+        XCTAssertNil(session.state.attempts[0].receiptContext, "Navigation must invalidate automatic attribution")
+        XCTAssertEqual(session.state.attempts[0].pinnedConversationURL, original)
+        XCTAssertFalse(session.canLinkCurrentConversation, "Invalidation must retain the original conversation constraint")
+        await session.linkCurrentConversation()
+        XCTAssertEqual(session.state.attempts[0].status, .uncertain)
+        XCTAssertNil(session.state.conversationURLs[id.uuidString])
+        XCTAssertTrue(session.hasUnresolvedSend("Pinned recovery after navigation"))
+
+        let reopened = WebAgentSession(provider: .chatgpt, storageURL: storage, fixture: true)
+        reopened.connect()
+        try await waitFor { reopened.snapshot.ready }
+        XCTAssertEqual(reopened.webView.url, original, "Reopening must retain the original pinned chat after attribution is invalidated")
+        XCTAssertEqual(reopened.state.attempts[0].status, .uncertain)
+        _ = await session.openComparison(id)
+        XCTAssertEqual(session.webView.url, original, "Reopening the comparison must leave the wrong matching chat")
+        try await waitFor { session.canLinkCurrentConversation }
+        await session.linkCurrentConversation()
+        let followup = await session.send("Follow-up in the pinned chat", comparisonID: id)
+        XCTAssertEqual(followup?.status, .observed)
+        XCTAssertEqual(followup?.conversationURL, original)
+        XCTAssertEqual(session.snapshot.messages.filter { $0.role == "user" }.count, 2)
+    }
+
+    func testTrustedInteractionInvalidatesAttributionWithoutLosingPinnedChat() async throws {
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let storage = directory.appendingPathComponent("state.json")
+        let session = WebAgentSession(provider: .chatgpt, storageURL: storage, fixture: true)
+        session.connect()
+        try await waitFor { session.snapshot.ready }
+        _ = try await session.webView.callAsyncJavaScript("send.addEventListener('click',()=>{window.pendingUser=document.querySelector('[data-message-author-role=user]');window.pendingUser.removeAttribute('data-message-author-role')},{once:true})", arguments: [:], in: nil, contentWorld: .page)
+        let id = UUID()
+        let first = await session.send("Pinned recovery after interaction", comparisonID: id)
+        XCTAssertEqual(first?.status, .uncertain)
+        try await waitFor { session.snapshot.messages.contains { $0.role == "assistant" } }
+        let original = try XCTUnwrap(session.webView.url)
+        _ = try await session.webView.callAsyncJavaScript("input.focus();document.execCommand('insertText',false,'A typed draft');input.value='';window.pendingUser.dataset.messageAuthorRole='user'", arguments: [:], in: nil, contentWorld: .page)
+        await session.refresh()
+        try await waitFor { session.snapshot.submissionInterrupted == true && session.state.attempts[0].receiptContext == nil }
+        XCTAssertEqual(session.snapshot.submissionInterrupted, true, "Exercise a trusted browser input event")
+        XCTAssertNil(session.state.attempts[0].receiptContext)
+        XCTAssertEqual(session.state.attempts[0].pinnedConversationURL, original)
+        XCTAssertTrue(session.hasUnresolvedSend("Pinned recovery after interaction"))
+        let reopened = WebAgentSession(provider: .chatgpt, storageURL: storage, fixture: true)
+        reopened.connect()
+        try await waitFor { reopened.snapshot.ready }
+        XCTAssertEqual(reopened.webView.url, original)
+        XCTAssertEqual(reopened.state.attempts[0].status, .uncertain, "Trusted input cannot turn into an automatic receipt after reopening")
+        await session.linkCurrentConversation()
+        XCTAssertEqual(session.state.conversationURLs[id.uuidString], original)
+        XCTAssertEqual(session.snapshot.messages.filter { $0.role == "user" }.count, 1, "Manual linking never repeats the original request")
     }
 
     func testChatGPTAndClaudeUseRenderedWebReceiptsWithoutCLISessions() async throws {

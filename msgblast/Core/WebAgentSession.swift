@@ -125,7 +125,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
     private var comparisonURL: URL {
         if let id = state.comparisonID,
            let url = state.conversationURLs[id.uuidString], provider.isSavedConversation(url) { return url }
-        if let url = unresolvedWebAttempt?.receiptContext?.candidateURL, provider.isSavedConversation(url) { return url }
+        if let url = unresolvedWebAttempt?.pinnedConversationURL, provider.isSavedConversation(url) { return url }
         return provider.newChatURL
     }
 
@@ -145,7 +145,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
               webView.url.flatMap(provider.canonicalConversationURL) == url,
               !state.conversationURLs.contains(where: { $0.key != comparison.uuidString && provider.canonicalConversationURL($0.value) == url }) else { return false }
         if let saved = state.conversationURLs[comparison.uuidString], provider.canonicalConversationURL(saved) != url { return false }
-        if let candidate = attempt.receiptContext?.candidateURL, candidate != url { return false }
+        if let candidate = attempt.pinnedConversationURL, candidate != url { return false }
         let matches = snapshot.messages.indices.filter { snapshot.messages[$0].role == "user" && Self.normalized(snapshot.messages[$0].text) == Self.normalized(attempt.text) }
         guard matches.count == 1 else { return false }
         return snapshot.messages.dropFirst(matches[0] + 1).prefix { $0.role != "user" }.contains { $0.role == "assistant" }
@@ -169,6 +169,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
         attempt.status = .observed
         attempt.messageID = snapshot.messages.first { $0.role == "user" && Self.normalized($0.text) == Self.normalized(attempt.text) }?.id
         attempt.conversationURL = url
+        attempt.recoveryConversationURL = nil
         attempt.receiptContext = nil
         receiptGenerations.removeValue(forKey: attempt.id)
         attempt.detail = "Conversation linked after the user reviewed its existing request and reply."
@@ -244,9 +245,11 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
             throw WebSessionFailure.notSent("\(provider.name) has a draft. Send or clear it before switching chats.")
         }
         let target = comparisonURL // Inspection above may have recovered a late receipt.
+        let pinned = unresolvedWebAttempt?.pinnedConversationURL
         // A missed first receipt must not erase the live chat before recovery can inspect it.
         if needsConversationLink, state.comparisonID.flatMap({ state.conversationURLs[$0.uuidString] }) == nil,
-           let current = URL(string: snapshot.url), provider.canonicalConversationURL(current) != nil {
+           let current = URL(string: snapshot.url), let currentChat = provider.canonicalConversationURL(current),
+           pinned == nil || pinned == currentChat {
             return readyBeforeSetup
         }
         if !loading, snapshot.url == target.absoluteString, !snapshot.ready {
@@ -428,6 +431,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
             }
         }
         if attempt.status == .notSent {
+            attempt.recoveryConversationURL = nil
             attempt.receiptContext = nil
             receiptGenerations.removeValue(forKey: attempt.id)
         }
@@ -438,19 +442,22 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
     private func observeReceipt(_ attempt: inout WebSendAttempt) -> Bool {
         guard var context = attempt.receiptContext else { return false }
         func invalidate() -> Bool {
+            attempt.recoveryConversationURL = attempt.pinnedConversationURL
             attempt.receiptContext = nil
             receiptGenerations.removeValue(forKey: attempt.id)
             return false
         }
         guard snapshot.submissionInterrupted != true, let current = URL(string: snapshot.url) else { return invalidate() }
         // Across reloads/restarts only the already pinned candidate can be recovered.
-        guard receiptGenerations[attempt.id] == navigationGeneration || context.candidateURL != nil else { return invalidate() }
+        let pinned = attempt.pinnedConversationURL
+        guard receiptGenerations[attempt.id] == navigationGeneration || pinned != nil else { return invalidate() }
         if context.originalURL == provider.newChatURL, current == context.originalURL { return false }
         guard provider.acceptsReceipt(from: context.originalURL, at: current), let url = provider.canonicalConversationURL(current),
-              context.candidateURL == nil || context.candidateURL == url,
+              pinned == nil || pinned == url,
               current.path == context.originalURL.path || (!context.existingPaths.contains(current.path) && !state.conversationURLs.values.contains(where: { provider.canonicalConversationURL($0) == url })),
               snapshot.messages.starts(with: context.baseline) else { return invalidate() }
         context.candidateURL = url
+        attempt.recoveryConversationURL = url
         attempt.receiptContext = context
         let before = Set(context.baseline.map(\.id))
         let text = Self.normalized(attempt.text)
@@ -460,6 +467,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
         attempt.status = .observed
         attempt.messageID = match.id
         attempt.conversationURL = url
+        attempt.recoveryConversationURL = nil
         attempt.receiptContext = nil
         attempt.detail = "The outgoing message appeared in \(provider.name). This is a page observation, not a server delivery receipt."
         state.conversationURLs[comparison.uuidString] = url
