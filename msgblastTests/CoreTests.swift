@@ -124,6 +124,23 @@ final class CoreTests: XCTestCase {
         XCTAssertTrue(restored.joiningPrompt().contains("Follow-up 1:\nA\n\nFollow-up 2:\nB"))
     }
 
+    func testDelayedBroadcastCompletionMarksOnlyItsExactFollowUp() {
+        let member = Member(agentID: UUID(), name: "A", chat: Chat(id: "A", handle: "A", lastActivity: 0))
+        var comparison = Comparison(prompt: "Original", members: [member])
+        var shared = FollowUp(text: "Shared broadcast", memberIDs: [member.id])
+        shared.sharedWithAll = false
+        shared.states[member.id.uuidString] = .submitted
+        var laterPrivate = FollowUp(text: "Private after Messages completed", memberIDs: [member.id])
+        laterPrivate.sharedWithAll = false
+        laterPrivate.states[member.id.uuidString] = .submitted
+        comparison.followUps = [shared, laterPrivate]
+        comparison.completeSharedBroadcast(followUpID: shared.id, recipients: [member.id])
+        XCTAssertEqual(comparison.followUps[0].sharedWithAll, true)
+        XCTAssertEqual(comparison.followUps[1].sharedWithAll, false)
+        XCTAssertEqual(comparison.joiningContext().map(\.text), ["Original", "Shared broadcast"])
+        XCTAssertEqual(comparison.joiningPayload().parts.compactMap(\.text), ["Original", "Shared broadcast"])
+    }
+
     func testManualAccountCanBeCreatedWithoutAnExistingChat() throws {
         let email = try XCTUnwrap(Agent.manualAccount(for: "  msgisaway@outlook.com\n"))
         XCTAssertEqual(email.handles, ["msgisaway@outlook.com"])

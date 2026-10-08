@@ -267,6 +267,7 @@ struct AgentsWorkspaceView: View {
             let allRecipients = model.comparison(comparisonID).map { comparison in
                 Set(comparison.webProviders ?? []) == Set(sessions.map(\.provider)) && Set(comparison.members.map(\.id)) == recipients
             } ?? false
+            let followUpID = UUID()
             let result = await AgentBroadcast.send(draft: originalDraft, currentDraft: { model.state.draft }, clearDraft: {
                 model.state.draft = ""; model.persist()
             }, web: { text in
@@ -275,30 +276,20 @@ struct AgentsWorkspaceView: View {
                 guard !recipients.isEmpty else { return nil }
                 if existingID != nil {
                     guard let i = model.index(comparisonID) else { return nil }
-                    let previousCount = model.state.comparisons[i].followUps.count
                     model.state.comparisons[i].allDraft = text
-                    await model.followUp(comparisonID, recipients: Array(recipients))
-                    return model.comparison(comparisonID)?.followUps.count != previousCount ? comparisonID : nil
+                    await model.followUp(comparisonID, recipients: Array(recipients), newAttemptID: followUpID)
+                    return model.comparison(comparisonID)?.followUps.contains(where: { $0.id == followUpID }) == true ? comparisonID : nil
                 }
                 await model.submit(comparisonID, retry: false)
                 return comparisonID
             })
-            if existingID != nil, allRecipients, !recipients.isEmpty, result.comparisonID == comparisonID,
-               result.web.count == sessions.count, result.web.values.allSatisfy({ $0.status == .observed }),
-               let i = model.index(comparisonID), let k = model.state.comparisons[i].followUps.indices.last {
-                model.state.comparisons[i].followUps[k].sharedWithAll = true
-                model.persist()
-            }
             if existingID != nil, allRecipients,
                result.web.values.allSatisfy({ $0.status == .observed }), result.web.count == sessions.count,
-               let i = model.index(comparisonID),
-               recipients.isEmpty || (result.comparisonID == comparisonID && model.state.comparisons[i].followUps.last.map({ followUp in
-                   Set(followUp.memberIDs) == recipients && recipients.allSatisfy { followUp.states[$0.uuidString] == .submitted }
-               }) == true) {
-                if let followUp = model.state.comparisons[i].followUps.last, !recipients.isEmpty {
-                    model.state.comparisons[i].recordSharedFollowUp(followUp)
-                } else {
+               let i = model.index(comparisonID) {
+                if recipients.isEmpty {
                     model.state.comparisons[i].recordSharedMessage(ConversationContextMessage(text: originalDraft.trimmingCharacters(in: .whitespacesAndNewlines), attachments: sentAttachments, created: broadcastCreated))
+                } else if result.comparisonID == comparisonID {
+                    model.state.comparisons[i].completeSharedBroadcast(followUpID: followUpID, recipients: recipients)
                 }
                 model.persist()
             }

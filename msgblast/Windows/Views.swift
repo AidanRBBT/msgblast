@@ -354,7 +354,7 @@ struct ConversationView: View {
                     TranscriptView(model: model, comparison: comparison, member: member)
                 }
                 if !embedded {
-                MessageInput(text: privateDraft, attachments: model.attachmentDraft(comparisonID: comparisonID, memberID: memberID), addAttachments: { await model.addAttachments($0, comparisonID: comparisonID, memberID: memberID) }, removeAttachment: { id in model.setAttachmentDraft(model.attachmentDraft(comparisonID: comparisonID, memberID: memberID).filter { $0.id != id }, comparisonID: comparisonID, memberID: memberID) }, placeholder: "Message", accessibilityName: "Private reply to \(member.name)", sendLabel: "Send privately", disabled: model.busy || member.anchor == nil) {
+                MessageInput(text: privateDraft, attachments: model.attachmentDraft(comparisonID: comparisonID, memberID: memberID), addAttachments: { await model.addAttachments($0, comparisonID: comparisonID, memberID: memberID) }, removeAttachment: { id in model.setAttachmentDraft(model.attachmentDraft(comparisonID: comparisonID, memberID: memberID).filter { $0.id != id }, comparisonID: comparisonID, memberID: memberID) }, placeholder: "Message", accessibilityName: "Private reply to \(member.name)", sendLabel: "Send privately", disabled: model.busy || model.webBroadcastBusy || member.anchor == nil) {
                     Task { await model.followUp(comparisonID, only: memberID) }
                 }.padding(12)
                 FollowUpStatus(model: model, comparison: comparison, only: memberID)
