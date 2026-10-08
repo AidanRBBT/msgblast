@@ -340,28 +340,49 @@ final class GrokBotTests: XCTestCase {
         XCTAssertEqual(restored.state.attempts.count, 3)
     }
     func testCallbackRetriesAfterStorageFailureAndDrainsBeforeShutdown() async throws {
-        var tries = 0, recorded = 0
-        let receiver = GrokBotCallbackReceiver { _ in
-            tries += 1
-            if tries == 1 { throw GrokBotServiceError.keychain }
-            recorded += 1
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let storageURL = directory.appendingPathComponent("state.json")
+        let session = WebAgentSession(provider: .grokbot, storageURL: storageURL, fixture: true)
+        let comparisonID = UUID(), token = "synthetic-retry-token"
+        var attempt = WebSendAttempt(text: "Reply after storage recovers")
+        attempt.comparisonID = comparisonID; attempt.status = .waiting
+        attempt.callbackHash = Data(SHA256.hash(data: Data(token.utf8)))
+        session.updateState {
+            $0.enabled = true; $0.comparisonID = comparisonID; $0.attempts = [attempt]
+            $0.localConversations[comparisonID.uuidString] = [WebPageMessage(id: attempt.id.uuidString, role: "user", text: attempt.text)]
         }
-        receiver.onDrained = { if recorded == 1 { receiver.stop() } }
+        let saved = try Data(contentsOf: storageURL)
+        try FileManager.default.removeItem(at: storageURL)
+        try FileManager.default.createDirectory(at: storageURL, withIntermediateDirectories: false)
+        let receiver = GrokBotCallbackReceiver { try session.receiveGrokBotReceipt($0) }
+        receiver.onDrained = { if session.state.attempts.first?.status == .observed { receiver.stop() } }
         let address = try await receiver.start()
         defer { receiver.stop() }
-        let id = UUID(), token = "synthetic-retry-token"
-        receiver.register(id: id, tokenHash: Data(SHA256.hash(data: Data(token.utf8))))
-        var request = URLRequest(url: address.appendingPathComponent("reply/\(id)"))
+        receiver.register(id: attempt.id, tokenHash: try XCTUnwrap(attempt.callbackHash))
+        var request = URLRequest(url: address.appendingPathComponent("reply/\(attempt.id)"))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.httpBody = try JSONEncoder().encode(GrokBotReceipt(request_id: id, status: .answered, answer: "Saved on retry"))
+        request.httpBody = try JSONEncoder().encode(GrokBotReceipt(request_id: attempt.id, status: .answered, answer: "Saved on retry"))
         let (_, first) = try await URLSession.shared.data(for: request)
         XCTAssertEqual((first as? HTTPURLResponse)?.statusCode, 503)
-        XCTAssertEqual(recorded, 0)
+        XCTAssertEqual(session.state.attempts.first?.status, .waiting)
+        XCTAssertEqual(session.state.localConversations[comparisonID.uuidString]?.count, 1)
+        let blocked = await session.send("Must not submit while storage is unavailable", comparisonID: UUID())
+        XCTAssertNil(blocked)
+        let (_, stillUnavailable) = try await URLSession.shared.data(for: request)
+        XCTAssertEqual((stillUnavailable as? HTTPURLResponse)?.statusCode, 503)
+        XCTAssertEqual(session.state.localConversations[comparisonID.uuidString]?.count, 1)
+        try FileManager.default.removeItem(at: storageURL)
+        try saved.write(to: storageURL)
         let (_, second) = try await URLSession.shared.data(for: request)
-        XCTAssertEqual((second as? HTTPURLResponse)?.statusCode, 200, "Closing a disabled provider must follow its acknowledgement write")
-        XCTAssertEqual(recorded, 1)
+        XCTAssertEqual((second as? HTTPURLResponse)?.statusCode, 200, "Closing the listener must follow its acknowledgement write")
+        let durable = try JSONDecoder().decode(WebWorkspaceState.self, from: Data(contentsOf: storageURL))
+        XCTAssertEqual(durable.attempts.first?.status, .observed)
+        XCTAssertEqual(durable.localConversations[comparisonID.uuidString]?.map(\.text), [attempt.text, "Saved on retry"])
+        try session.receiveGrokBotReceipt(GrokBotReceipt(request_id: attempt.id, status: .answered, answer: "Saved on retry"))
+        XCTAssertEqual(session.state.localConversations[comparisonID.uuidString]?.count, 2)
     }
 }
 private final class GrokBotFixtureProtocol: URLProtocol, @unchecked Sendable {

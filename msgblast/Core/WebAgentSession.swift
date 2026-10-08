@@ -41,6 +41,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
     public let fixture: Bool
     private let storageURL: URL
     private var storageFailed = false
+    private var grokBotReplyStorageFailure: UUID?
     private var poll: Task<Void, Never>?
     private var refreshing = false
     private var navigationGeneration = 0
@@ -920,14 +921,8 @@ extension WebAgentSession {
         setGrokBotConnectionActivity(.startingTunnel)
         defer { if grokBotConnectionActivity == .startingTunnel { setGrokBotConnectionActivity(nil) } }
         let receiver = GrokBotCallbackReceiver { [weak self] receipt in
-            guard let self, !self.storageFailed, let attempt = self.state.attempts.first(where: { $0.id == receipt.request_id }) else { throw GrokBotServiceError.invalidReply }
-            do { try self.applyGrokBotReceipt(receipt, to: attempt) }
-            catch {
-                self.error = "Grok Bot's reply could not be saved. Repair storage before sending again."
-                self.updateNativeSnapshot()
-                throw error
-            }
-            self.updateNativeSnapshot()
+            guard let self else { throw GrokBotServiceError.callbackUnavailable }
+            try self.receiveGrokBotReceipt(receipt)
         }
         receiver.onDrained = { [weak self] in
             guard let self, !self.isEnabled, !self.configuringGrokBot, !self.hasPendingGrokBotRequests else { return }
@@ -973,6 +968,19 @@ extension WebAgentSession {
             catch { self.error = error.localizedDescription }
         } else if !isEnabled, !hasPendingGrokBotRequests, grokBotReceiver != nil, grokBotReceiver?.hasActiveConnections != true { stopGrokBotConnection() }
     }
+    func receiveGrokBotReceipt(_ receipt: GrokBotReceipt) throws {
+        guard let attempt = state.attempts.first(where: { $0.id == receipt.request_id }) else { throw GrokBotServiceError.invalidReply }
+        guard !storageFailed || grokBotReplyStorageFailure == receipt.request_id else {
+            throw WebSessionFailure.notSent("Web session storage is unavailable.")
+        }
+        do { try applyGrokBotReceipt(receipt, to: attempt) }
+        catch {
+            self.error = "Grok Bot's reply could not be saved. Repair storage before sending again."
+            updateNativeSnapshot()
+            throw error
+        }
+        updateNativeSnapshot()
+    }
     private func applyGrokBotReceipt(_ receipt: GrokBotReceipt, to previous: WebSendAttempt) throws {
         guard let index = state.attempts.firstIndex(where: { $0.id == previous.id }), let comparisonID = previous.comparisonID else { throw GrokBotServiceError.invalidReply }
         var attempt = state.attempts[index]
@@ -982,10 +990,20 @@ extension WebAgentSession {
             guard saved.text == receipt.answer else { throw GrokBotServiceError.invalidReply }
             return
         }
+        let previousState = state
         state.localConversations[comparisonID.uuidString, default: []].append(WebPageMessage(id: replyID, role: "assistant", text: receipt.answer))
         attempt.status = receipt.status == .answered ? .observed : .notSent
         attempt.detail = receipt.status == .failed ? receipt.answer : fixture ? "Simulated callback. No Grok Bot or tunnel was contacted." : "Reply received on this Mac."
-        try store(attempt); error = nil
+        // Only a callback whose write failed may retry storage; sends remain blocked.
+        if grokBotReplyStorageFailure == attempt.id { storageFailed = false }
+        do {
+            try store(attempt)
+            grokBotReplyStorageFailure = nil; error = nil
+        } catch {
+            state = previousState
+            grokBotReplyStorageFailure = attempt.id
+            throw error
+        }
     }
     private func sendGrokBot(_ text: String, comparisonID: UUID?) async -> WebSendAttempt? {
         guard isEnabled, !shuttingDown, !isSending, !configuringGrokBot, !storageFailed, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
