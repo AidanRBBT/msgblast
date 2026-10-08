@@ -320,9 +320,10 @@ final class AppModel: ObservableObject {
         } catch { self.error = error.localizedDescription; return nil }
     }
     func freezeSharedContext(_ id: UUID) throws {
-        guard let i = index(id), state.comparisons[i].sharedContext == nil else { return }
-        let attempts = Dictionary(uniqueKeysWithValues: webAgents.sessions.map { ($0.provider, $0.state.attempts) })
-        state.comparisons[i].sharedContext = Array(state.comparisons[i].joiningContext(webAttempts: attempts).dropFirst())
+        guard let i = index(id) else { return }
+        let verified = Array(state.comparisons[i].joiningContext().dropFirst())
+        guard state.comparisons[i].sharedContext != verified else { return }
+        state.comparisons[i].sharedContext = verified
         try save()
     }
     func addAgent(_ agent: Agent, to id: UUID) async {
@@ -536,13 +537,8 @@ final class AppModel: ObservableObject {
             }
             try save()
             let completed = state.comparisons[i].followUps[k]
-            if completed.sharedWithAll == true,
-               completed.memberIDs.allSatisfy({ completed.states[$0.uuidString] == .submitted }),
-               state.comparisons[i].sharedContext?.contains(where: { $0.followUpID == completed.id }) != true {
-                let files = completed.payloads?.values.first?.parts.compactMap(\.attachment) ?? []
-                state.comparisons[i].sharedContext?.append(ConversationContextMessage(text: completed.text, attachments: files, followUpID: completed.id))
-                try save()
-            }
+            state.comparisons[i].recordSharedFollowUp(completed)
+            try save()
         } catch { self.error = error.localizedDescription }
         busy = false; refresh()
     }

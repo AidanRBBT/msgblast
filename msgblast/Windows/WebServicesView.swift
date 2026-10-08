@@ -237,6 +237,7 @@ struct AgentsWorkspaceView: View {
         }
         let originalDraft = model.state.draft
         let sentAttachments = attachments
+        let broadcastCreated = Date()
         let recipients = Set(nativeRecipients.map(\.id))
         let model = model
         let sessions = web.selected
@@ -294,7 +295,11 @@ struct AgentsWorkspaceView: View {
                recipients.isEmpty || (result.comparisonID == comparisonID && model.state.comparisons[i].followUps.last.map({ followUp in
                    Set(followUp.memberIDs) == recipients && recipients.allSatisfy { followUp.states[$0.uuidString] == .submitted }
                }) == true) {
-                model.state.comparisons[i].sharedContext?.append(ConversationContextMessage(text: originalDraft.trimmingCharacters(in: .whitespacesAndNewlines), attachments: sentAttachments, followUpID: recipients.isEmpty ? nil : model.state.comparisons[i].followUps.last?.id))
+                if let followUp = model.state.comparisons[i].followUps.last, !recipients.isEmpty {
+                    model.state.comparisons[i].recordSharedFollowUp(followUp)
+                } else {
+                    model.state.comparisons[i].recordSharedMessage(ConversationContextMessage(text: originalDraft.trimmingCharacters(in: .whitespacesAndNewlines), attachments: sentAttachments, created: broadcastCreated))
+                }
                 model.persist()
             }
             web.setComparison(comparisonID)
@@ -313,6 +318,7 @@ struct AgentsWorkspaceView: View {
                 guard let created = await model.prepareWebComparison(text, recipientIDs: [], providers: [session.provider]) else { return }
                 id = created
             }
+            do { try model.freezeSharedContext(id) } catch { model.error = error.localizedDescription; return }
             guard let i = model.index(id) else { return }
             if model.state.comparisons[i].webProviders?.contains(session.provider) != true {
                 model.state.comparisons[i].webProviders = (model.state.comparisons[i].webProviders ?? []) + [session.provider]

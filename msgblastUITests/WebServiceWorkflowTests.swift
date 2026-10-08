@@ -51,6 +51,64 @@ final class WebServiceWorkflowTests: XCTestCase {
     }
 
     @MainActor
+    func testFreshPrivateCLIConversationSharesOnlyExplicitBroadcastsWhenAgentsJoin() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--demo", "--isolated-demo"]
+        app.launch()
+        defer { app.terminate() }
+        XCTAssertTrue(app.buttons["Muse"].waitForExistence(timeout: 5))
+        app.typeKey(",", modifierFlags: .command)
+        let settings = app.windows.matching(identifier: "com_apple_SwiftUI_Settings_window").firstMatch
+        XCTAssertTrue(settings.waitForExistence(timeout: 5))
+        for (index, name) in ["Codex CLI", "Claude Code"].enumerated() {
+            XCTAssertTrue(settings.staticTexts["Enable \(name)"].waitForExistence(timeout: 5))
+            // macOS exposes these two switch controls without the adjacent label.
+            let toggle = settings.switches.element(boundBy: index)
+            XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+            toggle.click()
+            if String(describing: toggle.value ?? "") == "0" { toggle.click() }
+            XCTAssertEqual(String(describing: toggle.value ?? ""), "1")
+        }
+        settings.buttons[XCUIIdentifierCloseWindow].click()
+        let excluded = ["Cedar", "Lumen", "Orbit", "Maple", "Echo", "Flint", "Muse", "ChatGPT", "Claude", "Grok", "Claude Code"]
+        for _ in 0..<2 {
+            for name in excluded where app.buttons[name].value as? String == "Selected" { app.buttons[name].click() }
+        }
+        for name in excluded { XCTAssertEqual(app.buttons[name].value as? String, "Not selected") }
+        app.buttons["Codex CLI"].rightClick()
+        app.menuItems["Open chat"].click()
+        let direct = app.textViews["Message Codex CLI"]
+        XCTAssertTrue(direct.waitForExistence(timeout: 10))
+        func sendDirect(_ text: String) {
+            direct.click(); direct.typeText(text)
+            XCTAssertEqual(direct.value as? String, text)
+            direct.typeKey(.return, modifierFlags: [])
+            XCTAssertTrue(reply(app, containing: "Codex CLI fixture reply: " + text).waitForExistence(timeout: 15))
+        }
+        sendDirect("Original CLI privacy ask")
+        sendDirect("Private CLI detail")
+        let shared = app.textViews["Shared prompt"]
+        shared.click(); shared.typeKey("a", modifierFlags: .command); shared.typeText("Shared CLI follow-up")
+        app.buttons["Send & compare"].click()
+        XCTAssertTrue(reply(app, containing: "Codex CLI fixture reply: Shared CLI follow-up").waitForExistence(timeout: 15))
+        capture(app, name: "Private sole CLI conversation before joins — isolated fixture")
+        shared.click(); shared.typeText("Retained unsent shared draft")
+        for name in ["Grok", "Claude Code", "Cedar"] {
+            app.buttons["Recipient \(name)"].click()
+            let deadline = Date().addingTimeInterval(15)
+            while !app.buttons["Send & compare"].isEnabled, Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.1)) }
+            XCTAssertEqual(app.buttons["Recipient \(name)"].value as? String, "Selected")
+        }
+        XCTAssertTrue(reply(app, containing: "Claude Code fixture reply: You are joining an existing conversation").waitForExistence(timeout: 15))
+        let contexts = app.staticTexts.matching(NSPredicate(format: "value CONTAINS %@ AND value CONTAINS %@", "Original ask:", "Shared CLI follow-up"))
+        XCTAssertTrue(contexts.firstMatch.waitForExistence(timeout: 15))
+        XCTAssertEqual(app.staticTexts.matching(NSPredicate(format: "value CONTAINS %@ AND value CONTAINS %@", "Original ask:", "Private CLI detail")).count, 0)
+        XCTAssertEqual(app.textViews.matching(NSPredicate(format: "value == %@", "Private CLI detail")).count, 0)
+        XCTAssertEqual(shared.value as? String, "Retained unsent shared draft")
+        capture(app, name: "Web CLI and Messages joins exclude private CLI detail — isolated fixture")
+    }
+
+    @MainActor
     func testWebDefaultsAndOptionalCLIConversationsStaySeparate() {
         let app = XCUIApplication()
         app.launchArguments = ["--demo", "--isolated-demo"]
