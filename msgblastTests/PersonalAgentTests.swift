@@ -24,7 +24,7 @@ final class PersonalAgentTests: XCTestCase {
         XCTAssertEqual(sent.count, 2)
         XCTAssertTrue(sent.values.allSatisfy { $0.status == .observed })
         let reopened = WebAgents(directory: directory, fixture: true)
-        XCTAssertEqual(reopened.selected.map(\.provider), WebProvider.allCases)
+        XCTAssertEqual(reopened.selected.map(\.provider), WebProvider.webDefaults + WebProvider.optionalProviders)
         reopened.setEnabled(false, for: .codexCLI)
         reopened.setComparison(id)
         reopened.restoreSelection(for: [.chatgpt, .codexCLI])
@@ -55,7 +55,7 @@ final class PersonalAgentTests: XCTestCase {
         XCTAssertTrue(web.selected.allSatisfy { $0.snapshot.ready })
         let id = UUID(), prompt = "One shared fixture prompt"
         let replies = await WebAgents.send(prompt, to: web.selected, comparisonID: id)
-        XCTAssertEqual(Set(replies.keys), Set(WebProvider.allCases))
+        XCTAssertEqual(Set(replies.keys), Set(WebProvider.webDefaults + WebProvider.optionalProviders))
         XCTAssertTrue(replies.values.allSatisfy { $0.status == .observed && $0.text == prompt && $0.comparisonID == id })
         for session in web.selected {
             if session.provider.personalAgentProvider == nil {
@@ -67,7 +67,7 @@ final class PersonalAgentTests: XCTestCase {
             }
             XCTAssertEqual(session.snapshot.messages.first { $0.role == "user" }?.text, prompt)
         }
-        XCTAssertEqual(Set(web.sessions.map { $0.state.sessionID }).count, 6)
+        XCTAssertEqual(Set(web.sessions.map { $0.state.sessionID }).count, 7)
     }
 
     @MainActor

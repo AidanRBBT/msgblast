@@ -29,6 +29,7 @@ Planning a weekend, researching a purchase, or testing an idea? Write your quest
 | Websites | **Muse, ChatGPT, Claude, Grok** | Selected by default on a new installation. Sign in inside msgblast and keep the chats in the app. |
 | Messages | AI assistants you already text, including **Instinct, Fo, and Szn** | Connect existing one-to-one iMessage conversations. Photos and files are supported. |
 | Optional CLI conversations | **Codex CLI, Claude Code** | Enable each in Settings to add it alongside the websites. Uses the installed CLI’s sign-in, skills, tools, and connectors, subject to its permissions. |
+| Optional Bot webhook | **Grok Bot** | Separate from Grok's website. The Mac sends directly to your Bot's routine and receives replies through an app-managed temporary tunnel. [Setup and availability](docs/grokbot.md). |
 
 Each service’s own account, subscription, and usage limits apply. Web and CLI requests use text; attachments are available when only Messages agents are selected.
 

@@ -10,7 +10,7 @@ import msgblastCore
     var error: String?
     let personalAgent = FakePersonalAgent()
     let webAgents = FakeWebAgents()
-    func save() throws {}
+    func saveForTermination() throws {}
 }
 @MainActor final class FakeWebAgents {
     let hasNativeRequests = false

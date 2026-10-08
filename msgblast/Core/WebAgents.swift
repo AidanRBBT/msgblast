@@ -37,7 +37,7 @@ public final class WebAgents: ObservableObject {
         for session in sessions where session.state.comparisonID != id { session.updateState { $0.comparisonID = id } }
     }
     public func setEnabled(_ enabled: Bool, for provider: WebProvider) {
-        guard let session = sessions.first(where: { $0.provider == provider }), provider.personalAgentProvider != nil else { return }
+        guard let session = sessions.first(where: { $0.provider == provider }), provider.usesNativeConversation else { return }
         session.setEnabled(enabled)
         if enabled { session.connect() }
     }
@@ -61,7 +61,7 @@ public final class WebAgents: ObservableObject {
         }
     }
     public func connectSelected() { selected.forEach { $0.connect() } }
-    public var hasNativeRequests: Bool { sessions.contains { $0.provider.personalAgentProvider != nil && $0.isSending } }
+    public var hasNativeRequests: Bool { sessions.contains { $0.provider.usesNativeConversation && $0.isSending } }
     public func beginShutdown() { sessions.forEach { $0.beginShutdown() } }
     public func cancelAndWait() async { for session in sessions { await session.cancelAndWait() } }
     public func prepareComparison(_ id: UUID?, for sessions: [WebAgentSession]) async -> Bool {

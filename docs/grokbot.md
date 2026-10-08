@@ -1,0 +1,39 @@
+# Grok Bot in msgblast
+
+Grok Bot is a separate optional agent from Grok's website. Its implementation lives in this repository. It sends directly from the Mac to a native Grok Bot webhook and receives the answer on the Mac through an app-managed temporary Cloudflare tunnel. There is no deployed Worker, hosted database, Tincan relay, Cloudflare account, domain or hosting subscription to manage.
+
+## Connect once
+
+1. Install the open-source [cloudflared helper](https://github.com/cloudflare/cloudflared). With Homebrew: `brew install cloudflared`. msgblast detects `/opt/homebrew/bin/cloudflared` or `/usr/local/bin/cloudflared` and manages its process; do not start a separate tunnel.
+2. Open **msgblast → Settings → Grok Bot** and choose **Copy Bot setup instructions**. Paste those instructions into the particular Grok Bot you want to connect. This creates a webhook routine that receives the request and POSTs its answer back to msgblast.
+3. Open that routine on Grok Bot's desktop app and copy its **Webhook URL** and **Webhook key** into msgblast's Settings. Choose **Connect Grok Bot**. Credentials are stored in macOS Keychain; normal app state contains no webhook key or callback token.
+4. Select **Grok Bot** in Agents and send a shared prompt or a message in its native pane. Its answer appears in the same comparison. Each follow-up includes that comparison's local history.
+
+Connecting can take up to 90 seconds while the temporary address becomes reachable. An explicit webhook rejection keeps the request unsent and its draft intact; an unknown network result is not automatically retried.
+
+The routine's URL and key belong to a routine, not the generic xAI model API. A successful webhook acknowledgement means the routine was accepted; it does not contain its answer. The callback instructions are necessary.
+
+## What runs and what is stored
+
+The app opens an HTTP listener on a random port bound only to `127.0.0.1`. It launches cloudflared with a private, empty temporary configuration, the loopback origin and info-level logging. It does not read or change existing tunnel configuration or enable a system service. The helper establishes a temporary HTTPS `trycloudflare.com` address. Only authenticated JSON POSTs to `/reply/REQUEST_ID` are accepted; the listener serves no files, chat history, credentials or management API.
+
+Each request gets a random 256-bit callback credential. Grok Bot receives it in the webhook payload and uses it in the callback's Authorization header. The app stores only its SHA-256 hash with the saved request ID. Responses are matched to the original comparison, saved locally before acknowledgement, and identical callback retries do not append a second answer. Prompt/history and reply bodies are capped at 128 KiB. Both the webhook URL and key stay in Keychain, isolated by app bundle and storage directory.
+
+Cloudflare relays the callback traffic, so this is not an end-to-end encrypted private connection between Grok Bot and the Mac. Request/reply processing and storage are in the app's inspectable Swift code; cloudflared is open source, while Cloudflare operates the relay network. The outbound prompt goes directly to Grok Bot.
+
+## Availability and incomplete work
+
+Keep msgblast open and the Mac awake until the reply arrives. [Quick Tunnels](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/) have no uptime guarantee, use a new hostname on each start, and are documented for testing/development rather than production availability. This integration uses them for personal, best-effort callbacks; it is not an always-on agent service.
+
+The app stops its helper and listener on normal quit. Quitting, disconnecting, or losing the helper ends the callback address and marks waiting requests unconfirmed. Existing requests are never automatically sent again. The Bot also posts its answer in its own chat, so you can inspect a result there if callback delivery fails. **Stop waiting for this reply** lets you explicitly continue; it does not cancel Grok Bot's remote work. A late answer cannot replace an unrelated request.
+
+## Implementation and validation
+
+- `msgblast/Core/GrokBotService.swift`: bounded JSON payloads, direct webhook submission and Keychain credentials.
+- `msgblast/Core/GrokBotCallbackReceiver.swift`: loopback HTTP receiver, per-request authentication and callback deduplication.
+- `msgblast/Core/GrokBotTunnel.swift`: temporary helper process and lifecycle.
+- `msgblast/Core/WebAgentSession.swift`: comparison history, request receipts and native replies.
+
+Core tests exercise the actual local HTTP receiver and an intercepted HTTPS webhook transport. The native demo uses simulated callbacks with no tunnel, live Bot, messages or Contacts writes. A live account's routine and callback behavior still require a deliberate end-to-end check after setup.
+
+The feedback intake schema also recognizes the new `grokbot` provider. Before releasing this app change, refresh the matching `feedback/worker.mjs` in the authoritative landing Worker so reports mentioning Grok Bot remain accepted.

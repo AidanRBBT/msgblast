@@ -65,7 +65,7 @@ struct AgentsWorkspaceView: View {
                 Image(systemName: "person.crop.circle.badge.checkmark")
                     .font(.system(size: 34)).foregroundStyle(Color.accentColor)
                 Text("Connect your accounts").font(.title2.weight(.semibold))
-                Text("Sign in to each website in its pane. If you selected an optional CLI agent, connect its account in Settings. Then press Send & compare again.")
+                Text("Sign in to each website in its pane. Connect optional agents, including Grok Bot, in Settings. Then press Send & compare again.")
                     .multilineTextAlignment(.center)
                 Text("Your request is saved in the message box below. Signing in won’t send it.")
                     .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
@@ -422,8 +422,8 @@ private struct WebAgentPane: View {
                     .accessibilityElement(children: .contain)
             }
             if let error = session.error { Text(error).font(.caption).foregroundStyle(.orange).padding(10).frame(maxWidth: .infinity, alignment: .leading) }
-            if let provider = session.provider.personalAgentProvider {
-                nativeConversation(provider)
+            if session.provider.usesNativeConversation {
+                nativeConversation(session.provider.personalAgentProvider)
             } else if session.connected {
                 if !session.snapshot.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !session.isSending {
                     Text("\(session.provider.name) has a draft. Send or clear it in the page before using the shared composer.").font(.caption).foregroundStyle(.orange).padding(8)
@@ -457,13 +457,20 @@ private struct WebAgentPane: View {
         }
     }
 
-    private func nativeConversation(_ provider: PersonalAgentProvider) -> some View {
+    private func nativeConversation(_ provider: PersonalAgentProvider?) -> some View {
         VStack(spacing: 12) {
-            let connected = [.subscription, .apiKey, .other].contains(session.accountStatus)
+            let connected = session.provider == .grokbot ? session.grokBotIsConfigured : [.subscription, .apiKey, .other].contains(session.accountStatus)
             if !session.isEnabled {
                 Text("Enable \(session.provider.name) in Settings to send. Your saved conversation is still available here.")
                     .font(.caption).foregroundStyle(.secondary)
-            } else if !connected {
+            } else if session.provider == .grokbot {
+                HStack {
+                    Text(session.fixture ? "Simulated webhook and callback · no Bot contacted" : connected ? "Keep msgblast open and this Mac awake for replies." : "Connect your Grok Bot webhook in Settings.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    SettingsLink { Text("Connection settings") }
+                }
+            } else if !connected, let provider {
                 HStack {
                     Label(session.fixture ? "Simulated local account · no provider requests" : session.accountStatus.label,
                           systemImage: "person.crop.circle")
@@ -495,16 +502,20 @@ private struct WebAgentPane: View {
                                 .background(message.role == "user" ? Color.accentColor.opacity(0.08) : Color.secondary.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
                                 .id(message.id)
                         }
-                        if session.isSending { ProgressView("\(session.provider.name) is replying…").id("replying") }
+                        if session.isSending { ProgressView(session.provider == .grokbot ? "Sending to Grok Bot…" : "\(session.provider.name) is replying…").id("replying") }
                     }
                 }.onChange(of: session.snapshot.messages.last?.id) { _, id in
                     if let id { proxy.scrollTo(id, anchor: .bottom) }
                 }
             }
-            if session.isSending { Button("Cancel \(session.provider.name) reply") { session.cancelNativeRequest() } }
+            if session.isSending, provider != nil { Button("Cancel \(session.provider.name) reply") { session.cancelNativeRequest() } }
             if session.latestComparisonAttempt?.status == .uncertain {
                 Text("The last request was incomplete. Continuing may consume provider usage again.").font(.caption).foregroundStyle(.orange)
                 Button("Acknowledge incomplete request") { session.acknowledgeIncompleteRequest() }.disabled(busy)
+            }
+            if session.provider == .grokbot, session.latestComparisonAttempt?.status == .waiting {
+                Text("Grok Bot may continue working if you stop waiting.").font(.caption).foregroundStyle(.secondary)
+                Button("Stop waiting for this reply") { session.acknowledgeIncompleteRequest() }.disabled(busy)
             }
             MessageInput(text: Binding(get: { session.state.draft }, set: { text in session.updateState { $0.draft = text } }),
                 attachments: [], addAttachments: { _ in }, removeAttachment: { _ in }, placeholder: "Message \(session.provider.name)",
@@ -526,6 +537,8 @@ private let localAccountIcons: [String: NSImage] = Dictionary(uniqueKeysWithValu
 )
 
 private let museDefaultAvatar = Bundle.main.url(forResource: "MuseAvatar", withExtension: "jpg").flatMap { try? Data(contentsOf: $0) }
+private let grokBotAvatar = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.anysphere.sand")
+    .flatMap { NSWorkspace.shared.icon(forFile: $0.path).tiffRepresentation }
 private let webDefaultAvatars: [WebProvider: Data] = Dictionary(uniqueKeysWithValues:
     [WebProvider.chatgpt, .claude, .grok, .codexCLI, .claudeCode].compactMap { provider in
         let resource = provider == .codexCLI ? "chatgpt" : provider == .claudeCode ? "claude" : provider.rawValue
@@ -536,6 +549,6 @@ private let webDefaultAvatars: [WebProvider: Data] = Dictionary(uniqueKeysWithVa
 )
 @MainActor
 private func webAgent(_ session: WebAgentSession) -> Agent {
-    Agent(name: session.provider.name, handles: [], avatar: session.provider == .muse ? session.avatar ?? museDefaultAvatar : webDefaultAvatars[session.provider],
+    Agent(name: session.provider.name, handles: [], avatar: session.provider == .grokbot ? grokBotAvatar : session.provider == .muse ? session.avatar ?? museDefaultAvatar : webDefaultAvatars[session.provider],
           colorIndex: WebProvider.allCases.firstIndex(of: session.provider)! + 4)
 }

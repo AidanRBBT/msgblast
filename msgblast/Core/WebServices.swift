@@ -2,13 +2,15 @@ import Foundation
 import CryptoKit
 
 public enum WebSendStatus: String, Codable, Sendable {
-    case preparing, attempting, observed, notSent, uncertain, dismissed
+    case preparing, attempting, waiting, observed, notSent, uncertain, dismissed
+    public var isUnresolved: Bool { [.attempting, .waiting, .uncertain].contains(self) }
     public func label(for provider: WebProvider) -> String {
         switch self {
         case .preparing: "Checking \(provider.name)…"
         case .attempting: "Submitting to \(provider.name)…"
-        case .observed: provider.personalAgentProvider == nil ? "Appeared in \(provider.name)" : "\(provider.name) replied"
-        case .notSent: provider.personalAgentProvider == nil ? "Not sent to \(provider.name)" : "No completed reply from \(provider.name)"
+        case .waiting: "Waiting for \(provider.name)’s reply…"
+        case .observed: provider.usesNativeConversation ? "\(provider.name) replied" : "Appeared in \(provider.name)"
+        case .notSent: provider.usesNativeConversation ? "No completed reply from \(provider.name)" : "Not sent to \(provider.name)"
         case .uncertain: "\(provider.name) submission unconfirmed"
         case .dismissed: "Incomplete request acknowledged"
         }
@@ -24,6 +26,7 @@ public struct WebSendAttempt: Codable, Equatable, Identifiable, Sendable {
     public var messageID: String?
     public var comparisonID: UUID?
     public var conversationURL: URL?
+    public var callbackHash: Data?
     public init(text: String, status: WebSendStatus = .preparing) {
         self.text = text; self.status = status
     }
@@ -105,7 +108,7 @@ public struct WebWorkspaceState: Codable, Sendable {
         localSessionPolicyVersions[key] = 1
     }
     public func hasUnresolvedSend(_ text: String) -> Bool {
-        attempts.contains { $0.text == text && [.attempting, .uncertain].contains($0.status) }
+        attempts.contains { $0.text == text && $0.status.isUnresolved }
     }
     public func recoveringInFlight() -> Self {
         var result = self
@@ -161,7 +164,7 @@ public enum AgentBroadcast {
         async let webAttempts = web(text)
         async let comparisonID = messages(text)
         let result = await AgentBroadcastResult(web: webAttempts, comparisonID: comparisonID)
-        let mayHaveSent = result.comparisonID != nil || result.web.values.contains { [.observed, .uncertain].contains($0.status) }
+        let mayHaveSent = result.comparisonID != nil || result.web.values.contains { [.observed, .waiting, .uncertain].contains($0.status) }
         // Keep edits to the next message; a wholly rejected broadcast remains ready to correct.
         if mayHaveSent && currentDraft() == draft { clearDraft() }
         return result
