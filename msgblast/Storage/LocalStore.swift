@@ -56,6 +56,7 @@ struct LocalStore: Sendable {
         var references = state.attachmentsDraft ?? []
         for comparison in state.comparisons {
             references += comparison.attachments ?? []
+            references += comparison.sharedContext?.flatMap(\.attachments) ?? []
             references += comparison.allAttachmentsDraft ?? []
             references += comparison.privateAttachmentDrafts?.values.flatMap { $0 } ?? []
             references += comparison.members.compactMap(\.payload).flatMap(\.parts).compactMap(\.attachment)

@@ -38,6 +38,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
     private var avatarKey: String?
     private var navigationError: String?
     private var readinessError: String?
+    private var receiptGenerations: [UUID: Int] = [:]
     public let provider: WebProvider
     private var script: WebPageScript { WebPageScript(provider: provider) }
 
@@ -125,8 +126,58 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
     private var comparisonURL: URL {
         if let id = state.comparisonID,
            let url = state.conversationURLs[id.uuidString], provider.isSavedConversation(url) { return url }
+        if let url = unresolvedWebAttempt?.pinnedConversationURL, provider.isSavedConversation(url) { return url }
         if provider == .dots, let url = state.dotsURL, provider.isSavedConversation(url) { return url }
         return provider.newChatURL
+    }
+
+    private var unresolvedWebAttempt: WebSendAttempt? {
+        guard provider.personalAgentProvider == nil, state.comparisonID != nil else { return nil }
+        return state.attempts.first { $0.comparisonID == state.comparisonID && $0.status == .uncertain }
+    }
+
+    public var needsConversationLink: Bool {
+        unresolvedWebAttempt != nil
+    }
+
+    public var canLinkCurrentConversation: Bool {
+        guard needsConversationLink, !isSending, !loading, snapshot.ready, snapshot.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              let attempt = unresolvedWebAttempt, let comparison = state.comparisonID, let current = URL(string: snapshot.url),
+              let url = provider.canonicalConversationURL(current),
+              webView.url.flatMap(provider.canonicalConversationURL) == url,
+              (provider == .dots || !state.conversationURLs.contains(where: { $0.key != comparison.uuidString && provider.canonicalConversationURL($0.value) == url })) else { return false }
+        if let saved = state.conversationURLs[comparison.uuidString], provider.canonicalConversationURL(saved) != url { return false }
+        if let candidate = attempt.pinnedConversationURL, candidate != url { return false }
+        let matches = snapshot.messages.indices.filter { snapshot.messages[$0].role == "user" && Self.normalized(snapshot.messages[$0].text) == Self.normalized(attempt.text) }
+        guard matches.count == 1 else { return false }
+        return snapshot.messages.dropFirst(matches[0] + 1).prefix { $0.role != "user" }.contains { $0.role == "assistant" }
+    }
+
+    // Explicit user linking recovers requests whose automatic attribution could not finish.
+    // It observes the existing request; it never clicks Send or repeats that request.
+    public func linkCurrentConversation() async {
+        guard !isSending, !loading, !storageFailed else { return }
+        let comparison = state.comparisonID
+        let generation = comparisonGeneration
+        let navigation = navigationGeneration
+        do {
+            guard let result = try await webView.callAsyncJavaScript(script.inspect, arguments: [:], in: nil, contentWorld: .defaultClient),
+                  generation == comparisonGeneration, navigation == navigationGeneration, !loading else { return }
+            snapshot = try JSONDecoder().decode(WebPageSnapshot.self, from: JSONSerialization.data(withJSONObject: result))
+        } catch { return }
+        guard comparisonGeneration == generation, !isSending, canLinkCurrentConversation,
+              var attempt = unresolvedWebAttempt, let comparison, let current = URL(string: snapshot.url),
+              let url = provider.canonicalConversationURL(current) else { return }
+        attempt.status = .observed
+        attempt.messageID = snapshot.messages.first { $0.role == "user" && Self.normalized($0.text) == Self.normalized(attempt.text) }?.id
+        attempt.conversationURL = url
+        attempt.recoveryConversationURL = nil
+        attempt.receiptContext = nil
+        receiptGenerations.removeValue(forKey: attempt.id)
+        attempt.detail = "Conversation linked after the user reviewed its existing request and reply."
+        state.conversationURLs[comparison.uuidString] = url
+        do { try store(attempt); error = nil }
+        catch { self.error = "Could not save the linked conversation. Repair storage before sending." }
     }
     private func loadComparisonChat() {
         if fixture { webView.loadHTMLString(script.fixture, baseURL: comparisonURL) }
@@ -176,14 +227,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
         if let id = state.comparisonID, let saved = state.conversationURLs[id.uuidString], !provider.isSavedConversation(saved) {
             throw WebSessionFailure.notSent("This comparison’s saved \(provider.name) chat is invalid. Nothing was sent; its saved address has been preserved.")
         }
-        let target = comparisonURL
         let request = comparisonGeneration
-        func matchesTarget(_ location: String) -> Bool {
-            if location == target.absoluteString { return true }
-            // /dots resolves to the account's ongoing dot, never a new ChatGPT chat.
-            return provider == .dots && target == provider.newChatURL &&
-                URL(string: location).flatMap(provider.canonicalConversationURL) != nil
-        }
         func checkCurrent() throws {
             try Task.checkCancellation()
             guard comparisonGeneration == request else { throw CancellationError() }
@@ -195,11 +239,26 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
             try checkCurrent()
             guard let result else { throw WebSessionFailure.notSent("\(provider.name)’s page could not be checked before switching chats.") }
             snapshot = try JSONDecoder().decode(WebPageSnapshot.self, from: JSONSerialization.data(withJSONObject: result))
+            reconcileUnconfirmedReceipt()
             readyBeforeSetup = snapshot.ready
         }
         try checkCurrent()
         guard snapshot.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw WebSessionFailure.notSent("\(provider.name) has a draft. Send or clear it before switching chats.")
+        }
+        let target = comparisonURL // Inspection above may have recovered a late receipt.
+        func matchesTarget(_ location: String) -> Bool {
+            if location == target.absoluteString { return true }
+            // /dots resolves to the account's ongoing dot, never a new ChatGPT chat.
+            return provider == .dots && target == provider.newChatURL &&
+                URL(string: location).flatMap(provider.canonicalConversationURL) != nil
+        }
+        let pinned = unresolvedWebAttempt?.pinnedConversationURL
+        // A missed first receipt must not erase the live chat before recovery can inspect it.
+        if needsConversationLink, state.comparisonID.flatMap({ state.conversationURLs[$0.uuidString] }) == nil,
+           let current = URL(string: snapshot.url), let currentChat = provider.canonicalConversationURL(current),
+           pinned == nil || pinned == currentChat {
+            return readyBeforeSetup
         }
         if !loading, snapshot.url == target.absoluteString, !snapshot.ready {
             throw WebSessionFailure.notReady(snapshot.reason)
@@ -227,6 +286,35 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
         throw WebSessionFailure.notReady("\(provider.name)’s comparison chat could not open. Open it in this pane and sign in if needed. Nothing was sent.")
     }
 
+    // Inspect rendered account controls afresh; send readiness also includes busy pages and dialogs.
+    public func checkSignIn() async -> Bool? {
+        guard provider.personalAgentProvider == nil else { return nil }
+        connect()
+        do {
+            for _ in 0..<40 {
+                try Task.checkCancellation()
+                if !loading, !webView.isLoading, webView.url != nil { break }
+                try await Task.sleep(for: .milliseconds(250))
+            }
+            guard !loading, !webView.isLoading, canInspectWebsite else { return nil }
+            let generation = navigationGeneration
+            let result = try await webView.callAsyncJavaScript(script.signInStatus, arguments: [:], in: nil, contentWorld: .defaultClient)
+            guard !loading, !webView.isLoading, generation == navigationGeneration, let result else { return nil }
+            var fresh = try JSONDecoder().decode(WebPageSnapshot.self, from: JSONSerialization.data(withJSONObject: result))
+            if fresh.url == snapshot.url {
+                fresh.messages = snapshot.messages
+                fresh.submissionInterrupted = snapshot.submissionInterrupted
+            }
+            if snapshot != fresh { snapshot = fresh }
+            return fresh.signedIn
+        } catch { return nil }
+    }
+
+    private var canInspectWebsite: Bool {
+        guard let url = webView.url else { return false }
+        return url.scheme == "https" && url.host == provider.homeURL.host
+    }
+
     public func closePopup() { popup = nil; popupURL = ""; Task { await refresh() } }
 
     public func refresh() async {
@@ -243,7 +331,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
             updateNativeSnapshot()
             return
         }
-        guard let url = webView.url, provider.isChatURL(url) else {
+        guard canInspectWebsite else {
             var current = WebPageSnapshot()
             current.url = webView.url?.absoluteString ?? ""
             current.reason = provider == .muse ? "Sign in to Muse and open this comparison’s side chat." : "Sign in to \(provider.name) and open a chat."
@@ -259,7 +347,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
         defer { refreshing = false }
         let generation = navigationGeneration
         do {
-            if (provider == .chatgpt || provider == .dots) && !isSending {
+            if (provider == .chatgpt || provider == .dots) && !isSending && webView.url.map(provider.isChatURL) == true {
                 _ = try await webView.callAsyncJavaScript(script.configureInitialLayout, arguments: [:], in: nil, contentWorld: .defaultClient)
                 guard generation == navigationGeneration else { return }
             }
@@ -279,6 +367,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
                 updateState { $0.dotsURL = saved; $0.savedAvatar = nil }
                 clearAvatar()
             }
+            reconcileUnconfirmedReceipt()
             if fresh.ready, fresh.url == comparisonURL.absoluteString, !storageFailed,
                let readinessError, error == readinessError {
                 error = nil
@@ -357,6 +446,8 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
         if provider.personalAgentProvider != nil { return await sendNative(text, comparisonID: comparisonID) }
         guard !isSending, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
         guard !storageFailed else { error = "Repair web session storage before sending."; return nil }
+        await refresh()
+        guard !isSending else { return nil }
         guard !state.hasUnresolvedSend(text) else { error = "An earlier send of this text is unconfirmed. Check \(provider.name); MsgBlast will not resend it automatically."; return nil }
         isSending = true
         defer { isSending = false }
@@ -368,7 +459,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
         do {
             try save()
             guard !state.attempts.contains(where: { $0.comparisonID == id && [.attempting, .uncertain].contains($0.status) }) else {
-                throw WebSessionFailure.notSent("This comparison has an unconfirmed \(provider.name) send. Check its chat before continuing; no new chat or resend was attempted.")
+                throw WebSessionFailure.notSent("Open the original \(provider.name) chat and choose Use this conversation before sending a follow-up.")
             }
             if state.comparisonID != id { comparisonGeneration += 1 }
             state.comparisonID = id
@@ -390,15 +481,16 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
                 }
                 throw error
             }
-            guard preparation?["ok"] as? Bool == true, let messageIDs = preparation?["messageIDs"] as? [String] else {
+            guard preparation?["ok"] as? Bool == true, preparation?["messageIDs"] as? [String] != nil else {
                 throw WebSessionFailure.notSent(preparation?["reason"] as? String ?? "Could not prepare \(provider.name)’s message field.")
             }
-            let before = Set(messageIDs)
             guard let messages = preparation?["messages"], let paths = preparation?["existingConversationPaths"] as? [String] else {
                 throw WebSessionFailure.notSent("Could not establish the conversation before sending.")
             }
             let baseline = try JSONDecoder().decode([WebPageMessage].self, from: JSONSerialization.data(withJSONObject: messages))
             let existingPaths = Set(paths)
+            attempt.receiptContext = WebReceiptContext(originalURL: url, baseline: baseline, existingPaths: existingPaths)
+            receiptGenerations[attempt.id] = generation
             if provider == .muse { try await Task.sleep(for: .milliseconds(150)) }
             else { try await waitForSendControl(text, expectedURL: expectedURL, generation: generation) }
             guard generation == navigationGeneration, !loading else { throw WebSessionFailure.notSent("\(provider.name) navigated before submission. Review its draft.") }
@@ -411,34 +503,13 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
                 throw WebSessionFailure.notSent(result?["reason"] as? String ?? "\(provider.name)’s Send control was not clicked.")
             }
             guard result?["clicked"] as? Bool == true else { throw WebSessionFailure.unconfirmed }
-            let normalizedText = Self.normalized(text)
             for _ in 0..<20 {
                 try await Task.sleep(for: .milliseconds(250))
                 await refresh()
-                guard generation == navigationGeneration, let currentURL = URL(string: snapshot.url) else { break }
-                // Draft routes are optimistic: require an assigned conversation URL before saving.
-                if url == provider.newChatURL, currentURL == url {
-                    if snapshot.submissionInterrupted == true { break }
-                    continue
-                }
-                guard provider.acceptsReceipt(from: url, at: currentURL),
-                      let savedURL = provider.canonicalConversationURL(currentURL) else { break }
-                // A user edit/navigation or changed history makes attribution ambiguous.
-                // First sends may create a URL, but cannot reuse an already linked chat.
-                guard snapshot.submissionInterrupted != true,
-                      currentURL.path == url.path || (!existingPaths.contains(currentURL.path) && !state.conversationURLs.values.contains(currentURL)),
-                      snapshot.messages.starts(with: baseline) else { break }
-                let matches = snapshot.messages.filter { !before.contains($0.id) && $0.role == "user" && Self.normalized($0.text) == normalizedText }
-                if matches.count == 1 {
-                    attempt.status = .observed
-                    attempt.messageID = matches[0].id
-                    attempt.conversationURL = savedURL
-                    state.conversationURLs[id.uuidString] = savedURL
-                    attempt.detail = "The outgoing message appeared in \(provider.name). This is a page observation, not a server delivery receipt."
-                    try store(attempt)
-                    return attempt
-                }
-                if matches.count > 1 { break }
+                let previous = attempt
+                if observeReceipt(&attempt) { try store(attempt); return attempt }
+                if attempt.receiptContext == nil { break }
+                if attempt != previous { try store(attempt) } // Retain the safely assigned URL while markup is delayed.
             }
             attempt.status = .uncertain
             attempt.detail = "Send was clicked, but a unique outgoing message could not be confirmed. Check \(provider.name); no automatic resend."
@@ -450,8 +521,58 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
                 attempt.detail = error.localizedDescription
             }
         }
+        if attempt.status == .notSent {
+            attempt.recoveryConversationURL = nil
+            attempt.receiptContext = nil
+            receiptGenerations.removeValue(forKey: attempt.id)
+        }
         do { try store(attempt) } catch { self.error = "Could not save the send result. Check \(provider.name) before retrying." }
         return attempt
+    }
+
+    private func observeReceipt(_ attempt: inout WebSendAttempt) -> Bool {
+        guard var context = attempt.receiptContext else { return false }
+        func invalidate() -> Bool {
+            attempt.recoveryConversationURL = attempt.pinnedConversationURL
+            attempt.receiptContext = nil
+            receiptGenerations.removeValue(forKey: attempt.id)
+            return false
+        }
+        guard snapshot.submissionInterrupted != true, let current = URL(string: snapshot.url) else { return invalidate() }
+        // Across reloads/restarts only the already pinned candidate can be recovered.
+        let pinned = attempt.pinnedConversationURL
+        guard receiptGenerations[attempt.id] == navigationGeneration || pinned != nil else { return invalidate() }
+        if context.originalURL == provider.newChatURL, current == context.originalURL { return false }
+        guard provider.acceptsReceipt(from: context.originalURL, at: current), let url = provider.canonicalConversationURL(current),
+              pinned == nil || pinned == url,
+              current.path == context.originalURL.path || (!context.existingPaths.contains(current.path) && !state.conversationURLs.values.contains(where: { provider.canonicalConversationURL($0) == url })),
+              snapshot.messages.starts(with: context.baseline) else { return invalidate() }
+        context.candidateURL = url
+        attempt.recoveryConversationURL = url
+        attempt.receiptContext = context
+        let before = Set(context.baseline.map(\.id))
+        let text = Self.normalized(attempt.text)
+        let matches = snapshot.messages.filter { !before.contains($0.id) && $0.role == "user" && Self.normalized($0.text) == text }
+        guard matches.count <= 1 else { return invalidate() }
+        guard let match = matches.first, let comparison = attempt.comparisonID else { return false }
+        attempt.status = .observed
+        attempt.messageID = match.id
+        attempt.conversationURL = url
+        attempt.recoveryConversationURL = nil
+        attempt.receiptContext = nil
+        attempt.detail = "The outgoing message appeared in \(provider.name). This is a page observation, not a server delivery receipt."
+        state.conversationURLs[comparison.uuidString] = url
+        receiptGenerations.removeValue(forKey: attempt.id)
+        return true
+    }
+
+    private func reconcileUnconfirmedReceipt() {
+        guard !isSending, !storageFailed, var attempt = unresolvedWebAttempt, attempt.receiptContext != nil else { return }
+        let previous = attempt
+        _ = observeReceipt(&attempt)
+        guard attempt != previous else { return }
+        do { try store(attempt); if attempt.status == .observed { error = nil } }
+        catch { self.error = "Could not save the recovered conversation. Repair storage before sending." }
     }
 
     private func updateNativeSnapshot() {

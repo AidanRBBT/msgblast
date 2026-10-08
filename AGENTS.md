@@ -4,6 +4,7 @@
 
 - **Live/production app (default for users):** use the green icon imported from the user's `msgblast.icon` bundle. Its canonical project source is `output/app-icons/msgblast.icon`. Ensure `msgblast/AppIcon.icon` matches this bundle exactly when preparing a live build or release.
 - **Development app:** use `output/app-icons/msgblast-dev.icon`, a duplicate of the live artwork with the saved blue-green background. Copy it to `msgblast/AppIcon.icon` only for an isolated development build; restore the green live bundle before release.
+- Blue-green development previews use live data. Do not launch msgblast Dev with `--demo` or `--isolated-demo`; use the blue msgblast Demo app for simulated data, fixture demonstrations, and PR evidence.
 - **Demo/fixture app:** use `output/app-icons/msgblast-demo.icon`, a duplicate of the live artwork with the saved blue background. Its app resource is `msgblast/AppIconDemo.icon`.
 - Standard builds select `ASSETCATALOG_COMPILER_APPICON_NAME=AppIcon`. `scripts/build_demo.sh` selects `AppIconDemo`. Verify the selected artwork matches the intended live, development, or demo build before building or publishing; choosing Release alone does not switch the development icon to green.
 - The previous exploration 32 bundles under `output/icon-gradients/` are historical artwork. Do not use them for new builds or site branding.

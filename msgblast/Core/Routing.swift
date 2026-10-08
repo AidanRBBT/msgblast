@@ -53,6 +53,10 @@ public enum RecipientSet {
     }
 }
 public enum WindowLayout {
+    public static func chatWindowWidth(count: Int, surroundingWidth: Double, screenWidth: Double) -> Double {
+        min(screenWidth, max(760, surroundingWidth + Double(max(1, count)) * 390 + Double(max(0, count - 1))))
+    }
+
     public static func columns(count: Int, screenWidth: Double, screenHeight: Double) -> [SavedFrame] {
         let width = max(320, min(390, (screenWidth - 40) / Double(max(1, min(count, 3))) - 12))
         return (0..<count).map { SavedFrame(x: 20 + Double($0) * (width + 12), y: 320, width: width, height: max(400, screenHeight - 355)) }

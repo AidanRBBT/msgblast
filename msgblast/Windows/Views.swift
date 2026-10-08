@@ -194,6 +194,7 @@ struct MainView: View {
     @Environment(\.controlActiveState) private var controlActiveState
     @ObservedObject var model: AppModel
     @ObservedObject private var web: WebAgents
+    private let updater: AppUpdater
     private enum DetailSelection { case agents, discover }
     @State private var selection = DetailSelection.agents
     @State private var showingComparison = false
@@ -203,9 +204,10 @@ struct MainView: View {
     private var showingAgents: Bool { selection == .agents && !showingComparison }
     private var selectedComparisonID: UUID? { selection == .agents && showingComparison ? web.comparisonID : nil }
 
-    init(model: AppModel) {
+    init(model: AppModel, updater: AppUpdater) {
         self.model = model
         self.web = model.webAgents
+        self.updater = updater
     }
 
     var body: some View {
@@ -242,7 +244,12 @@ struct MainView: View {
                     if model.state.comparisons.isEmpty { Text("No comparisons").foregroundStyle(.secondary) }
                 }
             }.listStyle(.sidebar).navigationTitle("msgblast")
-                .safeAreaInset(edge: .bottom, spacing: 0) { WhatsNewSidebar().padding(12) }
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    VStack(spacing: 8) {
+                        UpdateSidebar(updater: updater)
+                        WhatsNewSidebar()
+                    }.padding(12)
+                }
                 .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 330)
         } detail: {
             if selection == .discover {
@@ -330,7 +337,6 @@ struct ConversationView: View {
     @ObservedObject var model: AppModel
     let comparisonID: UUID
     let memberID: UUID
-    var embedded = false
     var headerControls: ConversationHeaderControls?
     var body: some View {
         if let comparison = model.comparison(comparisonID), let member = comparison.members.first(where: { $0.id == memberID }) {
@@ -353,12 +359,10 @@ struct ConversationView: View {
                 } else {
                     TranscriptView(model: model, comparison: comparison, member: member)
                 }
-                if !embedded {
-                MessageInput(text: privateDraft, attachments: model.attachmentDraft(comparisonID: comparisonID, memberID: memberID), addAttachments: { await model.addAttachments($0, comparisonID: comparisonID, memberID: memberID) }, removeAttachment: { id in model.setAttachmentDraft(model.attachmentDraft(comparisonID: comparisonID, memberID: memberID).filter { $0.id != id }, comparisonID: comparisonID, memberID: memberID) }, placeholder: "Message", accessibilityName: "Private reply to \(member.name)", sendLabel: "Send privately", disabled: model.busy || member.anchor == nil) {
+                MessageInput(text: privateDraft, attachments: model.attachmentDraft(comparisonID: comparisonID, memberID: memberID), addAttachments: { await model.addAttachments($0, comparisonID: comparisonID, memberID: memberID) }, removeAttachment: { id in model.setAttachmentDraft(model.attachmentDraft(comparisonID: comparisonID, memberID: memberID).filter { $0.id != id }, comparisonID: comparisonID, memberID: memberID) }, placeholder: "Message", accessibilityName: "Private reply to \(member.name)", sendLabel: "Send privately", disabled: model.busy || model.webBroadcastBusy || member.anchor == nil) {
                     Task { await model.followUp(comparisonID, only: memberID) }
                 }.padding(12)
                 FollowUpStatus(model: model, comparison: comparison, only: memberID)
-                }
             }.frame(minWidth: 320, minHeight: 320).background(Color(nsColor: .textBackgroundColor))
         }
     }
@@ -561,7 +565,7 @@ struct ComparisonWorkspace: View {
                             ScrollView(.horizontal) {
                                 HStack(spacing: 0) {
                                     ForEach(comparison.members) { member in
-                                        ConversationView(model: model, comparisonID: comparisonID, memberID: member.id, embedded: true, headerControls: ConversationHeaderControls(selected: selection.selectedConversation == member.id, included: recipients.contains(member.id), selectConversation: {
+                                        ConversationView(model: model, comparisonID: comparisonID, memberID: member.id, headerControls: ConversationHeaderControls(selected: selection.selectedConversation == member.id, included: recipients.contains(member.id), selectConversation: {
                                             var updated = selection
                                             updated.selectConversation(member.id)
                                             model.setRecipients(updated, for: comparisonID)
@@ -609,6 +613,7 @@ struct RecipientPills: View {
         let recipientSet = Set(selection.recipientIDs(in: comparison.members))
         ScrollView(.horizontal) {
             HStack(spacing: 8) {
+                Text("Send to").font(.caption).foregroundStyle(.secondary)
                 ForEach(comparison.members) { member in
                     let included = recipientSet.contains(member.id)
                     Button {
@@ -624,6 +629,17 @@ struct RecipientPills: View {
                         .accessibilityValue(included ? "Selected" : "Not selected")
                         .help(included ? "Exclude \(member.name) from this message" : "Include \(member.name) in this message")
                         .disabled(model.busy)
+                }
+                ForEach(model.state.agents.filter { agent in !comparison.members.contains(where: { $0.id == agent.id }) }) { agent in
+                    Button {
+                        Task { await model.addAgent(agent, to: comparison.id); model.coordinator?.open(comparison.id) }
+                    } label: {
+                        Label(agent.name, systemImage: "plus.circle").font(.system(size: 13, weight: .medium))
+                            .padding(.horizontal, 12).padding(.vertical, 6)
+                    }.buttonStyle(.plain)
+                        .accessibilityLabel("Add \(agent.name) to conversation")
+                        .help("Add \(agent.name) with the original ask and shared follow-ups")
+                        .disabled(model.busy || model.route(agent) == nil)
                 }
             }
         }.scrollIndicators(.hidden).frame(height: 36)

@@ -4,10 +4,17 @@ import msgblastCore
 @preconcurrency import Sparkle
 
 @MainActor
-final class AppUpdater: NSObject, ObservableObject {
-    var canCheckForUpdates: Bool { controller?.updater.canCheckForUpdates ?? false }
+final class AppUpdater: NSObject, ObservableObject, @preconcurrency SPUStandardUserDriverDelegate {
+    struct PendingUpdate {
+        let version: String
+        let build: String
+        let isReady: Bool
+    }
+    @Published private(set) var pendingUpdate: PendingUpdate?
+    var canCheckForUpdates: Bool { updater?.canCheckForUpdates ?? false }
     let configuration: UpdateConfiguration
-    private var controller: SPUStandardUpdaterController?
+    private var updater: SPUUpdater?
+    private var userDriver: SidebarUpdateUserDriver?
     private var observations: [NSKeyValueObservation] = []
 
     override init() {
@@ -21,11 +28,22 @@ final class AppUpdater: NSObject, ObservableObject {
         super.init()
     }
 
-    func configure(delegate: SPUUpdaterDelegate) {
-        guard configuration.isEnabled, controller == nil else { return }
-        let controller = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: delegate, userDriverDelegate: nil)
-        self.controller = controller
-        let updater = controller.updater
+    func configure(delegate: AppLifecycle) {
+        guard configuration.isEnabled, updater == nil else { return }
+        delegate.observeUpdates(with: self)
+        let driver = SidebarUpdateUserDriver(hostBundle: .main, delegate: self)
+        driver.owner = self
+        let updater = SPUUpdater(hostBundle: .main, applicationBundle: .main, userDriver: driver, delegate: delegate)
+        self.userDriver = driver
+        self.updater = updater
+        do { try updater.start() } catch {
+            DispatchQueue.main.async {
+                let alert = NSAlert()
+                alert.messageText = "Unable to Check For Updates"
+                alert.informativeText = error.localizedDescription
+                alert.runModal()
+            }
+        }
         observations = [
             updater.observe(\.canCheckForUpdates, options: [.new]) { [weak self] _, _ in
                 Task { @MainActor in self?.objectWillChange.send() }
@@ -39,13 +57,32 @@ final class AppUpdater: NSObject, ObservableObject {
         ]
     }
 
+    var supportsGentleScheduledUpdateReminders: Bool { true }
+
+    func standardUserDriverWillHandleShowingUpdate(_ handleShowingUpdate: Bool, forUpdate update: SUAppcastItem, state: SPUUserUpdateState) {
+        showUpdate(update, isReady: state.stage == .installing)
+    }
+
+    func showUpdate(_ item: SUAppcastItem, isReady: Bool) {
+        // Resuming the same prepared installer must not downgrade its reminder.
+        let ready = isReady || (pendingUpdate?.build == item.versionString && pendingUpdate?.isReady == true)
+        pendingUpdate = PendingUpdate(version: item.displayVersionString, build: item.versionString, isReady: ready)
+    }
+
+    func markUpdateReady() {
+        guard let update = pendingUpdate else { return }
+        pendingUpdate = PendingUpdate(version: update.version, build: update.build, isReady: true)
+    }
+
+    func clearUpdate() { pendingUpdate = nil }
+
     var automaticallyChecks: Bool {
-        get { controller?.updater.automaticallyChecksForUpdates ?? false }
-        set { controller?.updater.automaticallyChecksForUpdates = newValue }
+        get { updater?.automaticallyChecksForUpdates ?? false }
+        set { updater?.automaticallyChecksForUpdates = newValue }
     }
     var automaticallyInstalls: Bool {
-        get { controller?.updater.automaticallyDownloadsUpdates ?? false }
-        set { controller?.updater.automaticallyDownloadsUpdates = newValue }
+        get { updater?.automaticallyDownloadsUpdates ?? false }
+        set { updater?.automaticallyDownloadsUpdates = newValue }
     }
     var version: String {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown"
@@ -53,7 +90,7 @@ final class AppUpdater: NSObject, ObservableObject {
         return "Version \(version) (\(build))"
     }
     func checkForUpdates() {
-        if let controller { controller.checkForUpdates(nil); return }
+        if let updater { updater.checkForUpdates(); return }
         let alert = NSAlert()
         alert.messageText = "Updates unavailable"
         alert.informativeText = "\(configuration.unavailableReason)\n\n\(version)"
@@ -62,16 +99,48 @@ final class AppUpdater: NSObject, ObservableObject {
     }
 }
 
+/// Keep Sparkle's standard UI while observing its verified manual-install readiness.
+@MainActor
+private final class SidebarUpdateUserDriver: SPUStandardUserDriver {
+    weak var owner: AppUpdater?
+
+    override func showReady(toInstallAndRelaunch reply: @escaping (SPUUserUpdateChoice) -> Void) {
+        owner?.markUpdateReady()
+        super.showReady(toInstallAndRelaunch: reply)
+    }
+}
+
 /// Sparkle's Install and Relaunch follows the same safe-quit path as the app menu.
 @MainActor
 final class AppLifecycle: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     private weak var model: AppModel?
+    private weak var updateUI: AppUpdater?
     private let termination = UpdateTermination()
     private var busyObservation: AnyCancellable?
     private var pendingInstall: (() -> Void)?
     #if DEBUG
     var didPostponeRelaunch: (() -> Void)?
     #endif
+
+    func observeUpdates(with updater: AppUpdater) { updateUI = updater }
+
+    func updater(_ updater: SPUUpdater, didFindValidUpdate item: SUAppcastItem) {
+        updateUI?.showUpdate(item, isReady: false)
+    }
+
+    func updater(_ updater: SPUUpdater, willInstallUpdateOnQuit item: SUAppcastItem, immediateInstallationBlock immediateInstallHandler: @escaping () -> Void) -> Bool {
+        updateUI?.showUpdate(item, isReady: true)
+        // Sparkle keeps scheduling and owns installation; the sidebar opens its standard UI.
+        return false
+    }
+
+    func updater(_ updater: SPUUpdater, userDidMake choice: SPUUserUpdateChoice, forUpdate item: SUAppcastItem, state: SPUUserUpdateState) {
+        if choice == .skip { updateUI?.clearUpdate() }
+    }
+
+    func updater(_ updater: SPUUpdater, didAbortWithError error: Error) {
+        updateUI?.clearUpdate()
+    }
 
     func configure(model: AppModel) {
         guard self.model == nil else { return }

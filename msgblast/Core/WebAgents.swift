@@ -61,6 +61,17 @@ public final class WebAgents: ObservableObject {
         }
     }
     public func connectSelected() { selected.forEach { $0.connect() } }
+    public func signInRequired(for sessions: [WebAgentSession]) async -> [WebProvider] {
+        let tasks = sessions.filter { $0.provider.personalAgentProvider == nil }.map { session in
+            Task { @MainActor in (session.provider, await session.checkSignIn()) }
+        }
+        var providers: [WebProvider] = []
+        for task in tasks {
+            let (provider, signedIn) = await task.value
+            if signedIn == false { providers.append(provider) }
+        }
+        return providers
+    }
     public var hasNativeRequests: Bool { sessions.contains { $0.provider.personalAgentProvider != nil && $0.isSending } }
     public func beginShutdown() { sessions.forEach { $0.beginShutdown() } }
     public func cancelAndWait() async { for session in sessions { await session.cancelAndWait() } }
