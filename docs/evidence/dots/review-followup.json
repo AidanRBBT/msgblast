@@ -110,5 +110,16 @@
       "Prior hosted native pixel failure remains unattributed; require green final-head native CI.",
       "Original exact anchored-layout regression coverage gap remains disclosed."
     ]
+  },
+  "sprite_readiness_followup": {
+    "source_revision": "a6996f9bc8b01edcec1d2f3a4930d1d126c676b7",
+    "review_run_id": "20261008-120215-sprite-readiness",
+    "findings": [],
+    "local_validation": "Full201 native tests passed, including all four focused avatar tests.",
+    "red_regression": "Before the fix, old code did not enter the controlled decode boundary and replaced cached bytes while decoding was paused. This does not establish the earlier hosted white-pixel failure cause.",
+    "fix": "Await sprite image decoding and nested image decoding for changed identities; retain descriptor stability after awaits. Cached identities and post-snapshot verification skip redundant decode. Animation-frame waits were tested and withdrawn because background fixture windows stalled.",
+    "live_dev": "Final isolated functional Dev at this revision reused the user-authorized existing ChatGPT session and returned DOTS_DECODE_OK on /dots/home. Only this task-owned Dev cache PNG was cleared and backed up before testing; fresh capture saved a real puppy PNG, visually verified. Quit/relaunch restored the picker avatar and reopened the saved comparison. Animated still-frame byte equality after reconnection is not claimed. Live recordings remain local and excluded from the repository.",
+    "hosted_ci": "Require fresh green final-head native CI.",
+    "existing_limit": "Exact earlier live anchored-layout crop still lacks an automated reproducer."
   }
 }

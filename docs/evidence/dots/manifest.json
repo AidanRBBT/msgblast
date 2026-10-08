@@ -4,8 +4,8 @@
   "runtime_source_sha256": {
     "msgblast/Core/WebProvider.swift": "762b42ddc0c6db81ab6ffa782bf366a65c349e6055927cf77827c1050bc41187",
     "msgblast/Core/WebServices.swift": "82e260134bf3502558a590325c9abef28d664f1260028ab3e2400a2b57877c4a",
-    "msgblast/Core/WebAgentSession.swift": "6e6d17798fc16832dcba2ff68fcdf28a5267f1d901129ff188903b5eeb139659",
-    "msgblast/Core/WebPageScript.swift": "dcd04cab51f345c019429b95691b28a14800c5985461c16fc09aa92eeb0227b8",
+    "msgblast/Core/WebAgentSession.swift": "7eb25e08feff84e223bee97efbfdff087a165fd24be22e9f4ebd9c8997544bfb",
+    "msgblast/Core/WebPageScript.swift": "5f511bd03f94ae6554d8d029447077d6eeb58afc4fd846f5bd7d594eae8c647e",
     "msgblast/Windows/WebServicesView.swift": "81a08057982ebd19c3c27fcf1f47557a751d8e73e2f68a4ad8a2a37489d93c1d"
   },
   "fixture_icon_source": "output/icon-gradients/32-WhiteToClearSoftFadeBlue.icon",
@@ -13,15 +13,16 @@
   "website_content": "synthetic local Dots DOM, SVG avatar, and replies; no live sends",
   "video_timing": "24-second continuous native fixture window recording, trimmed at normal speed; synthetic website replies and avatar artwork. The comparison narrows the window; recording padding is retained.",
   "verification": {
-    "native_core_tests_passed": 200,
+    "native_core_tests_passed": 201,
     "python_tests_passed": 74,
-    "focused_new_regressions_passed": 4,
+    "focused_new_regressions_passed": 5,
     "final_routing_control_passed": true,
-    "revision_qualification": "Full 200-test suite passed with the final runtime code; the final one-line routing-test polling correction then passed its focused rerun. Hosted CI must validate the final PR head.",
+    "revision_qualification": "Full 201-test local native suite passed on this exact runtime and test source. Hosted CI must validate the final PR head.",
     "app_controller_and_lifecycle_fixtures": "previously passed; unchanged by these runtime fixes",
-    "xcode_ui_runner": "Earlier UI-runner bootstrap timed out before any UI test executed. Actual final Dev workflow tested through native computer use; permissions unchanged."
+    "xcode_ui_runner": "Earlier UI-runner bootstrap timed out before any UI test executed. Actual final Dev workflow tested through native computer use; permissions unchanged.",
+    "focused_avatar_tests_passed": 4
   },
-  "live_inspection": "Final isolated functional Dev at this runtime revision reused the user-authorized existing live ChatGPT session, returned DOTS_FINAL_OK on /dots/home, and displayed the real puppy avatar. Quit/relaunch restored the picker avatar and reopened the saved comparison with its reply. A connected animated avatar may refresh its saved still frame, so byte identity after reconnection is not asserted. Live recordings remain local and excluded from this repository.",
+  "live_inspection": "Final isolated functional Dev at this revision reused the user-authorized existing ChatGPT session and returned DOTS_DECODE_OK on /dots/home. Only this task-owned Dev cache PNG was cleared and backed up before testing; fresh capture saved a real puppy PNG, visually verified. Quit/relaunch restored the picker avatar and reopened the saved comparison. Animated still-frame byte equality after reconnection is not claimed. Live recordings remain local and excluded from the repository.",
   "development_version": "0.6.5",
   "development_build": "1",
   "notes_credit_capture": {
@@ -41,7 +42,7 @@
     "07-dots-contributor-credit.png"
   ],
   "archived_reference_frames": [],
-  "runtime_source_revision": "8f8b3a28f2314d4c3d7be648f1001160df75ef6f",
+  "runtime_source_revision": "a6996f9bc8b01edcec1d2f3a4930d1d126c676b7",
   "fix_review": {
     "historical_run": "20261008-110406-d26f89bb",
     "closure_run": "20261008-113815-8f8b3a2",
@@ -51,16 +52,18 @@
       4
     ],
     "remaining_blocking_issues_in_delta": [],
-    "scope": "Narrow incremental closure; hosted CI remains required."
+    "scope": "Narrow incremental closure; hosted CI remains required.",
+    "sprite_readiness_review": "20261008-120215-sprite-readiness",
+    "sprite_readiness_findings": []
   },
   "captured_files_sha256": {
-    "01-optional-picker.png": "dc5a1d4dd309a6053f4293cc98ecc25956c6a78309f8311c75dfcd60993dd120",
-    "02-dots-selected.png": "482a27480ffa31bc3086b8cc1faad3d4812afdf0ff6e7eaf780ecccb97b8eb5a",
-    "03-dots-reply.png": "a1ecd6e1602a4ca643ecb4562a13d624d92f7a88ead61a75a4acacd6eaa62ddd",
-    "04-updated-avatar.png": "29b42a596be73107d851e9038edcd328906da3f3c60166d8cd4137b53bea4b84",
-    "05-saved-avatar-picker.png": "5ec3135ab3a9410a8e4fee151f0c7ed97d1857cfc68ff78d895f5659ae086dd1",
-    "06-relaunch-avatar.png": "e0e20dd107e563a1177050df145daca7dfdb98bf2bb1ba80d70259107b3257c9",
+    "01-optional-picker.png": "2f52cb980cf40954aecef6a3a2ea85e14407469487135e32cf8bf196b0b8d908",
+    "02-dots-selected.png": "319ea448a5c38cc42f634bc2758fb5827d420b7caa60ea4572fc883fffde9baa",
+    "03-dots-reply.png": "424d3868212037f53f0a58775b0466c50d6ec6a231bce755528017d299544386",
+    "04-updated-avatar.png": "f2dc6bd8ac6c9a7c4fbddcfa448a1128d88d45068ecd5b14c7ad560046f5c7fa",
+    "05-saved-avatar-picker.png": "f9d2d6c208c70f3c1646765ab4d86caed069327acf2fc430092e1af0711ed100",
+    "06-relaunch-avatar.png": "1b9a1f09b9d41bf1b02ebecb8b5e5c424c3af5222acf9701a55e5ebc58531914",
     "07-dots-contributor-credit.png": "a49b8ba444a4cb63c8b829a4ce22d8816037bcb1d000d2afa32ce0f9d7699b69",
-    "dots-workflow.mp4": "c0f58c235388024a8e64b24a1e028f9adea9020ce7d134913e5a257c22854571"
+    "dots-workflow.mp4": "721fd48c89624fb972e4b248b5d00a9caa677e32bcb381ce21da2745d54b1abc"
   }
 }

@@ -1,18 +1,19 @@
 {
   "result": "Passed",
-  "totalTestCount": 200,
-  "passedTests": 200,
+  "totalTestCount": 201,
+  "passedTests": 201,
   "failedTests": 0,
   "skippedTests": 0,
   "testFailures": [],
-  "runtime_source_revision": "8f8b3a28f2314d4c3d7be648f1001160df75ef6f",
-  "revision_qualification": "Full 200-test suite passed with the final runtime code; the final one-line routing-test polling correction then passed its focused rerun. Hosted CI must validate the final PR head.",
+  "runtime_source_revision": "a6996f9bc8b01edcec1d2f3a4930d1d126c676b7",
+  "revision_qualification": "Full 201-test local native suite passed on this exact runtime and test source. Hosted CI must validate the final PR head.",
   "focused_final_routing_test": "Passed after disabling periodic polling",
   "new_regressions": [
     "Fresh comparison selects currently open dot before polling",
     "Live /dots/home route and comparison restoration",
     "Fractional native pane bounds",
-    "Resize and movement during avatar capture preserve old cache and retry"
+    "Resize and movement during avatar capture preserve old cache and retry",
+    "Sprite decoding is paused before capture; prior cached bytes remain until readiness"
   ],
-  "hosted_native_ci": "Pending final PR head validation"
+  "hosted_native_ci": "New final-head validation pending; previous 200-test run passed four new regressions but retained the original strict sprite failure."
 }
