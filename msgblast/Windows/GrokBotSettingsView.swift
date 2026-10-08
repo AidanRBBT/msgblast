@@ -25,6 +25,12 @@ struct GrokBotSettingsView: View {
                     .font(.caption).foregroundStyle(.secondary)
                 Text("3. Copy “POST to” into Webhook URL and “key” into Webhook key, then choose Connect Grok Bot.")
                     .font(.caption).foregroundStyle(.secondary)
+            }
+            Button("Copy Bot setup instructions") {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(GrokBotService.routineInstructions, forType: .string)
+            }.disabled(session.fixture)
+            if !session.fixture {
                 TextField("Webhook URL", text: $webhookURL).accessibilityLabel("Grok Bot webhook URL")
                     .disabled(session.configuringGrokBot)
                 SecureField("Webhook key", text: $webhookKey).accessibilityLabel("Grok Bot webhook key")
@@ -62,10 +68,6 @@ struct GrokBotSettingsView: View {
                 }
                 if let error = session.error { Text(error).font(.caption).foregroundStyle(.orange).textSelection(.enabled) }
             }
-            Button("Copy Bot setup instructions") {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(GrokBotService.routineInstructions, forType: .string)
-            }.disabled(session.fixture)
         }
         .onAppear { webhookURL = session.grokBotWebhookURL }
         .onChange(of: session.grokBotWebhookURL) { previous, current in

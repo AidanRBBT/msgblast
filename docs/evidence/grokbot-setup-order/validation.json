@@ -1,0 +1,14 @@
+{
+  "change": "Setup instructions and copy button precede webhook URL and key fields.",
+  "profile": "Isolated functional preview with empty credentials; no Messages permission granted.",
+  "inputs": "No message or webhook was sent.",
+  "validation": [
+    "Native Debug build passed.",
+    "App and ZIP re-extraction passed strict deep signature verification.",
+    "Native screenshot verified full section order.",
+    "Copy button followed by URL then key in keyboard navigation."
+  ],
+  "source_file": "msgblast/Windows/GrokBotSettingsView.swift",
+  "source_sha256": "008c50321e1645f4cee7f0b9c774b503c3d81bdfe0c46ac759fca606134630b0",
+  "video": "Actual native copy button and keyboard navigation; unedited timing, H.264 re-encode."
+}
