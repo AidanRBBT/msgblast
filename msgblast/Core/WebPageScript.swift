@@ -18,7 +18,7 @@ struct WebPageScript {
             selectors = (#"[contenteditable="true"][role="textbox"][aria-label="Message"][data-composer-markdown]"#,
                          #"button[aria-label="Send"]"#,
                          #"article.message-row[data-message-id]"#,
-                         #"button[aria-label="Your dot actions"]"#)
+                         #"button[aria-label="Your dot actions"],button[data-orbit-profile-trigger][aria-label^="Open "][aria-label$="profile"]"#)
         case .claude:
             selectors = (#"[contenteditable="true"][data-testid="chat-input"],div[contenteditable="true"].ProseMirror"#,
                          #"button[aria-label="Send message"],button[data-testid="send-button"]"#,

@@ -364,6 +364,19 @@ final class MultiWebAgentTests: XCTestCase {
         }
     }
 
+    func testDotsNarrowLayoutUsesItsProfileControlWithoutTheWideToolbar() async throws {
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let session = WebAgentSession(provider: .dots, storageURL: directory.appendingPathComponent("state.json"), fixture: true)
+        session.connect()
+        try await waitFor { session.snapshot.ready }
+        _ = try await session.webView.callAsyncJavaScript("document.querySelector('button[aria-label=\"Your dot actions\"]').remove()", arguments: [:], in: nil, contentWorld: .page)
+        await session.refresh()
+        XCTAssertTrue(session.snapshot.ready, "The narrow live layout retains its profile control")
+        let attempt = await session.send("Narrow Dots layout")
+        XCTAssertEqual(attempt?.status, .observed)
+    }
+
     func testDotsCanLinkAnUnconfirmedReplyInTheOngoingThreadUsedByAnotherBlast() async throws {
         let directory = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
