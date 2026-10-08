@@ -1,0 +1,52 @@
+{
+  "mode": "isolated native Mac fixture",
+  "bundle_id": "com.msgblast.dots-fixture",
+  "captured_at": "2026-10-08T20:01:20.442765+00:00",
+  "runtime_source_revision": "d3adbb46b845ae14f5d3e323f307826660fee2b5",
+  "runtime_source_sha256": {
+    "msgblast/Core/WebProvider.swift": "762b42ddc0c6db81ab6ffa782bf366a65c349e6055927cf77827c1050bc41187",
+    "msgblast/Core/WebServices.swift": "82e260134bf3502558a590325c9abef28d664f1260028ab3e2400a2b57877c4a",
+    "msgblast/Core/WebAgentSession.swift": "7eb25e08feff84e223bee97efbfdff087a165fd24be22e9f4ebd9c8997544bfb",
+    "msgblast/Core/WebPageScript.swift": "5f511bd03f94ae6554d8d029447077d6eeb58afc4fd846f5bd7d594eae8c647e",
+    "msgblast/Windows/WebServicesView.swift": "528d2e525b6bf8cef8d8329d7f4c1b484d77fb0c7f804f20e2a68b965eade1f9",
+    "msgblast/Resources/WebAgentIcons/dots.pdf": "05f90e62c15e529e52c8c3e611ab1b0fedcfe921522f5d82f749999af4dd301d"
+  },
+  "captured_files_sha256": {
+    "08-default-ring-picker.png": "f8eeae5294b59ae15c5c4c5a573b365d3fcc9121562473d096f834b6a3c57c4e",
+    "09-personal-avatar-priority.png": "b44a27f80c247c4859f1634a7a3360b7e6fa1c7b79d2979f1201f67ae6484d5a",
+    "10-saved-personal-avatar.png": "38cd9ba83923ae877a87d47c61ea811e16311b3d2c1d03669808e8a84c0cdc19",
+    "11-ring-after-signout.png": "655fbce4aabd688469ae3031a9b1745fe7d147041449d378f384dc499441160e",
+    "12-personal-avatar-relaunch.png": "fb02702dda0ed8f6296e3a05210def4cd18c147917c0fdd2e86cb52a090cd2c4",
+    "dots-ring-workflow.mp4": "ede2d51e4b3d6c0a41b45685b1e15176855b528e9c292b501e8d35c5fffaf233"
+  },
+  "default_mark": "Transparent vector ring with 40% inner/outer diameter; matches supplied screenshot. Personal saved avatar has precedence.",
+  "fixture_account": "Synthetic local sign-in/sign-out, replies and avatar artwork. No provider requests.",
+  "video": "29-second continuous native window recording trimmed at normal speed; padding retained. Ring in signed-out pane and picker, simulated sign-in, personal artwork, saved picker avatar. Relaunch captured separately.",
+  "development_version": "0.6.5",
+  "development_build": "1 (local metadata only)",
+  "verification": {
+    "native_core_tests_passed": 201,
+    "native_core_test_failures": 0,
+    "isolated_dev_build": "passed",
+    "isolated_fixture_build": "passed",
+    "bundled_asset_bytes": "match source exactly",
+    "native_image_decode": "NSImage(data:) loads 256x256 vector",
+    "visual_checks": [
+      "empty-avatar picker ring",
+      "signed-out header ring",
+      "personal avatar replaces ring",
+      "changed avatar saved in picker",
+      "avatar cache clearing returns ring",
+      "personal avatar restored after relaunch"
+    ],
+    "functional_dev": "Reopened with existing authorized account; real saved puppy preserved; no live sign-out or messages sent. Personal screenshot remains local.",
+    "no_new_unit_test": "View asset/fallback leaf; manual native rendering and priority checks provide replacement verification.",
+    "hosted_ci": "Earlier head 0ed7508 passed; rerun required once this prepared update is pushed.",
+    "native_core_test_duration_seconds": 174.241
+  },
+  "review": {
+    "run_id": "20261008-124213-f1ec5cf1",
+    "status": "complete",
+    "scope": "Three-file ring fallback delta; no actionable findings. Runtime/UI verification performed by parent."
+  }
+}

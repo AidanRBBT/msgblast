@@ -37,7 +37,7 @@ public final class WebAgents: ObservableObject {
         for session in sessions where session.state.comparisonID != id { session.updateState { $0.comparisonID = id } }
     }
     public func setEnabled(_ enabled: Bool, for provider: WebProvider) {
-        guard let session = sessions.first(where: { $0.provider == provider }), provider.personalAgentProvider != nil else { return }
+        guard let session = sessions.first(where: { $0.provider == provider }), provider.usesNativeConversation else { return }
         session.setEnabled(enabled)
         if enabled { session.connect() }
     }
@@ -62,7 +62,7 @@ public final class WebAgents: ObservableObject {
     }
     public func connectSelected() { selected.forEach { $0.connect() } }
     public func signInRequired(for sessions: [WebAgentSession]) async -> [WebProvider] {
-        let tasks = sessions.filter { $0.provider.personalAgentProvider == nil }.map { session in
+        let tasks = sessions.filter { !$0.provider.usesNativeConversation }.map { session in
             Task { @MainActor in (session.provider, await session.checkSignIn()) }
         }
         var providers: [WebProvider] = []
@@ -72,9 +72,9 @@ public final class WebAgents: ObservableObject {
         }
         return providers
     }
-    public var hasConnectedWebSessions: Bool { sessions.contains { $0.provider.personalAgentProvider == nil && $0.connected } }
+    public var hasConnectedWebSessions: Bool { sessions.contains { !$0.provider.usesNativeConversation && $0.connected } }
     public func saveBrowserDrafts() async throws { for session in sessions { try await session.saveBrowserDrafts() } }
-    public var hasNativeRequests: Bool { sessions.contains { $0.provider.personalAgentProvider != nil && $0.isSending } }
+    public var hasNativeRequests: Bool { sessions.contains { $0.provider.usesNativeConversation && $0.isSending } }
     public func beginShutdown() { sessions.forEach { $0.beginShutdown() } }
     public func cancelAndWait() async { for session in sessions { await session.cancelAndWait() } }
     public func prepareComparison(_ id: UUID?, for sessions: [WebAgentSession]) async -> Bool {

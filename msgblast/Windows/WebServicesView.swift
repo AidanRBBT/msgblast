@@ -146,7 +146,7 @@ struct AgentsWorkspaceView: View {
 
     private var composer: some View {
         VStack(alignment: .leading, spacing: 10) {
-            let signedOut = web.selected.filter { $0.provider.personalAgentProvider == nil && $0.snapshot.signedIn == false }
+            let signedOut = web.selected.filter { !$0.provider.usesNativeConversation && $0.snapshot.signedIn == false }
             if !signedOut.isEmpty {
                 Text("Sign in required: \(signedOut.map { $0.provider.name }.formatted(.list(type: .and)))")
                     .font(.caption).foregroundStyle(.orange).accessibilityIdentifier("Website sign-in status")
@@ -303,7 +303,7 @@ struct AgentsWorkspaceView: View {
                 return comparisonID
             })
             if existingID != nil, allRecipients,
-               result.web.values.allSatisfy({ $0.status == .observed }), result.web.count == sessions.count,
+               result.web.values.allSatisfy({ $0.status.confirmsSubmission }), result.web.count == sessions.count,
                let i = model.index(comparisonID) {
                 if recipients.isEmpty {
                     model.state.comparisons[i].recordSharedMessage(ConversationContextMessage(text: originalDraft.trimmingCharacters(in: .whitespacesAndNewlines), attachments: sentAttachments, created: broadcastCreated))
@@ -496,7 +496,12 @@ private struct WebAgentPane: View {
                 }
                 Spacer()
                 if session.loading { ProgressView().controlSize(.small) }
-                Button { session.reload() } label: { Image(systemName: "arrow.clockwise") }.help("Reload \(session.provider.name)").accessibilityLabel("Reload \(session.provider.name)").disabled(busy)
+                if session.provider == .grokbot {
+                    SettingsLink { Image(systemName: "gearshape") }
+                        .help("Grok Bot settings").accessibilityLabel("Grok Bot settings")
+                } else {
+                    Button { session.reload() } label: { Image(systemName: "arrow.clockwise") }.help("Reload \(session.provider.name)").accessibilityLabel("Reload \(session.provider.name)").disabled(busy)
+                }
             }.padding(14).background(.bar)
             if session.needsConversationLink {
                 HStack {
@@ -526,9 +531,12 @@ private struct WebAgentPane: View {
                     }
                 }.padding(10)
             }
-            if let provider = session.provider.personalAgentProvider {
-                nativeConversation(provider)
+            if session.provider.usesNativeConversation {
+                nativeConversation(session.provider.personalAgentProvider)
             } else if session.connected {
+                if session.provider == .dots {
+                    Text("Blasts continue your ongoing dot conversation.").font(.caption).foregroundStyle(.secondary).padding(.horizontal, 12)
+                }
                 EmbeddedServicePage(webView: session.webView).id(ObjectIdentifier(session.webView))
             } else {
                 VStack(spacing: 18) {
@@ -558,13 +566,21 @@ private struct WebAgentPane: View {
         }
     }
 
-    private func nativeConversation(_ provider: PersonalAgentProvider) -> some View {
+    private func nativeConversation(_ provider: PersonalAgentProvider?) -> some View {
         VStack(spacing: 12) {
-            let connected = [.subscription, .apiKey, .other].contains(session.accountStatus)
+            let connected = session.provider == .grokbot ? session.grokBotIsConfigured : [.subscription, .apiKey, .other].contains(session.accountStatus)
             if !session.isEnabled {
                 Text("Enable \(session.provider.name) in Settings to send. Your saved conversation is still available here.")
                     .font(.caption).foregroundStyle(.secondary)
-            } else if !connected {
+            } else if session.provider == .grokbot {
+                if session.fixture {
+                    Text("Simulated webhook and callback · no Bot contacted")
+                        .font(.caption).foregroundStyle(.secondary)
+                } else if !connected {
+                    Text("Connect your Grok Bot webhook using the settings gear.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            } else if !connected, let provider {
                 HStack {
                     Label(session.fixture ? "Simulated local account · no provider requests" : session.accountStatus.label,
                           systemImage: "person.crop.circle")
@@ -596,16 +612,20 @@ private struct WebAgentPane: View {
                                 .background(message.role == "user" ? Color.accentColor.opacity(0.08) : Color.secondary.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
                                 .id(message.id)
                         }
-                        if session.isSending { ProgressView("\(session.provider.name) is replying…").id("replying") }
+                        if session.isSending { ProgressView(session.provider == .grokbot ? "Sending to Grok Bot…" : "\(session.provider.name) is replying…").id("replying") }
                     }
                 }.onChange(of: session.snapshot.messages.last?.id) { _, id in
                     if let id { proxy.scrollTo(id, anchor: .bottom) }
                 }
             }
-            if session.isSending { Button("Cancel \(session.provider.name) reply") { session.cancelNativeRequest() } }
+            if session.isSending, provider != nil { Button("Cancel \(session.provider.name) reply") { session.cancelNativeRequest() } }
             if session.latestComparisonAttempt?.status == .uncertain {
                 Text("The last request was incomplete. Continuing may consume provider usage again.").font(.caption).foregroundStyle(.orange)
                 Button("Acknowledge incomplete request") { session.acknowledgeIncompleteRequest() }.disabled(busy)
+            }
+            if session.provider == .grokbot, session.latestComparisonAttempt?.status == .waiting {
+                Text("Grok Bot may continue working if you stop waiting.").font(.caption).foregroundStyle(.secondary)
+                Button("Stop waiting for this reply") { session.acknowledgeIncompleteRequest() }.disabled(busy)
             }
             MessageInput(text: Binding(get: { session.state.draft }, set: { text in session.updateState { $0.draft = text } }),
                 attachments: [], addAttachments: { _ in }, removeAttachment: { _ in }, placeholder: "Message \(session.provider.name)",
@@ -627,17 +647,21 @@ private let localAccountIcons: [String: NSImage] = Dictionary(uniqueKeysWithValu
 )
 
 private let museDefaultAvatar = Bundle.main.url(forResource: "MuseAvatar", withExtension: "jpg").flatMap { try? Data(contentsOf: $0) }
+let grokBotIcon = Bundle.main.url(forResource: "grokbot", withExtension: "icns", subdirectory: "WebAgentIcons")
+    .flatMap { NSImage(contentsOf: $0) }
+private let grokBotAvatar = grokBotIcon?.tiffRepresentation
 private let webDefaultAvatars: [WebProvider: Data] = Dictionary(uniqueKeysWithValues:
-    [WebProvider.chatgpt, .claude, .grok, .codexCLI, .claudeCode].compactMap { provider in
+    [WebProvider.chatgpt, .claude, .grok, .codexCLI, .claudeCode, .dots].compactMap { provider in
         let resource = provider == .codexCLI ? "chatgpt" : provider == .claudeCode ? "claude" : provider.rawValue
-        guard let url = Bundle.main.url(forResource: resource, withExtension: provider == .grok ? "png" : "jpg", subdirectory: "WebAgentIcons"),
+        let fileExtension = provider == .dots ? "pdf" : provider == .grok ? "png" : "jpg"
+        guard let url = Bundle.main.url(forResource: resource, withExtension: fileExtension, subdirectory: "WebAgentIcons"),
               let data = try? Data(contentsOf: url) else { return nil }
         return (provider, data)
     }
 )
 @MainActor
 private func webAgent(_ session: WebAgentSession) -> Agent {
-    Agent(name: session.provider.name, handles: [], avatar: session.provider == .muse ? session.avatar ?? museDefaultAvatar : webDefaultAvatars[session.provider],
+    Agent(name: session.provider.name, handles: [], avatar: session.provider == .grokbot ? grokBotAvatar : session.avatar ?? (session.provider == .muse ? museDefaultAvatar : webDefaultAvatars[session.provider]),
           colorIndex: WebProvider.allCases.firstIndex(of: session.provider)! + 4)
 }
 

@@ -1,0 +1,134 @@
+{
+  "review_run_id": "20261007-173620-0d03954a",
+  "review_status": "complete",
+  "applied_findings": [
+    {
+      "number": 1,
+      "title": "Redirect test relies on task scheduling delay",
+      "resolution": "Directly await opening on the MainActor; schedule only its finish callback, removing the unstructured opening task and fixed delay.",
+      "verification": "Focused redirect regression passed after the fix."
+    }
+  ],
+  "unapplied_actionable_findings": [],
+  "testing_limits": [
+    "Actual live logout was not exercised to preserve the signed-in session; fixture tests verify clearing a populated saved avatar on sign-out.",
+    "A combined hidden wide-toolbar control and visible Sign in link case has no dedicated regression; the narrow-layout profile-control regression passes.",
+    "Xcode UI runner timed out enabling macOS automation mode; no automated UI test executed. All 196 core tests and actual native Dev workflow passed."
+  ],
+  "integration": {
+    "base": "eaae858",
+    "verification": "195 core tests passed after integrating current main and testing Dots recovery in its ongoing thread.",
+    "changes": "Preserved sign-in status and receipt recovery, with Dots ongoing-thread semantics; no release triggered."
+  },
+  "live_dev_validation": {
+    "revision": "44442f5",
+    "authentication": "User-authorized existing live ChatGPT session reused locally in the isolated functional Dots Dev app; cookie contents not logged or uploaded.",
+    "real_echo_replies": [
+      "DOTS_DEV_OK",
+      "DOTS_DEV_AVATAR_OK"
+    ],
+    "avatar": "Real puppy visually verified; saved PNG bytes identical after quit/relaunch.",
+    "reopened_comparison": "Same ongoing dot thread restored.",
+    "fixes": [
+      "Recognize the Dots profile button in narrow layouts.",
+      "Capture the viewport before cropping the anchored pet."
+    ],
+    "recording": "Actual live footage kept in the ignored local build directory; committed PR video uses synthetic website data.",
+    "automation_reproduction_probe": "A temporary CSS position-anchor fixture also passed with the old partial-crop implementation. It was not adopted as a regression test. The exact live anchored-layout bug remains covered by the recorded actual Dev red/green check, not a claimed automated reproducer."
+  },
+  "live_fixes_review": {
+    "status": "complete",
+    "verdict": "Ready to merge",
+    "run_id": "20261007-214658-33c19506",
+    "source_revision": "44442f53e47df17c7bce95143961357e805d55a2",
+    "actionable_findings": [
+      {
+        "#": 1,
+        "autofix_class": "gated_auto",
+        "confidence": 75,
+        "evidence": [
+          "msgblastTests/MultiWebAgentTests.swift:429 --         let pixel = try XCTUnwrap(bitmap.colorAt(x: 128, y: 128)?.usingColorSpace(.deviceRGB))",
+          "msgblastTests/MultiWebAgentTests.swift:430 --         XCTAssertGreaterThan(pixel.redComponent, 0.8, \"Crop the orange sprite frame, not the whole purple sheet\")",
+          "msgblastTests/MultiWebAgentTests.swift:422 --         _ = try await session.webView.callAsyncJavaScript(\"Object.assign(document.querySelector('#fixture-dot-avatar').style,{position:'fixed',left:'50%',top:'6px',transform:'translateX(-50%)',zIndex:'100'});chat.style.minHeight='1800px';window.scrollTo(0,1200)\", arguments: [:], in: nil, contentWorld: .page)",
+          "Review context reports that this fixed-header fixture passes on both d5ee677 and 44442f5; the actual live red/green result was observed separately and was unavailable for inspection.",
+          "Caller also reports a temporary CSS position-anchor/anchor(top) probe passed the old partial-crop code; it was not adopted and runtime/tests remain frozen at 44442f5."
+        ],
+        "file": "msgblastTests/MultiWebAgentTests.swift",
+        "first_evidence": "msgblastTests/MultiWebAgentTests.swift:429 --         let pixel = try XCTUnwrap(bitmap.colorAt(x: 128, y: 128)?.usingColorSpace(.deviceRGB))",
+        "independent_reviewers": [
+          "testing"
+        ],
+        "line": 429,
+        "owner": "downstream-resolver",
+        "pre_existing": false,
+        "requires_verification": true,
+        "reviewers": [
+          "testing"
+        ],
+        "severity": "P2",
+        "suggested_fix": "Adjust the synthetic anchored-header layout so the previous partial-snapshot implementation captures a distinct non-pet area, then assert the saved 256 PNG contains the known pet artwork at multiple pixels. Verify the test fails at d5ee677 and passes at 44442f5 before treating it as regression coverage.",
+        "title": "Avatar fixture does not catch the crop regression",
+        "why_it_matters": "A future return to WebKit's partial snapshot could again save the composer instead of the anchored Dots pet while this test stays green. The new fixture checks one sprite pixel, but the caller verified that it passes against both the old and fixed implementations. A fixture that reproduces the observed anchoring failure and fails against the old code would protect the actual behavior.",
+        "validation_status": "confirmed",
+        "validation_reason": "At 44442f5, MultiWebAgentTests.swift:422-431 adds a fixed-header fixture but its center-pixel assertion reportedly passes both d5ee677 and 44442f5, so reverting to the partial snapshot would leave this test green while the manually observed live anchored layout (the reachable precondition) again saves the composer; the separate live red/green check validates this revision but cannot provide an automated regression guard.",
+        "protected_subject": null
+      }
+    ],
+    "disposition": "P2 #1 retained as an automation coverage gap. Both bounded synthetic layouts passed the old code, so they are not claimed as exact regression reproducers. Actual recorded Dev red/green validation satisfies the requested on-machine feature test; future automated reproduction remains unapplied."
+  },
+  "current_fix_closure": {
+    "source_revision": "8f8b3a28f2314d4c3d7be648f1001160df75ef6f",
+    "historical_run_id": "20261008-110406-d26f89bb",
+    "closure_run_id": "20261008-113815-8f8b3a2",
+    "closed_findings": [
+      {
+        "number": 1,
+        "resolution": "Accept subpixel CSS viewport rounding while retaining exact native bounds and metadata stability checks."
+      },
+      {
+        "number": 2,
+        "resolution": "Disable periodic polling in the fresh-dot routing regression so stale cached state is deterministic."
+      },
+      {
+        "number": 4,
+        "resolution": "Disable periodic polling in the controlled avatar race regression so explicit refreshes own the capture boundaries."
+      }
+    ],
+    "remaining_blocking_issues_in_delta": [],
+    "testing": {
+      "native_core_tests_passed": 200,
+      "python_tests_passed": 74,
+      "focused_new_regressions_passed": 4,
+      "final_routing_control_passed": true,
+      "revision_qualification": "Full 200-test suite passed with the final runtime code; the final one-line routing-test polling correction then passed its focused rerun. Hosted CI must validate the final PR head.",
+      "app_controller_and_lifecycle_fixtures": "previously passed; unchanged by these runtime fixes",
+      "xcode_ui_runner": "Earlier UI-runner bootstrap timed out before any UI test executed. Actual final Dev workflow tested through native computer use; permissions unchanged."
+    },
+    "live_dev_validation": "Final isolated functional Dev at this runtime revision reused the user-authorized existing live ChatGPT session, returned DOTS_FINAL_OK on /dots/home, and displayed the real puppy avatar. Quit/relaunch restored the picker avatar and reopened the saved comparison with its reply. A connected animated avatar may refresh its saved still frame, so byte identity after reconnection is not asserted. Live recordings remain local and excluded from this repository.",
+    "limits": [
+      "Narrow closure, not a replacement for the historical frozen full review.",
+      "Prior hosted native pixel failure remains unattributed; require green final-head native CI.",
+      "Original exact anchored-layout regression coverage gap remains disclosed."
+    ]
+  },
+  "sprite_readiness_followup": {
+    "source_revision": "a6996f9bc8b01edcec1d2f3a4930d1d126c676b7",
+    "review_run_id": "20261008-120215-sprite-readiness",
+    "findings": [],
+    "local_validation": "Full201 native tests passed, including all four focused avatar tests.",
+    "red_regression": "Before the fix, old code did not enter the controlled decode boundary and replaced cached bytes while decoding was paused. This does not establish the earlier hosted white-pixel failure cause.",
+    "fix": "Await sprite image decoding and nested image decoding for changed identities; retain descriptor stability after awaits. Cached identities and post-snapshot verification skip redundant decode. Animation-frame waits were tested and withdrawn because background fixture windows stalled.",
+    "live_dev": "Final isolated functional Dev at this revision reused the user-authorized existing ChatGPT session and returned DOTS_DECODE_OK on /dots/home. Only this task-owned Dev cache PNG was cleared and backed up before testing; fresh capture saved a real puppy PNG, visually verified. Quit/relaunch restored the picker avatar and reopened the saved comparison. Animated still-frame byte equality after reconnection is not claimed. Live recordings remain local and excluded from the repository.",
+    "hosted_ci": "Require fresh green final-head native CI.",
+    "existing_limit": "Exact earlier live anchored-layout crop still lacks an automated reproducer."
+  },
+  "ci_fixture_followup": {
+    "source_revision": "237048dade331e79710df57b3fa1370e5dd502b9",
+    "review_run_id": "20261008-122247-native-png-fixture",
+    "findings": [],
+    "scope": "Test-only; application runtime and visual evidence unchanged.",
+    "fix": "Known opaque RGBA PNG512x576 sheet with orange64x64 frame at192,0, matching the same CSS800%x900% background and42.857% horizontal position. Explicit refreshes own original-avatar test mutations.",
+    "validation": "Full201 local native tests passed; strict source-frame pixel, decode, animation cache, persistence and sign-out assertions retained.",
+    "limit": "The earlier hosted failure cause is inferred until fresh CI validates the corrected inputs."
+  }
+}

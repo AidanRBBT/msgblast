@@ -1,0 +1,21 @@
+{
+  "result": "Passed",
+  "totalTestCount": 201,
+  "passedTests": 201,
+  "failedTests": 0,
+  "skippedTests": 0,
+  "testFailures": [],
+  "runtime_source_revision": "a6996f9bc8b01edcec1d2f3a4930d1d126c676b7",
+  "revision_qualification": "Full 201-test local native suite passed with the final runtime and corrected fixed-PNG fixtures. Runtime matches a6996f9; test-source revision is recorded separately. Hosted CI must validate the final PR head.",
+  "focused_final_routing_test": "Passed after disabling periodic polling",
+  "new_regressions": [
+    "Fresh comparison selects currently open dot before polling",
+    "Live /dots/home route and comparison restoration",
+    "Fractional native pane bounds",
+    "Resize and movement during avatar capture preserve old cache and retry",
+    "Sprite decoding is paused before capture; prior cached bytes remain until readiness"
+  ],
+  "hosted_native_ci": "Pending final-head validation at capture time. The previous canvas-generated sprite fixtures failed on hosted WebKit; known PNG inputs and explicit refreshes replace that fixture dependency.",
+  "test_source_revision": "237048dade331e79710df57b3fa1370e5dd502b9",
+  "test_source_sha256": "9bb7b925e36c940687fd060b87cdde07d9c6054f9db45c6f401950b99bf1728d"
+}

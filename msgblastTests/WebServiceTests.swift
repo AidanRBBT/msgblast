@@ -4,6 +4,22 @@ import WebKit
 
 @MainActor
 final class WebServiceTests: XCTestCase {
+    func testWorkspaceReloadPreservesNewProvidersAlongsideComparisonDrafts() throws {
+        var state = WebWorkspaceState()
+        let comparison = UUID().uuidString
+        state.dotsURL = URL(string: "https://chatgpt.com/dots/home")!
+        state.savedAvatar = Data([1, 2, 3])
+        state.grokBotRememberedConnection = false
+        state.webDrafts[comparison] = "Keep this private web draft"
+        state.localDrafts[comparison] = "Keep this native draft"
+        let restored = try JSONDecoder().decode(WebWorkspaceState.self, from: JSONEncoder().encode(state))
+        XCTAssertEqual(restored.dotsURL, state.dotsURL)
+        XCTAssertEqual(restored.savedAvatar, state.savedAvatar)
+        XCTAssertEqual(restored.grokBotRememberedConnection, false)
+        XCTAssertEqual(restored.webDrafts, state.webDrafts)
+        XCTAssertEqual(restored.localDrafts, state.localDrafts)
+    }
+
     func testUnconfirmedWebSubmissionsNeverShowAnAttemptBanner() {
         for provider in WebProvider.webDefaults {
             XCTAssertFalse(WebSendStatus.uncertain.showsAttemptBanner(for: provider), provider.name)
