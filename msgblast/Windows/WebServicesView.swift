@@ -19,6 +19,13 @@ struct AgentsWorkspaceView: View {
     private var nativeRecipients: [Agent] { model.state.agents.filter { model.state.selection.contains($0.id) } }
     private var attachmentComparisonID: UUID? { showingComparison ? nativeComparison?.id : nil }
     private var attachments: [MessageAttachment] { model.attachmentDraft(comparisonID: attachmentComparisonID) }
+    private var sharedSendDisabledReason: String? {
+        guard !busy else { return nil }
+        let drafts = web.selected.filter { $0.snapshot.hasDraft }.map { $0.provider.name }
+        guard !drafts.isEmpty else { return nil }
+        let names = drafts.formatted(.list(type: .and))
+        return "Finish or clear the draft in \(names), or deselect \(names) to send to the other agents."
+    }
     private var canSend: Bool {
         let text = model.state.draft.trimmingCharacters(in: .whitespacesAndNewlines)
         return !busy && !showingConnectionIntro && (!web.selected.isEmpty || !nativeRecipients.isEmpty)
@@ -177,7 +184,8 @@ struct AgentsWorkspaceView: View {
                          attachments: attachments, addAttachments: { await model.addAttachments($0, comparisonID: attachmentComparisonID) },
                          removeAttachment: { id in model.setAttachmentDraft(attachments.filter { $0.id != id }, comparisonID: attachmentComparisonID) },
                          placeholder: "Message", accessibilityName: "Shared prompt", sendLabel: "Send & compare",
-                         disabled: !canSend, attachmentsEnabled: web.selected.isEmpty, send: send, focusRequest: newBlastRequest)
+                         disabled: !canSend, attachmentsEnabled: web.selected.isEmpty,
+                         sendDisabledReason: sharedSendDisabledReason, send: send, focusRequest: newBlastRequest)
         }.padding(20)
     }
 
@@ -521,9 +529,6 @@ private struct WebAgentPane: View {
             if let provider = session.provider.personalAgentProvider {
                 nativeConversation(provider)
             } else if session.connected {
-                if !session.snapshot.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !session.isSending {
-                    Text("\(session.provider.name) has a draft. Send or clear it in the page before using the shared composer.").font(.caption).foregroundStyle(.orange).padding(8)
-                }
                 EmbeddedServicePage(webView: session.webView).id(ObjectIdentifier(session.webView))
             } else {
                 VStack(spacing: 18) {

@@ -95,6 +95,7 @@ struct MessageInput: View {
     let sendLabel: String
     var disabled: Bool
     var attachmentsEnabled = true
+    var sendDisabledReason: String? = nil
     var send: () -> Void
     var focusRequest: UUID? = nil
     @State private var dropTarget = false
@@ -119,7 +120,10 @@ struct MessageInput: View {
                         Button(action: send) { Image(systemName: "arrow.up").font(.system(size: 12, weight: .semibold)).frame(width: 22, height: 22) }
                             .buttonStyle(.plain).foregroundStyle(.white)
                             .background(unavailable ? Color.gray : Color.blue, in: Circle())
-                            .accessibilityLabel(sendLabel).help("\(sendLabel) (Return or ⌘Return; ⇧Return for a new line)").disabled(unavailable)
+                            .accessibilityLabel(sendLabel)
+                            .accessibilityHint(sendDisabledReason ?? "")
+                            .help(sendDisabledReason ?? "\(sendLabel) (Return or ⌘Return; ⇧Return for a new line)")
+                            .disabled(unavailable)
                     }
                 }
                 .padding(.leading, 14).padding(.trailing, 7).padding(.vertical, 5)
