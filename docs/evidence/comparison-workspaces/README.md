@@ -25,7 +25,7 @@ Actual final app, driven through native clicks and keys in an isolated blue fixt
 
 `walkthrough.mp4` is a **20-second sampled walkthrough of captures 1–5**, with four-second holds and edited timing. It is not a continuous recording or latency measurement. Original screenshots are 3024 × 1804; video is 1920 × 1146. Native macOS UI has no mobile layout. The fixture carries development version 0.4.3 (1); this does not identify a published release.
 
-Fixture website replies are simulated in a nonpersistent WebKit store, so the relaunch capture verifies saved destinations and drafts, not server transcript retrieval. Live authenticated provider history after relaunch remains untested. Source and production icon resources remain unchanged by fixture packaging; no production release was triggered.
+Fixture website replies are simulated in a nonpersistent WebKit store, so the relaunch capture verifies saved destinations and drafts, not server transcript retrieval. A later [live account run](live/README.md) verifies authenticated server history after relaunch and records first-send recovery and cold-page limits. Source and production icon resources remain unchanged by fixture packaging; no production release was triggered.
 
 ## Reproduce
 
