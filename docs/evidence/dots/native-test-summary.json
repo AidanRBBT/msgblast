@@ -1,17 +1,18 @@
 {
-  "title": "Test - msgblast",
   "result": "Passed",
-  "totalTestCount": 195,
-  "passedTests": 195,
+  "totalTestCount": 200,
+  "passedTests": 200,
   "failedTests": 0,
   "skippedTests": 0,
   "testFailures": [],
-  "latest_validation": {
-    "source_revision": "44442f5",
-    "native_core_tests_passed": 196,
-    "focused_tests_passed": 3,
-    "log": "/tmp/msgblast-dots-final-core-tests.log",
-    "live_echo_and_avatar_persistence": "verified in functional isolated Dev",
-    "xcode_ui_runner": "Bootstrap timeout; no UI test executed; enclosing command exit 65 after core suite passed."
-  }
+  "runtime_source_revision": "8f8b3a28f2314d4c3d7be648f1001160df75ef6f",
+  "revision_qualification": "Full 200-test suite passed with the final runtime code; the final one-line routing-test polling correction then passed its focused rerun. Hosted CI must validate the final PR head.",
+  "focused_final_routing_test": "Passed after disabling periodic polling",
+  "new_regressions": [
+    "Fresh comparison selects currently open dot before polling",
+    "Live /dots/home route and comparison restoration",
+    "Fractional native pane bounds",
+    "Resize and movement during avatar capture preserve old cache and retry"
+  ],
+  "hosted_native_ci": "Pending final PR head validation"
 }

@@ -75,5 +75,40 @@
       }
     ],
     "disposition": "P2 #1 retained as an automation coverage gap. Both bounded synthetic layouts passed the old code, so they are not claimed as exact regression reproducers. Actual recorded Dev red/green validation satisfies the requested on-machine feature test; future automated reproduction remains unapplied."
+  },
+  "current_fix_closure": {
+    "source_revision": "8f8b3a28f2314d4c3d7be648f1001160df75ef6f",
+    "historical_run_id": "20261008-110406-d26f89bb",
+    "closure_run_id": "20261008-113815-8f8b3a2",
+    "closed_findings": [
+      {
+        "number": 1,
+        "resolution": "Accept subpixel CSS viewport rounding while retaining exact native bounds and metadata stability checks."
+      },
+      {
+        "number": 2,
+        "resolution": "Disable periodic polling in the fresh-dot routing regression so stale cached state is deterministic."
+      },
+      {
+        "number": 4,
+        "resolution": "Disable periodic polling in the controlled avatar race regression so explicit refreshes own the capture boundaries."
+      }
+    ],
+    "remaining_blocking_issues_in_delta": [],
+    "testing": {
+      "native_core_tests_passed": 200,
+      "python_tests_passed": 74,
+      "focused_new_regressions_passed": 4,
+      "final_routing_control_passed": true,
+      "revision_qualification": "Full 200-test suite passed with the final runtime code; the final one-line routing-test polling correction then passed its focused rerun. Hosted CI must validate the final PR head.",
+      "app_controller_and_lifecycle_fixtures": "previously passed; unchanged by these runtime fixes",
+      "xcode_ui_runner": "Earlier UI-runner bootstrap timed out before any UI test executed. Actual final Dev workflow tested through native computer use; permissions unchanged."
+    },
+    "live_dev_validation": "Final isolated functional Dev at this runtime revision reused the user-authorized existing live ChatGPT session, returned DOTS_FINAL_OK on /dots/home, and displayed the real puppy avatar. Quit/relaunch restored the picker avatar and reopened the saved comparison with its reply. A connected animated avatar may refresh its saved still frame, so byte identity after reconnection is not asserted. Live recordings remain local and excluded from this repository.",
+    "limits": [
+      "Narrow closure, not a replacement for the historical frozen full review.",
+      "Prior hosted native pixel failure remains unattributed; require green final-head native CI.",
+      "Original exact anchored-layout regression coverage gap remains disclosed."
+    ]
   }
 }

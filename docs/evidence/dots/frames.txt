@@ -1,11 +1,1 @@
-file '01-optional-picker.png'
-duration 2
-file '02-dots-selected.png'
-duration 2
-file '03-dots-reply.png'
-duration 2
-file '04-updated-avatar.png'
-duration 2
-file '07-dots-contributor-credit.png'
-duration 2
-file '07-dots-contributor-credit.png'
+Screenshots captured directly from the same runtime during the continuous native workflow, except 06-relaunch-avatar.png captured after quit/relaunch. Video is trimmed to 24 seconds at normal speed. Website replies and avatar artwork are synthetic.
