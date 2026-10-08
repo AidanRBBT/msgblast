@@ -404,9 +404,12 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
             if provider == .dots {
                 guard webView.window != nil, let capturedURL = webView.url, let rect = result?["rect"] as? [String: Double],
                       let x = rect["x"], let y = rect["y"], let width = rect["width"], let height = rect["height"] else { return }
+                let crop = CGRect(x: x, y: y, width: width, height: height)
                 let configuration = WKSnapshotConfiguration()
-                configuration.rect = CGRect(x: x, y: y, width: width, height: height)
-                configuration.snapshotWidth = 256
+                // Capture the viewport first. Cropping in WebKit can reposition Dots'
+                // anchored header and capture the composer instead of its pet.
+                configuration.rect = webView.bounds
+                configuration.snapshotWidth = NSNumber(value: webView.bounds.width)
                 let image: NSImage = try await withCheckedThrowingContinuation { continuation in
                     webView.takeSnapshot(with: configuration) { image, error in
                         if let image { continuation.resume(returning: image) }
@@ -414,7 +417,7 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
                     }
                 }
                 guard generation == navigationGeneration, webView.url == capturedURL,
-                      state.dotsURL == capturedURL, let png = Self.avatarPNG(image) else { return }
+                      state.dotsURL == capturedURL, let png = Self.avatarPNG(image, crop: crop) else { return }
                 data = png
                 updateState { $0.savedAvatar = png }
             } else {
@@ -430,13 +433,17 @@ public final class WebAgentSession: NSObject, ObservableObject, WKNavigationDele
         }
     }
 
-    private static func avatarPNG(_ image: NSImage) -> Data? {
+    private static func avatarPNG(_ image: NSImage, crop: CGRect) -> Data? {
+        guard crop.width > 0, crop.height > 0,
+              CGRect(origin: .zero, size: image.size).contains(crop) else { return nil }
+        // JavaScript uses a top-left origin; NSImage's source rectangle uses bottom-left.
+        let source = NSRect(x: crop.minX, y: image.size.height - crop.maxY, width: crop.width, height: crop.height)
         guard let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 256, pixelsHigh: 256,
             bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
             bytesPerRow: 0, bitsPerPixel: 0), let context = NSGraphicsContext(bitmapImageRep: bitmap) else { return nil }
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current = context
-        image.draw(in: NSRect(x: 0, y: 0, width: 256, height: 256))
+        image.draw(in: NSRect(x: 0, y: 0, width: 256, height: 256), from: source, operation: .copy, fraction: 1)
         NSGraphicsContext.restoreGraphicsState()
         return bitmap.representation(using: .png, properties: [:])
     }

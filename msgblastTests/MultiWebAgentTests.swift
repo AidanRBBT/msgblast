@@ -417,6 +417,9 @@ final class MultiWebAgentTests: XCTestCase {
         XCTAssertEqual(WebAgentSession(provider: .dots, storageURL: storage, fixture: true).avatar, first)
         _ = try await session.webView.callAsyncJavaScript("changeFixtureAvatar()", arguments: [:], in: nil, contentWorld: .page)
         try await waitFor { session.avatar != nil && session.avatar != first }
+        // Dots keeps its pet centered in a fixed header while the conversation scrolls.
+        // A partial WebKit snapshot can move fixed content outside the requested crop.
+        _ = try await session.webView.callAsyncJavaScript("Object.assign(document.querySelector('#fixture-dot-avatar').style,{position:'fixed',left:'50%',top:'6px',transform:'translateX(-50%)',zIndex:'100'});chat.style.minHeight='1800px';window.scrollTo(0,1200)", arguments: [:], in: nil, contentWorld: .page)
         // A synthetic CSS pet reproduces the rendered sprite container seen on Dots.
         _ = try await session.webView.callAsyncJavaScript("const canvas=document.createElement('canvas');canvas.width=512;canvas.height=576;const ctx=canvas.getContext('2d');ctx.fillStyle='#8667df';ctx.fillRect(0,0,512,576);ctx.fillStyle='#f07835';ctx.fillRect(192,0,64,64);const pet=document.createElement('div');pet.dataset.codexPetId='synthetic-pet';Object.assign(pet.style,{width:'64px',height:'64px',backgroundImage:'url('+canvas.toDataURL()+')',backgroundSize:'800% 900%',backgroundPosition:'42.857142857% 0%'});document.querySelector('#fixture-dot-avatar span').replaceChildren(pet)", arguments: [:], in: nil, contentWorld: .page)
         let svg = session.avatar
