@@ -32,6 +32,113 @@ final class WebServiceWorkflowTests: XCTestCase {
     }
 
     @MainActor
+    func testAddAgentToExistingBlastInjectsSharedHistoryOnly() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--demo", "--isolated-demo"]
+        app.launch()
+        defer { app.terminate() }
+        let excluded = ["Cedar", "Lumen", "Orbit", "Maple", "Echo", "Flint", "Claude", "Grok"]
+        for name in excluded {
+            let button = app.buttons[name]
+            XCTAssertTrue(button.waitForExistence(timeout: 5))
+            if button.value as? String == "Selected" { button.click() }
+        }
+        // Confirm setup after launch tasks settle before exercising recipient joins.
+        for name in excluded {
+            let button = app.buttons[name]
+            if button.value as? String == "Selected" { button.click() }
+            XCTAssertEqual(button.value as? String, "Not selected")
+        }
+        let editor = app.textViews["Shared prompt"]
+        func broadcast(_ text: String) {
+            editor.click()
+            editor.typeKey("a", modifierFlags: .command)
+            editor.typeText(text)
+            XCTAssertTrue(app.buttons["Send & compare"].isEnabled)
+            app.buttons["Send & compare"].click()
+            let reply = app.staticTexts.containing(NSPredicate(format: "value CONTAINS %@", "Fixture reply: " + text)).firstMatch
+            XCTAssertTrue(reply.waitForExistence(timeout: 15))
+        }
+        broadcast("Original joining fixture ask")
+        broadcast("Shared joining fixture follow-up")
+        app.buttons["Recipient ChatGPT"].click()
+        broadcast("Private joining fixture detail")
+        capture(app, name: "Before adding Grok — isolated simulated chats")
+        app.buttons["Recipient Grok"].click()
+        let context = app.staticTexts.containing(NSPredicate(format: "value CONTAINS %@ AND value CONTAINS %@", "Original ask:", "Follow-up 1:")).firstMatch
+        XCTAssertTrue(context.waitForExistence(timeout: 15))
+        XCTAssertTrue((context.value as? String ?? context.label).contains("Shared joining fixture follow-up"))
+        XCTAssertFalse((context.value as? String ?? context.label).contains("Private joining fixture detail"))
+        XCTAssertEqual(app.buttons["Recipient Grok"].value as? String, "Selected")
+        capture(app, name: "Grok joined existing blast with shared context — isolated simulated chats")
+        app.buttons["Recipient Cedar"].click()
+        let cedar = app.buttons["Recipient Cedar"]
+        let deadline = Date().addingTimeInterval(15)
+        while cedar.value as? String != "Selected", Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.1)) }
+        XCTAssertEqual(cedar.value as? String, "Selected")
+        XCTAssertTrue(app.staticTexts["Shared joining fixture follow-up"].waitForExistence(timeout: 15))
+        capture(app, name: "Messages agent joined existing blast — isolated simulated chats")
+    }
+
+    @MainActor
+    func testFreshPrivateCLIConversationSharesOnlyExplicitBroadcastsWhenAgentsJoin() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--demo", "--isolated-demo"]
+        app.launch()
+        defer { app.terminate() }
+        XCTAssertTrue(app.buttons["Muse"].waitForExistence(timeout: 5))
+        app.typeKey(",", modifierFlags: .command)
+        let settings = app.windows.matching(identifier: "com_apple_SwiftUI_Settings_window").firstMatch
+        XCTAssertTrue(settings.waitForExistence(timeout: 5))
+        for (index, name) in ["Codex CLI", "Claude Code"].enumerated() {
+            XCTAssertTrue(settings.staticTexts["Enable \(name)"].waitForExistence(timeout: 5))
+            // macOS exposes these two switch controls without the adjacent label.
+            let toggle = settings.switches.element(boundBy: index)
+            XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+            toggle.click()
+            if String(describing: toggle.value ?? "") == "0" { toggle.click() }
+            XCTAssertEqual(String(describing: toggle.value ?? ""), "1")
+        }
+        settings.buttons[XCUIIdentifierCloseWindow].click()
+        let excluded = ["Cedar", "Lumen", "Orbit", "Maple", "Echo", "Flint", "Muse", "ChatGPT", "Claude", "Grok", "Claude Code"]
+        for _ in 0..<2 {
+            for name in excluded where app.buttons[name].value as? String == "Selected" { app.buttons[name].click() }
+        }
+        for name in excluded { XCTAssertEqual(app.buttons[name].value as? String, "Not selected") }
+        app.buttons["Codex CLI"].rightClick()
+        app.menuItems["Open chat"].click()
+        let direct = app.textViews["Message Codex CLI"]
+        XCTAssertTrue(direct.waitForExistence(timeout: 10))
+        func sendDirect(_ text: String) {
+            direct.click(); direct.typeText(text)
+            XCTAssertEqual(direct.value as? String, text)
+            direct.typeKey(.return, modifierFlags: [])
+            XCTAssertTrue(reply(app, containing: "Codex CLI fixture reply: " + text).waitForExistence(timeout: 15))
+        }
+        sendDirect("Original CLI privacy ask")
+        sendDirect("Private CLI detail")
+        let shared = app.textViews["Shared prompt"]
+        shared.click(); shared.typeKey("a", modifierFlags: .command); shared.typeText("Shared CLI follow-up")
+        app.buttons["Send & compare"].click()
+        XCTAssertTrue(reply(app, containing: "Codex CLI fixture reply: Shared CLI follow-up").waitForExistence(timeout: 15))
+        capture(app, name: "Private sole CLI conversation before joins — isolated fixture")
+        shared.click(); shared.typeText("Retained unsent shared draft")
+        for name in ["Grok", "Claude Code", "Cedar"] {
+            app.buttons["Recipient \(name)"].click()
+            let deadline = Date().addingTimeInterval(15)
+            while !app.buttons["Send & compare"].isEnabled, Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.1)) }
+            XCTAssertEqual(app.buttons["Recipient \(name)"].value as? String, "Selected")
+        }
+        XCTAssertTrue(reply(app, containing: "Claude Code fixture reply: You are joining an existing conversation").waitForExistence(timeout: 15))
+        let contexts = app.staticTexts.matching(NSPredicate(format: "value CONTAINS %@ AND value CONTAINS %@", "Original ask:", "Shared CLI follow-up"))
+        XCTAssertTrue(contexts.firstMatch.waitForExistence(timeout: 15))
+        XCTAssertEqual(app.staticTexts.matching(NSPredicate(format: "value CONTAINS %@ AND value CONTAINS %@", "Original ask:", "Private CLI detail")).count, 0)
+        XCTAssertEqual(app.textViews.matching(NSPredicate(format: "value == %@", "Private CLI detail")).count, 0)
+        XCTAssertEqual(shared.value as? String, "Retained unsent shared draft")
+        capture(app, name: "Web CLI and Messages joins exclude private CLI detail — isolated fixture")
+    }
+
+    @MainActor
     func testWebDefaultsAndOptionalCLIConversationsStaySeparate() {
         let app = XCUIApplication()
         app.launchArguments = ["--demo", "--isolated-demo"]

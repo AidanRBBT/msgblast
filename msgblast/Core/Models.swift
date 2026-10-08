@@ -113,6 +113,7 @@ public struct Member: Codable, Identifiable, Hashable, Sendable {
 public struct FollowUp: Codable, Identifiable, Sendable {
     public var id = UUID()
     public var text: String
+    public var sharedWithAll: Bool?
     public var memberIDs: [UUID]
     public var states: [String: Submission] = [:]
     public var errors: [String: String] = [:]
@@ -147,12 +148,24 @@ public struct ConversationRecipients: Codable, Equatable, Sendable {
         }.map(\.id)
     }
 }
+public struct ConversationContextMessage: Codable, Equatable, Sendable {
+    public var followUpID: UUID?
+    public var text: String
+    public var attachments: [MessageAttachment]
+    public var sharedWithAll: Bool?
+    public var created: Date?
+    public init(text: String, attachments: [MessageAttachment] = [], followUpID: UUID? = nil, created: Date = Date()) {
+        self.followUpID = followUpID; self.text = text; self.attachments = attachments
+        sharedWithAll = true; self.created = created
+    }
+}
 public struct Comparison: Codable, Identifiable, Sendable {
     public var id = UUID()
     public var prompt: String
     public var created = Date()
     public var members: [Member]
     public var followUps: [FollowUp] = []
+    public var sharedContext: [ConversationContextMessage]?
     public var allDraft: String = ""
     public var privateDrafts: [String: String] = [:]
     public var attachments: [MessageAttachment]?
@@ -162,7 +175,45 @@ public struct Comparison: Codable, Identifiable, Sendable {
     public var summary: ComparisonSummary?
     public var webProviders: [WebProvider]?
     public var webProviderIdentityVersion: Int?
-    public init(prompt: String, members: [Member]) { self.prompt = prompt; self.members = members; webProviderIdentityVersion = 2 }
+    public init(prompt: String, members: [Member]) { self.prompt = prompt; self.members = members; webProviderIdentityVersion = 2; sharedContext = [] }
+    public mutating func recordSharedMessage(_ message: ConversationContextMessage) {
+        guard message.sharedWithAll == true else { return }
+        var context = Array(joiningContext().dropFirst())
+        if message.followUpID == nil || !context.contains(where: { $0.followUpID == message.followUpID }) {
+            context.append(message)
+        }
+        sharedContext = context.sorted { ($0.created ?? .distantPast) < ($1.created ?? .distantPast) }
+    }
+    public mutating func recordSharedFollowUp(_ followUp: FollowUp) {
+        guard followUp.sharedWithAll == true, !followUp.memberIDs.isEmpty,
+              followUp.memberIDs.allSatisfy({ followUp.states[$0.uuidString] == .submitted }) else { return }
+        let files = followUp.payloads?.values.first?.parts.compactMap(\.attachment) ?? []
+        recordSharedMessage(ConversationContextMessage(text: followUp.text, attachments: files, followUpID: followUp.id, created: followUp.created))
+    }
+    public func joiningContext() -> [ConversationContextMessage] {
+        let original = ConversationContextMessage(text: prompt, attachments: attachments ?? [], created: created)
+        // Unknown legacy scope is not permission to share a private message.
+        var context = (sharedContext ?? []).filter { $0.sharedWithAll == true }
+        for followUp in followUps where followUp.sharedWithAll == true && !followUp.memberIDs.isEmpty {
+            guard followUp.memberIDs.allSatisfy({ followUp.states[$0.uuidString] == .submitted }),
+                  !context.contains(where: { $0.followUpID == followUp.id }) else { continue }
+            let files = followUp.payloads?.values.first?.parts.compactMap(\.attachment) ?? []
+            context.append(ConversationContextMessage(text: followUp.text, attachments: files, followUpID: followUp.id, created: followUp.created))
+        }
+        return [original] + context.sorted { ($0.created ?? .distantPast) < ($1.created ?? .distantPast) }
+    }
+    public func joiningPayload() -> OutgoingPayload {
+        var payload = OutgoingPayload(text: "", attachments: [])
+        payload.parts = joiningContext().flatMap { OutgoingPayload(text: $0.text, attachments: $0.attachments).parts }
+        return payload
+    }
+    public func joiningPrompt() -> String {
+        let context = joiningContext()
+        guard context.count > 1 else { return prompt }
+        return "You are joining an existing conversation. Here is the original ask and the follow-up messages sent to everyone, in order. Respond to the latest ask using this context.\n\n" + context.enumerated().map { index, message in
+            "\(index == 0 ? "Original ask" : "Follow-up \(index)"):\n\(message.text)"
+        }.joined(separator: "\n\n")
+    }
     public var title: String { String((prompt.isEmpty ? attachments?.map(\.filename).joined(separator: ", ") ?? "Attachment" : prompt).prefix(65)) }
 }
 public struct SavedFrame: Codable, Sendable { public var x: Double; public var y: Double; public var width: Double; public var height: Double

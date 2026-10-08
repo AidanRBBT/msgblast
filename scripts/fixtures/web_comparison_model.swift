@@ -98,6 +98,50 @@ import msgblastCore
         precondition(model.comparison(first)?.followUps.last?.states[recipient.id.uuidString] == .submitted)
         precondition(muse.state.attempts.count == beforeRetry)
         print("PASS: attachment-only and text-plus-attachment native follow-ups submit their comparison drafts; native retry does not resend Muse. Controlled local fixture inputs.")
+        // Exercise the same private Messages call used by PR #27's pane composer.
+        model.coordinator = nil
+        model.state.selection = [recipient.id]
+        model.state.draft = "Native privacy original"
+        await model.start()
+        let privacyID = model.state.comparisons[0].id
+        let privacyIndex = model.index(privacyID)!
+        model.state.comparisons[privacyIndex].privateDrafts[recipient.id.uuidString] = "Native private detail"
+        await model.followUp(privacyID, only: recipient.id)
+        model.state.comparisons[privacyIndex].allDraft = "Native shared follow-up"
+        await model.followUp(privacyID)
+        let newcomer = model.state.agents[1]
+        await model.addAgent(newcomer, to: privacyID)
+        let joined = model.comparison(privacyID)!
+        let joinedMember = joined.members.first { $0.id == newcomer.id }!
+        let outgoing = model.transcript(joined, member: joinedMember).filter(\.outgoing).map(\.text)
+        precondition(outgoing == ["Native privacy original", "Native shared follow-up"])
+        precondition(joined.followUps.first?.sharedWithAll == false)
+        print("PASS: PR #27's private Messages pane entry point stays private with one original recipient; adding another agent sends only original + shared follow-up. Actual AppModel, isolated simulated Messages.")
+
+        model.state.selection = [recipient.id, newcomer.id]
+        model.state.draft = "Chronology original"
+        await model.start()
+        let orderID = model.state.comparisons[0].id
+        let orderIndex = model.index(orderID)!
+        var earlier = FollowUp(text: "Shared A", memberIDs: [recipient.id, newcomer.id])
+        earlier.sharedWithAll = true
+        earlier.created = model.state.comparisons[orderIndex].created
+        earlier.states = [recipient.id.uuidString: .submitted, newcomer.id.uuidString: .failed]
+        // Controlled receipt fixture: A reached the first recipient and failed before sending to the second.
+        model.appendDemo(earlier.text, chat: model.comparison(orderID)!.members.first { $0.id == recipient.id }!.chat, outgoing: true)
+        model.state.comparisons[orderIndex].followUps.append(earlier)
+        model.state.comparisons[orderIndex].allDraft = "Shared B"
+        await model.followUp(orderID)
+        precondition(model.comparison(orderID)!.joiningContext().map(\.text) == ["Chronology original", "Shared B"])
+        await model.followUp(orderID, retry: earlier.id)
+        await model.followUp(orderID, retry: earlier.id)
+        let third = model.state.agents[2]
+        await model.addAgent(third, to: orderID)
+        let ordered = model.comparison(orderID)!
+        let thirdMember = ordered.members.first { $0.id == third.id }!
+        precondition(model.transcript(ordered, member: thirdMember).filter(\.outgoing).map(\.text) == ["Chronology original", "Shared A", "Shared B"])
+        precondition(ordered.joiningContext().dropFirst().map(\.followUpID) == [earlier.id, ordered.followUps[1].id])
+        print("PASS: partial-failure receipt fixture -> B sent through AppModel -> A retried through AppModel -> new agent receives Original,A,B once, in original order. No real sends.")
         print("PASS: actual AppModel + WindowCoordinator restore comparison ID, native recipient, provider selection, four saved web URLs and separate Codex CLI/Claude Code sessions; disabled archived CLI remains readable without sending. All sends use local fixtures.")
     }
 }

@@ -176,12 +176,20 @@ struct AgentsWorkspaceView: View {
                 HStack(spacing: 8) {
                     Text("Send to").font(.caption).foregroundStyle(.secondary)
                     ForEach(web.sessions.filter { session in session.isEnabled || web.displayed.contains(where: { $0.provider == session.provider }) }, id: \.provider) { session in
-                        recipient(session.provider.name, selected: session.isEnabled && session.state.selected) { web.toggle(session) }
+                        recipient(session.provider.name, selected: session.isEnabled && session.state.selected) { selectRecipient(session) }
                             .disabled(!session.isEnabled)
                     }
                     ForEach(model.state.agents) { agent in
-                        recipient(agent.name, selected: model.state.selection.contains(agent.id)) { toggle(agent.id) }
-                            .disabled(model.route(agent) == nil || (nativeComparison?.members.contains { $0.id == agent.id } == false))
+                        recipient(agent.name, selected: model.state.selection.contains(agent.id)) {
+                            if let comparison = nativeComparison, !comparison.members.contains(where: { $0.id == agent.id }) {
+                                model.webBroadcastBusy = true
+                                Task { @MainActor in
+                                    defer { model.webBroadcastBusy = false }
+                                    await model.addAgent(agent, to: comparison.id)
+                                }
+                            } else { toggle(agent.id) }
+                        }
+                            .disabled(model.route(agent) == nil)
                             .help("Messages · \(agent.name)")
                     }
                 }
@@ -207,6 +215,43 @@ struct AgentsWorkspaceView: View {
             .accessibilityLabel("Recipient \(title)").accessibilityValue(selected ? "Selected" : "Not selected").disabled(busy)
     }
 
+    private func selectRecipient(_ session: WebAgentSession) {
+        guard !busy else { return }
+        guard let comparison = nativeComparison, !(comparison.webProviders ?? []).contains(session.provider) else {
+            web.toggle(session)
+            return
+        }
+        model.webBroadcastBusy = true
+        session.updateState { $0.selected = true }
+        session.connect()
+        Task { @MainActor in
+            defer { model.webBroadcastBusy = false }
+            _ = await join(session, comparisonID: comparison.id)
+        }
+    }
+
+    private func join(_ session: WebAgentSession, comparisonID: UUID) async -> Bool {
+        do {
+            try model.freezeSharedContext(comparisonID)
+            guard let saved = model.comparison(comparisonID), let i = model.index(comparisonID) else { return false }
+            guard saved.joiningContext().allSatisfy({ $0.attachments.isEmpty }) else {
+                model.error = "This conversation contains attachments. Add a Messages agent to share the full context."
+                session.updateState { $0.selected = false }
+                return false
+            }
+            guard await session.openComparison(comparisonID) else { return false }
+            // Save membership before sending so an interrupted join is never automatically repeated.
+            model.state.comparisons[i].webProviders = (saved.webProviders ?? []) + [session.provider]
+            try model.save()
+            let attempt = await session.send(saved.joiningPrompt(), comparisonID: comparisonID)
+            if attempt == nil || attempt?.status == .notSent {
+                model.state.comparisons[i].webProviders?.removeAll { $0 == session.provider }
+                try model.save()
+            }
+            return attempt?.status == .observed
+        } catch { model.error = error.localizedDescription; return false }
+    }
+
     private func toggle(_ id: UUID) {
         if model.state.selection.contains(id) { model.state.selection.remove(id) }
         else { model.state.selection.insert(id) }
@@ -215,11 +260,13 @@ struct AgentsWorkspaceView: View {
 
     private func send() {
         guard canSend else { return }
-        if web.selected.isEmpty && nativeComparison?.webProviders == nil {
+        if !showingComparison && web.selected.isEmpty {
             Task { await model.start() }
             return
         }
         let originalDraft = model.state.draft
+        let sentAttachments = attachments
+        let broadcastCreated = Date()
         let recipients = Set(nativeRecipients.map(\.id))
         let model = model
         let sessions = web.selected
@@ -241,12 +288,21 @@ struct AgentsWorkspaceView: View {
                 guard let id = await model.prepareWebComparison(originalDraft.trimmingCharacters(in: .whitespacesAndNewlines), recipientIDs: recipients, providers: sessions.map(\.provider)) else { return }
                 comparisonID = id
             }
+            if existingID != nil {
+                for session in sessions where model.comparison(comparisonID)?.webProviders?.contains(session.provider) != true {
+                    guard await join(session, comparisonID: comparisonID) else { return }
+                }
+            }
             if let i = model.index(comparisonID) {
                 let previous = model.state.comparisons[i].webProviders ?? []
                 model.state.comparisons[i].webProviders = WebProvider.allCases.filter { previous.contains($0) || sessions.map(\.provider).contains($0) }
                 do { try model.save() } catch { model.error = error.localizedDescription; return }
             }
-            _ = await AgentBroadcast.send(draft: originalDraft, currentDraft: { model.state.draft }, clearDraft: {
+            do { try model.freezeSharedContext(comparisonID) } catch { model.error = error.localizedDescription; return }
+            let allRecipients = model.comparison(comparisonID).map { comparison in
+                Set(comparison.webProviders ?? []) == Set(sessions.map(\.provider)) && Set(comparison.members.map(\.id)) == recipients
+            } ?? false
+            let result = await AgentBroadcast.send(draft: originalDraft, currentDraft: { model.state.draft }, clearDraft: {
                 model.state.draft = ""; model.persist()
             }, web: { text in
                 await WebAgents.send(text, to: sessions, comparisonID: comparisonID)
@@ -262,6 +318,25 @@ struct AgentsWorkspaceView: View {
                 await model.submit(comparisonID, retry: false)
                 return comparisonID
             })
+            if existingID != nil, allRecipients, !recipients.isEmpty, result.comparisonID == comparisonID,
+               result.web.count == sessions.count, result.web.values.allSatisfy({ $0.status == .observed }),
+               let i = model.index(comparisonID), let k = model.state.comparisons[i].followUps.indices.last {
+                model.state.comparisons[i].followUps[k].sharedWithAll = true
+                model.persist()
+            }
+            if existingID != nil, allRecipients,
+               result.web.values.allSatisfy({ $0.status == .observed }), result.web.count == sessions.count,
+               let i = model.index(comparisonID),
+               recipients.isEmpty || (result.comparisonID == comparisonID && model.state.comparisons[i].followUps.last.map({ followUp in
+                   Set(followUp.memberIDs) == recipients && recipients.allSatisfy { followUp.states[$0.uuidString] == .submitted }
+               }) == true) {
+                if let followUp = model.state.comparisons[i].followUps.last, !recipients.isEmpty {
+                    model.state.comparisons[i].recordSharedFollowUp(followUp)
+                } else {
+                    model.state.comparisons[i].recordSharedMessage(ConversationContextMessage(text: originalDraft.trimmingCharacters(in: .whitespacesAndNewlines), attachments: sentAttachments, created: broadcastCreated))
+                }
+                model.persist()
+            }
             web.setComparison(comparisonID)
         }
     }
@@ -278,6 +353,7 @@ struct AgentsWorkspaceView: View {
                 guard let created = await model.prepareWebComparison(text, recipientIDs: [], providers: [session.provider]) else { return }
                 id = created
             }
+            do { try model.freezeSharedContext(id) } catch { model.error = error.localizedDescription; return }
             guard let i = model.index(id) else { return }
             if model.state.comparisons[i].webProviders?.contains(session.provider) != true {
                 model.state.comparisons[i].webProviders = (model.state.comparisons[i].webProviders ?? []) + [session.provider]

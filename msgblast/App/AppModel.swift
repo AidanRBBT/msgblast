@@ -319,6 +319,27 @@ final class AppModel: ObservableObject {
             return comparison.id
         } catch { self.error = error.localizedDescription; return nil }
     }
+    func freezeSharedContext(_ id: UUID) throws {
+        guard let i = index(id) else { return }
+        let verified = Array(state.comparisons[i].joiningContext().dropFirst())
+        guard state.comparisons[i].sharedContext != verified else { return }
+        state.comparisons[i].sharedContext = verified
+        try save()
+    }
+    func addAgent(_ agent: Agent, to id: UUID) async {
+        guard let i = index(id), !busy, !state.comparisons[i].members.contains(where: { $0.id == agent.id }) else { return }
+        do {
+            try freezeSharedContext(id)
+            var member = try validateMembers(prompt: state.comparisons[i].prompt, selectedIDs: [agent.id])[0]
+            try RecipientSet.validate(state.comparisons[i].members + [member])
+            member.payload = state.comparisons[i].joiningPayload()
+            state.comparisons[i].members.append(member)
+            do { try save() } catch { state.comparisons[i].members.removeLast(); throw error }
+            state.selection.insert(agent.id)
+            try save()
+            await submit(id, retry: false, only: agent.id)
+        } catch { self.error = error.localizedDescription }
+    }
     func openWebComparison(_ id: UUID) {
         guard !webBroadcastBusy, let comparison = comparison(id) else { return }
         webAgents.setComparison(id)
@@ -348,12 +369,13 @@ final class AppModel: ObservableObject {
         let available = demo ? chats : try database?.chats() ?? []
         guard available.contains(where: { $0.id == chat.id && $0.eligible && ChatResolver.normalize($0.handle) == ChatResolver.normalize(chat.handle) }) else { throw AppFailure.blocked("The saved destination is no longer an eligible one-to-one Messages chat. Nothing was sent.") }
     }
-    func submit(_ id: UUID, retry: Bool) async {
+    func submit(_ id: UUID, retry: Bool, only memberID: UUID? = nil) async {
         guard let i = index(id), !busy else { return }
         do { try RecipientSet.validate(state.comparisons[i].members) } catch { self.error = error.localizedDescription; return }
         busy = true; defer { busy = false; refresh() }
         for j in state.comparisons[i].members.indices {
             let member = state.comparisons[i].members[j]
+            guard memberID == nil || member.id == memberID else { continue }
             guard retry ? member.submission.canRetry : member.submission == .ready else { continue }
             if let payload = member.payload {
                 _ = await deliver(payload, to: member.chat, simulateFailure: demo && demoFailureOnce && j == state.comparisons[i].members.count - 1) { updated in
@@ -445,6 +467,7 @@ final class AppModel: ObservableObject {
     }
     func followUp(_ id: UUID, only memberID: UUID? = nil, recipients recipientIDs: [UUID]? = nil, retry attemptID: UUID? = nil, resumeUnsent: Bool = false) async {
         guard let i = index(id), !busy else { return }
+        do { try freezeSharedContext(id) } catch { self.error = error.localizedDescription; return }
         let comparison = state.comparisons[i]
         let selected = recipientIDs.map(Set.init)
         var targets = comparison.members.filter { member in memberID.map { $0 == member.id } ?? selected?.contains(member.id) ?? true }
@@ -469,6 +492,7 @@ final class AppModel: ObservableObject {
             }
             if attemptID == nil {
                 var attempt = FollowUp(text: text, memberIDs: targets.map(\.id))
+                attempt.sharedWithAll = memberID == nil && comparison.webProviders == nil && Set(targets.map(\.id)) == Set(comparison.members.map(\.id))
                 for member in targets {
                     attempt.states[member.id.uuidString] = .ready
                     if !attachments.isEmpty {
@@ -511,6 +535,9 @@ final class AppModel: ObservableObject {
                     state.comparisons[i].followUps[k].errors[key] = error.localizedDescription; persist()
                 }
             }
+            try save()
+            let completed = state.comparisons[i].followUps[k]
+            state.comparisons[i].recordSharedFollowUp(completed)
             try save()
         } catch { self.error = error.localizedDescription }
         busy = false; refresh()
