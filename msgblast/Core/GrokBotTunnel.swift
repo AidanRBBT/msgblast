@@ -1,7 +1,7 @@
 import Foundation
 import Darwin
 
-/// Starts the existing open-source cloudflared helper only for the app's loopback receiver.
+/// Starts the bundled open-source cloudflared helper only for the app's loopback receiver.
 @MainActor
 public final class GrokBotTunnel {
     public private(set) var address: URL?
@@ -18,15 +18,15 @@ public final class GrokBotTunnel {
     public func start(localURL: URL) async throws -> URL {
         guard process == nil else { throw GrokBotServiceError.callbackUnavailable }
         guard localURL.scheme == "http", localURL.host == "127.0.0.1", localURL.port != nil else { throw GrokBotServiceError.callbackUnavailable }
-        let paths = [Bundle.main.url(forResource: "cloudflared", withExtension: nil)?.path, "/opt/homebrew/bin/cloudflared", "/usr/local/bin/cloudflared"].compactMap { $0 }
-        guard let executable = paths.first(where: { FileManager.default.isExecutableFile(atPath: $0) }) else { throw GrokBotServiceError.tunnelHelperMissing }
+        let executable = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/cloudflared")
+        guard FileManager.default.isExecutableFile(atPath: executable.path) else { throw GrokBotServiceError.tunnelHelperMissing }
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("msgblast-tunnel-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         let config = directory.appendingPathComponent("config.yml")
         try Data("{}\n".utf8).write(to: config)
         configurationDirectory = directory
         let process = Process(), output = Pipe()
-        process.executableURL = URL(fileURLWithPath: executable)
+        process.executableURL = executable
         process.arguments = ["tunnel", "--config", config.path, "--url", localURL.absoluteString, "--no-autoupdate", "--loglevel", "info", "--transport-loglevel", "error"]
         process.environment = ProcessInfo.processInfo.environment.filter { !$0.key.hasPrefix("TUNNEL_") && $0.key != "NO_AUTOUPDATE" }
         process.standardOutput = output; process.standardError = output

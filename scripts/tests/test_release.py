@@ -138,11 +138,14 @@ class ReleaseTests(unittest.TestCase):
         executable = helper / "Contents/MacOS/Installer"
         executable.parent.mkdir(parents=True)
         executable.write_bytes(bytes.fromhex("cffaedfe") + b"synthetic Mach-O")
+        tunnel = app / "Contents/Helpers/cloudflared"
+        tunnel.parent.mkdir()
+        tunnel.write_bytes(bytes.fromhex("cffaedfe") + b"synthetic tunnel helper")
         with patch.object(release, "run", return_value="") as run:
             release.sign_nested_code(options)
         commands = [call.args[0] for call in run.call_args_list]
         paths = [cmd[-1] for cmd in commands]
-        self.assertEqual(paths, [str(executable), str(helper), str(framework)])
+        self.assertEqual(paths, [str(executable), str(helper), str(framework), str(tunnel)])
         for cmd in commands:
             self.assertIn("--preserve-metadata=entitlements", cmd)
 
@@ -200,6 +203,11 @@ class ReleaseTests(unittest.TestCase):
                        if options.signing_mode == "ad-hoc" else options.output / "export/msgblast.app")
                 (app / "Contents/Frameworks/msgblastCore.framework").mkdir(parents=True)
                 (app / "Contents/Frameworks/Sparkle.framework").mkdir()
+                (app / "Contents/Helpers").mkdir()
+                (app / "Contents/Helpers/cloudflared").write_bytes(b"synthetic helper")
+                (app / "Contents/Resources").mkdir()
+                for name in ("cloudflared.json", "CloudflaredNotices.txt"):
+                    (app / "Contents/Resources" / name).write_text("synthetic notice")
                 info = {"CFBundleIdentifier": "com.msgblast.mac", "CFBundleName": "msgblast",
                         "CFBundleDisplayName": "msgblast", "CFBundleExecutable": "msgblast",
                         "CFBundleVersion": str(options.build), "CFBundleShortVersionString": options.version,
@@ -302,7 +310,7 @@ class ReleaseTests(unittest.TestCase):
             {"CFBundleExecutable": "WrongName"}, {"CFBundleVersion": "1"}, {"SUFeedURL": "https://wrong.example/feed.xml"},
             {"SURequireSignedFeed": False}, {"SUVerifyUpdateBeforeExtraction": False},
             {"msgblastDemo": True}, {"msgblastPermissionGuidePreview": True},
-            "missing core", "missing sparkle",
+            "missing core", "missing sparkle", "missing cloudflared", "missing helper manifest", "missing helper notices",
         ]
         for index, change in enumerate(changes):
             with self.subTest(change=change):
@@ -314,8 +322,16 @@ class ReleaseTests(unittest.TestCase):
                     if "-exportArchive" in cmd:
                         app = options.output / "export/msgblast.app"
                         if isinstance(change, str):
-                            name = "msgblastCore" if change == "missing core" else "Sparkle"
-                            shutil.rmtree(app / f"Contents/Frameworks/{name}.framework")
+                            missing = {
+                                "missing core": "Contents/Frameworks/msgblastCore.framework",
+                                "missing sparkle": "Contents/Frameworks/Sparkle.framework",
+                                "missing cloudflared": "Contents/Helpers/cloudflared",
+                                "missing helper manifest": "Contents/Resources/cloudflared.json",
+                                "missing helper notices": "Contents/Resources/CloudflaredNotices.txt",
+                            }
+                            path = app / missing[change]
+                            if path.is_dir(): shutil.rmtree(path)
+                            else: path.unlink()
                         else:
                             info_path = app / "Contents/Info.plist"
                             with info_path.open("rb") as file:

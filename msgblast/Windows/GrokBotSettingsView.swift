@@ -32,7 +32,6 @@ struct GrokBotSettingsView: View {
                     else if session.grokBotIsConfigured { Text("Connection saved").foregroundStyle(.secondary) }
                 }
                 Text("The webhook key is stored in macOS Keychain. Keep msgblast open and this Mac awake while waiting for replies.").font(.caption).foregroundStyle(.secondary)
-                Link("Install the open-source tunnel helper", destination: URL(string: "https://developers.cloudflare.com/tunnel/downloads/")!).font(.caption)
                 if session.hasPendingGrokBotRequests {
                     Text("Wait for pending replies before changing this connection.").font(.caption).foregroundStyle(.secondary)
                 }

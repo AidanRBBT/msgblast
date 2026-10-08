@@ -192,7 +192,7 @@ def instructions(variant):
             "use the blue msgblast Demo.app for fixtures and simulated demonstrations. It is not a fixture and can read real Messages. "
             "Grant this bundle Full Disk Access, Contacts, and Messages Automation. Those permissions belong to com.msgblast.development, "
             "do not transfer from com.msgblast.mac, and may need to be granted again after a rebuild because the ad-hoc code hash changes. "
-            "Preferences are the standard defaults for that bundle ID. There is no app keychain usage. "
+            "Preferences are the standard defaults for that bundle ID. Grok Bot credentials use this preview's separate Keychain scope. "
             "Saved state is in ~/Library/Application Support/msgblast-Dev." + shared)
 
 

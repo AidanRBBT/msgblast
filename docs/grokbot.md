@@ -4,10 +4,11 @@ Grok Bot is a separate optional agent from Grok's website. Its implementation li
 
 ## Connect once
 
-1. Install the open-source [cloudflared helper](https://github.com/cloudflare/cloudflared). With Homebrew: `brew install cloudflared`. msgblast detects `/opt/homebrew/bin/cloudflared` or `/usr/local/bin/cloudflared` and manages its process; do not start a separate tunnel.
-2. Open **msgblast → Settings → Grok Bot** and choose **Copy Bot setup instructions**. Paste those instructions into the particular Grok Bot you want to connect. This creates a webhook routine that receives the request and POSTs its answer back to msgblast.
-3. Open that routine on Grok Bot's desktop app and copy its **Webhook URL** and **Webhook key** into msgblast's Settings. Choose **Connect Grok Bot**. Credentials are stored in macOS Keychain; normal app state contains no webhook key or callback token.
-4. Select **Grok Bot** in Agents and send a shared prompt or a message in its native pane. Its answer appears in the same comparison. Each follow-up includes that comparison's local history.
+1. Open **msgblast → Settings → Grok Bot** and choose **Copy Bot setup instructions**. Paste those instructions into the particular Grok Bot you want to connect. This creates a webhook routine that receives the request and POSTs its answer back to msgblast.
+2. Open that routine on Grok Bot's desktop app and copy its **Webhook URL** and **Webhook key** into msgblast's Settings. Choose **Connect Grok Bot**. Credentials are stored in macOS Keychain; normal app state contains no webhook key or callback token.
+3. Select **Grok Bot** in Agents and send a shared prompt or a message in its native pane. Its answer appears in the same comparison. Each follow-up includes that comparison's local history.
+
+The open-source [cloudflared helper](https://github.com/cloudflare/cloudflared) is included in the app. There is no Homebrew installation or separate tunnel command to run.
 
 Connecting can take up to 90 seconds while the temporary address becomes reachable. An explicit webhook rejection keeps the request unsent and its draft intact; an unknown network result is not automatically retried.
 
@@ -20,6 +21,14 @@ The app opens an HTTP listener on a random port bound only to `127.0.0.1`. It la
 Each request gets a random 256-bit callback credential. Grok Bot receives it in the webhook payload and uses it in the callback's Authorization header. The app stores only its SHA-256 hash with the saved request ID. Responses are matched to the original comparison, saved locally before acknowledgement, and identical callback retries do not append a second answer. Prompt/history and reply bodies are capped at 128 KiB. Both the webhook URL and key stay in Keychain, isolated by app bundle and storage directory.
 
 Cloudflare relays the callback traffic, so this is not an end-to-end encrypted private connection between Grok Bot and the Mac. Request/reply processing and storage are in the app's inspectable Swift code; cloudflared is open source, while Cloudflare operates the relay network. The outbound prompt goes directly to Grok Bot.
+
+## Bundled helper
+
+Every Xcode app build downloads the official release pinned in `scripts/cloudflared.json`, verifies its SHA-256, and embeds the executable in `Contents/Helpers/cloudflared`. Downloads are cached in the target's derived build directory and checked again on reuse. The helper matches the app's architecture; universal builds combine the arm64 and x86_64 executables. It is signed with hardened runtime before the outer app is signed. Its version and source revision are included in `Contents/Resources/cloudflared.json`.
+
+The app always uses its bundled copy, disables cloudflared's self-update, and starts it only when Grok Bot is connected. Helper upgrades go through the normal app update process. It does not use or change a Homebrew copy, existing tunnels, or launch services.
+
+`CloudflaredNotices.txt` in the app's Resources contains the upstream Apache 2.0 license, Go runtime license, and dependency notices. Dependency notices were collected from the pinned source with `github.com/google/go-licenses/v2@v2.0.1 save ./cmd/cloudflared` for both Darwin architectures. To upgrade, update the pinned version/source/asset checksums, refresh those notices, and verify the packaged helper on each supported architecture.
 
 ## Availability and incomplete work
 

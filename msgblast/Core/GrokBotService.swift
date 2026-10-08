@@ -92,7 +92,7 @@ public enum GrokBotServiceError: LocalizedError, Equatable {
         case .unavailable: "The webhook result could not be confirmed. This request has not been resent."
         case .keychain: "Grok Bot's connection could not be saved or read in macOS Keychain."
         case .callbackUnavailable: "The reply connection is unavailable. Keep msgblast open and reconnect Grok Bot."
-        case .tunnelHelperMissing: "Install cloudflared to connect Grok Bot. msgblast will manage the tunnel while it is open."
+        case .tunnelHelperMissing: "The bundled tunnel helper is missing. Reinstall msgblast to connect Grok Bot."
         }
     }
     var definitelyNotSubmitted: Bool {
