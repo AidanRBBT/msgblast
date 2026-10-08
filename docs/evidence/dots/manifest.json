@@ -3,21 +3,41 @@
   "bundle_id": "com.msgblast.dots-fixture",
   "runtime_source_sha256": {
     "msgblast/Core/WebProvider.swift": "e17b9e88eac2b67122d6fea0f106f7f83d1d8112ab606d7ee6eee8c4ed41377c",
-    "msgblast/Core/WebServices.swift": "3f789be1ba900cac2ef722950e07e62e4f5ded29633717b05e16962fed3b83d2",
-    "msgblast/Core/WebAgentSession.swift": "69a51c961cec5512b696842d939572d4bb21c98d883a45b0c03874f1208ed9c2",
-    "msgblast/Core/WebPageScript.swift": "d0da2c2cc4fdb4ba1e3be63719d9e6feca797182ebeca4c5ba0f97541bc435b5",
-    "msgblast/Windows/WebServicesView.swift": "d4f34f2514b56ce2e596058e706fba02ef0d5502704603a4f45029636ff8307e"
+    "msgblast/Core/WebServices.swift": "82e260134bf3502558a590325c9abef28d664f1260028ab3e2400a2b57877c4a",
+    "msgblast/Core/WebAgentSession.swift": "7afe6365b1c54a5f0a6c11c66a0c5a82d757e4a8ca1cd409cdfc2f8123f2c1c6",
+    "msgblast/Core/WebPageScript.swift": "1b89bad08a94cb877808254fd3ebbdc048d34e33647c563e60e3f20b4297518f",
+    "msgblast/Windows/WebServicesView.swift": "81a08057982ebd19c3c27fcf1f47557a751d8e73e2f68a4ad8a2a37489d93c1d"
   },
   "fixture_icon_source": "output/icon-gradients/32-WhiteToClearSoftFadeBlue.icon",
   "compiled_icon_color": "blue",
   "website_content": "synthetic local Dots DOM, SVG avatar, and replies; no live sends",
-  "video_timing": "Six sampled native states held for about two seconds each, with the final state held longer; edited timing, not continuous footage.",
+  "video_timing": "Five current native states held for about two seconds each, with the final state held longer; edited timing, not continuous footage.",
   "verification": {
-    "native_core_tests_passed": 171,
+    "native_core_tests_passed": 195,
     "python_tests_passed": 74,
     "app_controller_and_lifecycle_fixtures": "passed"
   },
   "live_inspection": "read-only Dots DOM inspection; no live submissions or sign-out",
-  "development_version": "0.4.3",
-  "development_build": "1"
+  "development_version": "0.6.5",
+  "development_build": "1",
+  "notes_credit_capture": {
+    "image": "07-dots-contributor-credit.png",
+    "notes": "release-notes/0.6.5.md",
+    "notes_sha256": "542957cfff54c22d2c9c82cfa7363435961c0f086432d12313a5a115dbceaff9",
+    "mode": "functional Dev preview",
+    "version": "0.6.5",
+    "limitation": "Local development build; no release published."
+  },
+  "current_video_frames": [
+    "01-optional-picker.png",
+    "02-dots-selected.png",
+    "03-dots-reply.png",
+    "04-updated-avatar.png",
+    "07-dots-contributor-credit.png"
+  ],
+  "archived_reference_frames": [
+    "05-saved-avatar-picker.png",
+    "06-relaunch-avatar.png"
+  ],
+  "capture_limitation": "Mac locked before the final picker/relaunch refresh; those earlier images are not in current video."
 }

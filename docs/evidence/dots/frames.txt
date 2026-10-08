@@ -6,8 +6,6 @@ file '03-dots-reply.png'
 duration 2
 file '04-updated-avatar.png'
 duration 2
-file '05-saved-avatar-picker.png'
+file '07-dots-contributor-credit.png'
 duration 2
-file '06-relaunch-avatar.png'
-duration 2
-file '06-relaunch-avatar.png'
+file '07-dots-contributor-credit.png'
